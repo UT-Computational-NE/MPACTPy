@@ -19,17 +19,18 @@ jobs:
       with:
         python-version: 3.11
 
-    - name: Add conda to system path
-      run: |
-        # $CONDA is an environment variable pointing to the root of the miniconda directory
-        echo $CONDA/bin >> $GITHUB_PATH
+    - name: Set Up Conda
+      uses: conda-incubator/setup-miniconda@v2
+      with:
+        auto-update-conda: true
+        python-version: 3.11
+        channels: conda-forge
 
     - name: Install dependencies
       run: |
-        python -m pip install pylint pytest numpy
-        conda install -c conda-forge mamba
-        mamba search openmc
-        mamba install openmc
+        mamba create -n openmc-env -y python=3.11 openmc hdf5 mpi4py numpy scipy pandas -c conda-forge
+        echo "conda activate openmc-env" >> $GITHUB_ENV
+        python -m pip install pylint pytest
 
     - name: Install MPACTPy
       run: |
