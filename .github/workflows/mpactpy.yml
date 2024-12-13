@@ -9,44 +9,28 @@ on:
 jobs:
   build-linux:
     runs-on: ubuntu-latest
-    strategy:
-      max-parallel: 5
 
     steps:
     - uses: actions/checkout@v3
-    - name: Set up Python 3.11
-      uses: actions/setup-python@v3
-      with:
-        python-version: 3.11
 
-    - name: Set Up Conda
+    - name: Set Up Python and Conda
       uses: conda-incubator/setup-miniconda@v2
       with:
         auto-update-conda: true
         python-version: 3.11
         channels: conda-forge
 
-    - name: Set Up Mamba
+    - name: Set Up and Configure Environment
       run: |
         conda install -n base -y mamba -c conda-forge
-
-    - name: Install dependencies
-      run: |
         mamba create -n openmc-env -y python=3.11 openmc hdf5 mpi4py numpy scipy pandas -c conda-forge
-        echo "conda activate openmc-env" >> $GITHUB_ENV
+        source $(conda info --base)/etc/profile.d/conda.sh && conda activate openmc-env
         python -m pip install pylint pytest
 
-    - name: Install MPACTPy
+    - name: Install and Test MPACTPy
       run: |
+        source $(conda info --base)/etc/profile.d/conda.sh && conda activate openmc-env
         cd MPACTPy
         python -m pip install .[test]
-
-    - name: Lint with pylint
-      run: |
-        cd MPACTPy
         python -m pylint ./mpactpy
-
-    - name: Test with pytest
-      run: |
-        cd MPACTPy
         python -m pytest
