@@ -1,0 +1,74 @@
+[build-system]
+requires = ["setuptools >= 61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mpactpy"
+version = "0.1"
+authors = [
+  { name="Cole Gentry", email="cole.gentry@austin.utexas.edu" },
+]
+description = "A Python API for Neutronics Solver MPACT"
+readme = "README.md"
+keywords = []
+requires-python = ">=3.10"
+license = {text = "BSD-3-Clause"}
+classifiers = [
+    'Development Status :: 3 - Alpha',
+    'License :: OSI Approved :: A Python API for Neutronics Solver MPACT',
+    'Programming Language :: Python :: 3',
+    'Operating System :: OS Independent',
+]
+dependencies = [
+    "numpy>=1.24.0",
+    "openmc>=0.15.0,
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pylint",
+    "black",
+]
+test = [
+    "pytest",
+    "pylint",
+]
+
+[project.urls]
+Homepage = "https://github.com/UT-Computational-NE/MPACTPy"
+Issues = "https://github.com/UT-Computational-NE/MPACTPy/issues"
+
+[tool.pylint.'messages control']
+disable = [
+    "chained-comparison",
+    "broad-exception-raised",
+    "broad-exception-caught",
+    "dangerous-default-value",
+    "duplicate-code",
+    "eval-used",
+    "fixme",
+    "invalid-name",
+    "missing-module-docstring",
+    "missing-function-docstring",
+    "pointless-string-statement",
+    "redefined-outer-name",
+    "too-few-public-methods",
+    "too-many-lines",
+    "too-many-locals",
+    "too-many-branches",
+    "too-many-ancestors",
+    "too-many-arguments",
+    "too-many-statements",
+    "too-many-nested-blocks",
+    "too-many-instance-attributes",
+    "unspecified-encoding",
+    "unused-variable"
+]
+
+[tool.pylint.'format']
+max-line-length = 127
+
+[tool.black]
+line-length = 127
+

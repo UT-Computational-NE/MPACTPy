@@ -1,0 +1,50 @@
+name: MPACTPy Testing
+
+on:
+  push:
+  schedule:
+    # Run every day at 8:00 AM UTC (3:00 AM CDT)
+    - cron: '0 8 * * *'
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 5
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v3
+      with:
+        python-version: 3.10
+
+    - name: Add conda to system path
+      run: |
+        # $CONDA is an environment variable pointing to the root of the miniconda directory
+        echo $CONDA/bin >> $GITHUB_PATH
+
+    - name: Install dependencies
+      run: |
+        conda config --add channels conda-forge
+        conda create -n openmc-env
+        conda activate openmc-env
+        conda install mamba
+        mamba search openmc
+        mamba install openmc
+        python -m pip install pylint pytest numpy
+
+    - name: Install MPACTPy
+      run: |
+        cd MPACTPy
+        python -m pip install .[test]
+
+    - name: Lint with pylint
+      run: |
+        cd MPACTPy
+        python -m pylint ./mpactpy
+
+    - name: Test with pytest
+      run: |
+        cd MPACTPy
+        python -m pytest
