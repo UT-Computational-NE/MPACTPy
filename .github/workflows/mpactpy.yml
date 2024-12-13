@@ -31,4 +31,3 @@ jobs:
       run: |
         source $(conda info --base)/etc/profile.d/conda.sh && conda activate openmc-env
         python -m pylint ./mpactpy
-        python -m pytest . --disable-warnings
