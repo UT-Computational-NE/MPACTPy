@@ -26,13 +26,10 @@ jobs:
 
     - name: Install dependencies
       run: |
-        conda config --add channels conda-forge
-        conda create -n openmc-env
-        conda activate openmc-env
-        conda install mamba
+        python -m pip install pylint pytest numpy
+        conda install -c conda-forge mamba
         mamba search openmc
         mamba install openmc
-        python -m pip install pylint pytest numpy
 
     - name: Install MPACTPy
       run: |
