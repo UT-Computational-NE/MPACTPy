@@ -26,6 +26,10 @@ jobs:
         python-version: 3.11
         channels: conda-forge
 
+    - name: Set Up Mamba
+      run: |
+        conda install -n base -y mamba -c conda-forge
+
     - name: Install dependencies
       run: |
         mamba create -n openmc-env -y python=3.11 openmc hdf5 mpi4py numpy scipy pandas -c conda-forge
