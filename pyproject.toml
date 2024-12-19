@@ -62,7 +62,6 @@ disable = [
     "too-many-statements",
     "too-many-nested-blocks",
     "too-many-instance-attributes",
-    "too-many-positional-arguments",
     "unspecified-encoding",
     "unused-variable"
 ]
