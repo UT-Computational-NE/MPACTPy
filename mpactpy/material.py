@@ -238,7 +238,7 @@ class Material():
         return string
 
 
-#                             Is_Fluid  Is_Depletable  Has_Resonance_Data  Is_Fluid
+#                             Is_Fluid  Is_Depletable  Has_Resonance_Data  Is_Fuel
 VALID_MATERIAL_TYPES = [0, #     F            F                F              F
                         1, #     T            F                F              F
                         2, #     F            T                T              T
