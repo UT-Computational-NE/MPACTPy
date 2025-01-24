@@ -3,7 +3,7 @@ from typing import Dict, List, Optional, Any
 from math import isclose
 import openmc
 
-from mpactpy.utils import relative_round
+from mpactpy.utils import relative_round, ROUNDING_RELATIVE_TOLERANCE as TOL
 
 
 class Material():
@@ -97,26 +97,24 @@ class Material():
 
 
     def __eq__(self, other: Any) -> bool:
-        tol = 1E-5
         if self is other:
             return True
         return (isinstance(other, Material)                                           and
                 self.material_type == other.material_type                             and
-                isclose(self.density, other.density, rel_tol=tol)                     and
-                isclose(self.temperature, other.temperature, rel_tol=tol)             and
+                isclose(self.density, other.density, rel_tol=TOL)                     and
+                isclose(self.temperature, other.temperature, rel_tol=TOL)             and
                 self.number_densities.keys() == other.number_densities.keys()         and
                 self.thermal_scattering_isotopes == other.thermal_scattering_isotopes and
-                all(isclose(self.number_densities[iso], other.number_densities[iso], rel_tol=tol)
+                all(isclose(self.number_densities[iso], other.number_densities[iso], rel_tol=TOL)
                     for iso in self.number_densities.keys())
                 )
 
     def __hash__(self) -> int:
-        tol = 1E-5
-        number_densities = sorted({iso: relative_round(numd, tol)
+        number_densities = sorted({iso: relative_round(numd, TOL)
                                    for iso, numd in self.number_densities.items()})
         return hash((self.material_type,
-                     relative_round(self.density, tol),
-                     relative_round(self.temperature, tol),
+                     relative_round(self.density, TOL),
+                     relative_round(self.temperature, TOL),
                      tuple(number_densities),
                      tuple(self.thermal_scattering_isotopes)))
 
