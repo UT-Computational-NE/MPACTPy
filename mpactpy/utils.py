@@ -66,8 +66,9 @@ def allclose(rhs:  List[Union[float, int]],
         True if lists are element-wise approximately equal, False otherwise
     """
 
-    if len(rhs) != len(lhs): return False
-    return np.allclose(rhs, lhs)
+    if len(rhs) != len(lhs):
+        return False
+    return np.allclose(rhs, lhs, rtol, atol)
 
 
 def list_to_str(input_list: List[Union[float, int]], print_length: int = None) -> str:
@@ -90,8 +91,7 @@ def list_to_str(input_list: List[Union[float, int]], print_length: int = None) -
         if isinstance(num, float):
             if math.isclose(num, round(num)):
                 return f"{num:.1f}" if print_length is None else f"{num:{print_length}.1f}"
-            else:
-                return f"{num:.15g}" if print_length is None else f"{num:{print_length}.15g}"
+            return f"{num:.15g}" if print_length is None else f"{num:{print_length}.15g}"
         return f"{str(num)}" if print_length is None else f"{str(num):{print_length}}"
 
     return ' '.join(print_num(x, print_length) for x in input_list)

@@ -21,8 +21,8 @@ class PinMesh(ABC):
 
     Attributes
     ----------
-    id : int
-        The ID of the pinmesh
+    mpact_id : int
+        The MPACT ID of the pinmesh
     number_of_material_regions : int
         The total number of pinmesh material regions (i.e. cross-section regions) regardless
         of whether they fall within the bounds of the pinmesh or not
@@ -36,15 +36,21 @@ class PinMesh(ABC):
     regions_inside_bounds = List[int]
         The list of material regions that lie within the bounds of the pinmesh
     """
+    _mpact_id: int
+    _number_of_material_regions: int
+    _zvals: List[float]
+    _ndivz: List[int]
+    _pitch: Dict[str, float]
+    _regions_inside_bounds: List[int]
 
     @property
-    def id(self) -> int:
-        return self._id
+    def mpact_id(self) -> int:
+        return self._mpact_id
 
-    @id.setter
-    def id(self, id: int) -> None:
-        assert(id > 0), f"id = {id}"
-        self._id = id
+    @mpact_id.setter
+    def mpact_id(self, mpact_id: int) -> None:
+        assert(mpact_id > 0), f"mpact_id = {mpact_id}"
+        self._mpact_id = mpact_id
 
     @property
     def number_of_material_regions(self) -> int:
@@ -80,7 +86,6 @@ class PinMesh(ABC):
         str
             The string that represents the pin mesh
         """
-        pass
 
     def _set_axial_mesh(self, zvals: List[float] = None, ndivz: List[int] = None) -> None:
         """ A method for setting the axial meshing of a pinmesh
@@ -97,7 +102,7 @@ class PinMesh(ABC):
         assert all(val > 0. for val in zvals), f"zvals = {zvals}"
         assert all(zvals[i-1] < zvals[i] for i in range(1,len(zvals))), f"zvals = {zvals}"
         assert (len(ndivz) == len(zvals)), f"len(ndivz) = {len(ndivz)}, len(zvals) = {len(zvals)}"
-        assert all(val > 0 for val in ndivz), f""
+        assert all(val > 0 for val in ndivz), f"ndivz = {ndivz}"
 
         self._zvals = zvals
         self._ndivz = ndivz
@@ -107,19 +112,17 @@ class PinMesh(ABC):
     def _set_pitch(self) -> None:
         """ Method for setting the pinmesh pitches
         """
-        pass
+
 
     @abstractmethod
     def _set_number_of_material_regions(self) -> None:
         """ Method for setting the pinmesh number of material regions
         """
-        pass
 
     @abstractmethod
     def _set_regions_inside_bounds(self) -> None:
         """ Method for setting the material regions that are inside the pinmesh bounds
         """
-        pass
 
 class RectangularPinMesh(PinMesh):
     """  An MPACT model pin mesh made up of a 3-D rectilinear grid
@@ -156,13 +159,13 @@ class RectangularPinMesh(PinMesh):
 
 
     def __init__(self,
-                 xvals: List[float],
-                 yvals: List[float],
-                 zvals: List[float],
-                 ndivx: List[int],
-                 ndivy: List[int],
-                 ndivz: List[int],
-                 id: int = 1
+                 xvals:    List[float],
+                 yvals:    List[float],
+                 zvals:    List[float],
+                 ndivx:    List[int],
+                 ndivy:    List[int],
+                 ndivz:    List[int],
+                 mpact_id: int = 1
     ):
         assert len(xvals) > 0, f"len(xvals) = {len(xvals)}"
         assert len(yvals) > 0, f"len(yvals) = {len(yvals)}"
@@ -176,11 +179,11 @@ class RectangularPinMesh(PinMesh):
         assert all(val > 0 for val in ndivx), f"ndivx = {ndivx}"
         assert all(val > 0 for val in ndivy), f"ndivy = {ndivy}"
 
-        self.id     = id
-        self._xvals = xvals
-        self._yvals = yvals
-        self._ndivx = ndivx
-        self._ndivy = ndivy
+        self.mpact_id = mpact_id
+        self._xvals   = xvals
+        self._yvals   = yvals
+        self._ndivx   = ndivx
+        self._ndivy   = ndivy
 
         self._set_axial_mesh(zvals, ndivz)
         self._set_pitch()
@@ -203,20 +206,21 @@ class RectangularPinMesh(PinMesh):
 
     def __hash__(self) -> int:
         pitches = {key : relative_round(val, TOL) for key, val in self.pitch.items()}
-        return hash((tuple([relative_round(val, TOL) for val in self.xvals]),
-                     tuple([relative_round(val, TOL) for val in self.yvals]),
-                     tuple([relative_round(val, TOL) for val in self.zvals]),
-                     tuple([relative_round(val, TOL) for val in self.ndivx]),
-                     tuple([relative_round(val, TOL) for val in self.ndivy]),
-                     tuple([relative_round(val, TOL) for val in self.ndivz]),
+        return hash((tuple(relative_round(val, TOL) for val in self.xvals),
+                     tuple(relative_round(val, TOL) for val in self.yvals),
+                     tuple(relative_round(val, TOL) for val in self.zvals),
+                     tuple(relative_round(val, TOL) for val in self.ndivx),
+                     tuple(relative_round(val, TOL) for val in self.ndivy),
+                     tuple(relative_round(val, TOL) for val in self.ndivz),
                      tuple(sorted(pitches)),
                      self.number_of_material_regions))
 
     def write_to_string(self, prefix: str = "") -> str:
 
         string =  prefix
-        string += f"pinmesh {self.id} rec {list_to_str(self._xvals)} / {list_to_str(self._yvals)} / {list_to_str(self._zvals)} / "
-        string +=                  f"{list_to_str(self._ndivx)} / {list_to_str(self._ndivy)} / {list_to_str(self._ndivz)}\n"
+        string += f"pinmesh {self.mpact_id} rec {list_to_str(self._xvals)} / " \
+               +  f"{list_to_str(self._yvals)} / {list_to_str(self._zvals)} / " \
+               +  f"{list_to_str(self._ndivx)} / {list_to_str(self._ndivy)} / {list_to_str(self._ndivz)}\n"
 
         return string
 
@@ -283,16 +287,16 @@ class GeneralCylindricalPinMesh(PinMesh):
 
 
     def __init__(self,
-        r     : List[float],
-        xMin  : float,
-        xMax  : float,
-        yMin  : float,
-        yMax  : float,
-        zvals : List[float],
-        ndivr : List[int],
-        ndiva : List[int],
-        ndivz : List[int],
-        id: int = 1
+        r       : List[float],
+        xMin    : float,
+        xMax    : float,
+        yMin    : float,
+        yMax    : float,
+        zvals   : List[float],
+        ndivr   : List[int],
+        ndiva   : List[int],
+        ndivz   : List[int],
+        mpact_id: int = 1
     ):
         assert len(r) > 0, f"len(r) = {len(r)}"
         assert all(val > 0. for val in r), f"r = {r}"
@@ -303,14 +307,14 @@ class GeneralCylindricalPinMesh(PinMesh):
         assert all(val > 0 for val in ndivr), f"ndivr = {ndivr}"
         assert all(val > 0 for val in ndiva), f"ndiva = {ndiva}"
 
-        self.id     = id
-        self._r     = r
-        self._xMin  = xMin
-        self._xMax  = xMax
-        self._yMin  = yMin
-        self._yMax  = yMax
-        self._ndivr = ndivr
-        self._ndiva = ndiva
+        self.mpact_id = mpact_id
+        self._r       = r
+        self._xMin    = xMin
+        self._xMax    = xMax
+        self._yMin    = yMin
+        self._yMax    = yMax
+        self._ndivr   = ndivr
+        self._ndiva   = ndiva
 
         self._set_axial_mesh(zvals, ndivz)
         self._set_pitch()
@@ -340,19 +344,21 @@ class GeneralCylindricalPinMesh(PinMesh):
                      relative_round(self.xMax, TOL),
                      relative_round(self.yMin, TOL),
                      relative_round(self.yMax, TOL),
-                     tuple([relative_round(val, TOL) for val in self.r]),
-                     tuple([relative_round(val, TOL) for val in self.zvals]),
-                     tuple([relative_round(val, TOL) for val in self.ndivr]),
-                     tuple([relative_round(val, TOL) for val in self.ndiva]),
-                     tuple([relative_round(val, TOL) for val in self.ndivz]),
+                     tuple(relative_round(val, TOL) for val in self.r),
+                     tuple(relative_round(val, TOL) for val in self.zvals),
+                     tuple(relative_round(val, TOL) for val in self.ndivr),
+                     tuple(relative_round(val, TOL) for val in self.ndiva),
+                     tuple(relative_round(val, TOL) for val in self.ndivz),
                      tuple(sorted(pitches)),
                      self.number_of_material_regions))
 
     def write_to_string(self, prefix: str = "") -> str:
 
         string = prefix
-        string += f"pinmesh {self.id} gcyl {list_to_str(self._r_inside_bounds)} / {self._xMin} {self._xMax} {self._yMin} {self._yMax} / "
-        string += f"{list_to_str(self._zvals)} / {list_to_str(self._ndivr_inside_bounds)} / {list_to_str(self._ndiva_inside_bounds)} / {list_to_str(self._ndivz)}\n"
+        string += f"pinmesh {self.mpact_id} gcyl {list_to_str(self._r_inside_bounds)} / " \
+               +  f"{self._xMin} {self._xMax} {self._yMin} {self._yMax} / " \
+               +  f"{list_to_str(self._zvals)} / {list_to_str(self._ndivr_inside_bounds)} / " \
+               +  f"{list_to_str(self._ndiva_inside_bounds)} / {list_to_str(self._ndivz)}\n"
 
         return string
 
@@ -367,7 +373,8 @@ class GeneralCylindricalPinMesh(PinMesh):
 
     def _set_regions_inside_bounds(self) -> None:
 
-        corners = [hypot(self.xMin, self.yMin), hypot(self.xMin, self.yMax), hypot(self.xMax, self.yMin), hypot(self.xMax, self.yMax)]
+        corners = [hypot(self.xMin, self.yMin), hypot(self.xMin, self.yMax),
+                   hypot(self.xMax, self.yMin), hypot(self.xMax, self.yMax)]
 
         def circle_encloses_box(r):
             return all(corner < r for corner in corners)
@@ -382,7 +389,7 @@ class GeneralCylindricalPinMesh(PinMesh):
         radii_inside_bounds = [i for i,r in enumerate(self.r)
                                if box_overlaps_circle(r) and not circle_encloses_box(r)]
 
-        assert radii_inside_bounds, f"No radii found within bounds of PinMesh: {self.id}"
+        assert radii_inside_bounds, f"No radii found within bounds of PinMesh: {self.mpact_id}"
 
         self._r_inside_bounds       = [self._r[i] for i in radii_inside_bounds]
         self._ndivr_inside_bounds   = [self._ndivr[i] for i in radii_inside_bounds]

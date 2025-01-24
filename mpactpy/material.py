@@ -48,7 +48,7 @@ class Material():
 
     @mpact_id.setter
     def mpact_id(self, mpact_id: int) -> None:
-        assert mpact_id > 0
+        assert mpact_id > 0, f"mpact_id = {mpact_id}"
         self._mpact_id = mpact_id
 
     @property
@@ -82,11 +82,13 @@ class Material():
 
         thermal_scattering_isotopes = [] if thermal_scattering_isotopes is None else thermal_scattering_isotopes
 
-        assert material_type in VALID_MATERIAL_TYPES
-        assert density >= 0.
-        assert temperature >= 0.
-        assert all(number_dens >= 0. for number_dens in number_densities.values())
-        assert all(iso in number_densities for iso in thermal_scattering_isotopes)
+        assert material_type in VALID_MATERIAL_TYPES, f"material_type = {material_type}"
+        assert density >= 0., f"density = {density}"
+        assert temperature >= 0., f"temperature = {temperature}"
+        assert all(number_dens >= 0. for number_dens in number_densities.values()), \
+            f"number_densities = {number_densities}"
+        assert all(iso in number_densities for iso in thermal_scattering_isotopes), \
+            f"thermal_scattering_isotopes = {thermal_scattering_isotopes}"
 
         self.mpact_id                     = mpact_id
         self._material_type               = material_type
@@ -151,8 +153,8 @@ class Material():
             The MPACT Model material created from the OpenMC Material
         """
 
-        assert material_type in VALID_MATERIAL_TYPES
-        assert material.density_units in ['g/cc', 'g/cm3']
+        assert material_type in VALID_MATERIAL_TYPES, f"material_type = {material_type}"
+        assert material.density_units in ['g/cc', 'g/cm3'], f"density_units = {material.density_units}"
 
         number_densities = {}
         for iso in thermal_scattering_isotopes:
