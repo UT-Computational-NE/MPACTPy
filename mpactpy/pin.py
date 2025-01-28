@@ -1,0 +1,189 @@
+from __future__ import annotations
+from typing import Dict, List, Any, Union
+from math import isclose
+from copy import deepcopy
+
+from mpactpy.material import Material
+from mpactpy.pinmesh import PinMesh
+from mpactpy.utils import list_to_str, unique
+
+
+class Pin():
+    """ Pin of an MPACT model
+
+    Attributes
+    ----------
+    mpact_id : int
+        The ID for the pin
+    pinmesh : PinMesh
+        The pin mesh associated with this pin
+    materials : List[Material]
+        The materials used in each pin XSR. The number of
+        entries must be equal to the number of uniform
+        material regions defined in the pin mesh
+    pitch : Dict[str, float]
+        The pitch of the pin in each axis direction (keys: 'X', 'Y', 'Z') (cm)
+    """
+
+    @property
+    def mpact_id(self) -> int:
+        return self._mpact_id
+
+    @mpact_id.setter
+    def mpact_id(self, mpact_id: int) -> None:
+        assert(mpact_id > 0), f"mpact_id = {mpact_id}"
+        self._mpact_id = mpact_id
+
+    @property
+    def pinmesh(self) -> PinMesh:
+        return self._pinmesh
+
+    @property
+    def materials(self) -> List[Material]:
+        return self._materials
+
+    @property
+    def pitch(self) -> Dict[str, float]:
+        return self._pinmesh.pitch
+
+    def __init__(self, pinmesh: PinMesh, materials: List[Material], mpact_id: int = 1):
+        assert(len(materials) == pinmesh.number_of_material_regions), \
+            f"len(materials) = {len(materials)}, " + \
+            f"pinmesh.number_of_material_regions = {pinmesh.number_of_material_regions}"
+
+        self.mpact_id   = mpact_id
+        self._pinmesh   = deepcopy(pinmesh)
+        self._materials = deepcopy(materials)
+
+    def __eq__(self, other: Any) -> bool:
+        if self is other:
+            return True
+        return (isinstance(other, Pin)            and
+                self.pinmesh   == other.pinmesh   and
+                self.materials == other.materials
+               )
+
+    def __hash__(self) -> int:
+        return hash((self.pinmesh,
+                     tuple(self.materials)))
+
+    def write_to_string(self, prefix: str = "") -> str:
+        """ Method for writing a pin to a string
+
+        Parameter
+        ---------
+        prefix : str
+            A prefix with which to start each line of the written output string
+
+        Returns
+        -------
+        str
+            The string that represents the pin
+        """
+
+        materials = [self.materials[i].mpact_id for i in self.pinmesh.regions_inside_bounds]
+        string = prefix + f"pin {self.mpact_id} {self.pinmesh.mpact_id} / {list_to_str(materials)}\n"
+        return string
+
+    def set_unique_elements(self, other_pinmeshes: List[PinMesh], other_materials: List[Material]) -> None:
+        """ Determines and sets the unique elements of the pin
+
+        Parameters
+        ----------
+        other_pinmeshes : List[PinMesh]
+            The pinmeshes from other pins which should be considered as already defined
+        other_pinmeshes : List[PinMesh]
+            The materials from other pins which should be considered as already defined
+        """
+
+        # NOTE: To get the ordering correct, other_pinmeshes must by left-hand-side added to the pinmesh of this pin
+        already_defined_pinmeshes = other_pinmeshes + [self.pinmesh]
+        already_defined_pinmeshes = {pinmesh: i+1 for i, pinmesh in enumerate(unique(already_defined_pinmeshes))}
+        for pinmesh, mpact_id in already_defined_pinmeshes.items():
+            pinmesh.mpact_id = mpact_id
+
+        self._pinmesh = next(pinmesh for pinmesh in already_defined_pinmeshes if self.pinmesh == pinmesh)
+
+        # NOTE: To get the ordering correct, other_materials must by left-hand-side added to the materials of this pin
+        already_defined_materials = other_materials + self.materials
+        already_defined_materials = {material: i+1 for i, material in enumerate(unique(already_defined_materials))}
+        for material, mpact_id in already_defined_materials.items():
+            material.mpact_id = mpact_id
+
+        self._materials = [next(material for material in already_defined_materials if self_material == material)
+                           for self_material in self.materials]
+
+
+    def get_axial_slice(self, start_pos: float, stop_pos: float) -> Union[Pin, None]:
+        """ Method for creating a new Pin from an axial slice of this Pin
+
+        Parameters
+        ----------
+        start_pos : float
+            The starting axial position of the slice
+        stop_pos : float
+            The stopping axial position of the slice
+
+        Returns
+        -------
+        Union[Pin, None]
+            The new Pin created from the axial slice, or None if the axial slice is outside the Pin bounds
+        """
+
+        assert stop_pos > start_pos, f"start_pos = {start_pos}, stop_pos = {stop_pos}"
+
+        if stop_pos  <= 0.              or isclose(stop_pos,  0.) or \
+           start_pos >= self.pitch["Z"] or isclose(start_pos, self.pitch["Z"]):
+            return None
+
+        start_pos = max(0,               start_pos)
+        stop_pos  = min(self.pitch["Z"], stop_pos)
+
+        zvals, ndivz, indices = [], [], []
+        for i, (zval, ndiv) in enumerate(zip(self.pinmesh.zvals, self.pinmesh.ndivz)):
+            if zval > start_pos or isclose(zval, start_pos):
+                slice_zval = min(zval, stop_pos) - start_pos
+                zvals.append(slice_zval)
+                ndivz.append(max(1, int(ndiv*slice_zval/zval)))
+                indices.append(i)
+                if zval > stop_pos or isclose(zval, stop_pos):
+                    break
+
+        pinmesh = deepcopy(self.pinmesh)
+        pinmesh.set_axial_mesh(zvals, ndivz)
+
+        num_mats_per_axial = int((self.pinmesh.number_of_material_regions) / len(self.pinmesh.zvals))
+        materials = [material for i in indices
+                     for material in self.materials[(i)*num_mats_per_axial : (i)*num_mats_per_axial + num_mats_per_axial]]
+
+        return Pin(pinmesh, materials)
+
+    def axial_merge(self, pin: Pin) -> Pin:
+        """ Method for axially merging a pin with this pin
+
+        Parameters
+        ----------
+        pin : Pin
+            The pin to axially merge with this pin
+
+        Returns
+        -------
+        Pin
+            The new combined pin
+        """
+
+        pinmesh_template = deepcopy(self.pinmesh)
+        pinmesh_template.set_axial_mesh(pin.pinmesh.zvals, pin.pinmesh.ndivz)
+
+        assert pin.pinmesh == pinmesh_template, "Pin meshes of the two pins must have the same radial specifications"
+
+        zvals  = self.pinmesh.zvals[:]
+        zvals += [zval + zvals[-1] for zval in pin.pinmesh.zvals]
+
+        ndivz  = self.pinmesh.ndivz[:]
+        ndivz += pin.pinmesh.ndivz[:]
+
+        pinmesh_template.set_axial_mesh(zvals, ndivz)
+
+        materials = self.materials + pin.materials
+        return Pin(pinmesh_template, materials)
