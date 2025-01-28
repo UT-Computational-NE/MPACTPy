@@ -62,8 +62,8 @@ def test_rectangular_pinmesh_hash(rectangular_pinmesh,
     assert hash(rectangular_pinmesh) != hash(unequal_rectangular_pinmesh)
 
 def test_rectangular_pinmesh_write_to_string(rectangular_pinmesh):
-    output = rectangular_pinmesh.write_to_string(prefix="test ")
-    expected_output = "test pinmesh 1 rec 1.0 2.0 3.0 / 1.0 2.0 3.0 / 1.0 2.0 3.0 / 10 10 10 / 10 10 10 / 5 5 5\n"
+    output = rectangular_pinmesh.write_to_string(prefix="  ")
+    expected_output = "  pinmesh 1 rec 1.0 2.0 3.0 / 1.0 2.0 3.0 / 1.0 2.0 3.0 / 10 10 10 / 10 10 10 / 5 5 5\n"
     assert output == expected_output
 
 

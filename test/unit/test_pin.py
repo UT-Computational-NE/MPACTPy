@@ -38,8 +38,8 @@ def test_pin_hash(pin, equal_pin, unequal_pin):
     assert hash(pin) != hash(unequal_pin)
 
 def test_pin_write_to_string(pin):
-    output = pin.write_to_string(prefix="test ")
-    expected_output = "test pin 1 1 / 1 1 1 1 1 1 1 1 1\n"
+    output = pin.write_to_string(prefix="  ")
+    expected_output = "  pin 1 1 / 1 1 1 1 1 1 1 1 1\n"
     assert output == expected_output
 
 def test_pin_set_unique_elements(material, pinmesh):
