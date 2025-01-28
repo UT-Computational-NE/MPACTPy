@@ -12,7 +12,7 @@ def material():
     dens             = 10.0
     temp             = 300.0
     numd             = {"U235": 1e-3, "H": 2e-3}
-    mpact_id         = 42
+    mpact_id         = 1
     thermal_scat_iso = ["H"]
     return Material(mat_type, dens, temp, numd, mpact_id, thermal_scat_iso)
 
@@ -22,7 +22,7 @@ def equal_material():
     dens             = 10.0*(1+TOL)
     temp             = 300.0*(1-TOL)
     numd             = {"U235": 1e-3*(1+TOL), "H": 2e-3*(1-TOL)}
-    mpact_id         = 42
+    mpact_id         = 1
     thermal_scat_iso = ["H"]
     return Material(mat_type, dens, temp, numd, mpact_id, thermal_scat_iso)
 
@@ -32,13 +32,13 @@ def unequal_material():
     dens             = 5.0
     temp             = 300.0
     numd             = {"U235": 1e-3, "H": 2e-3}
-    mpact_id         = 42
+    mpact_id         = 1
     thermal_scat_iso = ["H"]
     return Material(mat_type, dens, temp, numd, mpact_id, thermal_scat_iso)
 
 
 def test_material_initialization(material):
-    assert material.mpact_id == 42
+    assert material.mpact_id == 1
     assert material.material_type == 1
     assert isclose(material.density, 10.0)
     assert isclose(material.temperature, 300.0)
@@ -80,7 +80,7 @@ def test_isotope_MPACT_ID():
 
 def test_material_write_to_string(material):
     output = material.write_to_string(prefix="  ")
-    expected_output = ("  mat 42 1 10.0 g/cc 300.0 K \\\n"
+    expected_output = ("  mat 1 1 10.0 g/cc 300.0 K \\\n"
                        "    1001 0.002\n"
                        "    92235 0.001\n")
     assert output == expected_output
