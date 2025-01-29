@@ -109,7 +109,7 @@ class Module():
 
     def __hash__(self) -> int:
         return hash((self.nz,
-                     tuple([tuple(row) for row in self.pin_map])))
+                     tuple(tuple(row) for row in self.pin_map)))
 
     def write_to_string(self, prefix: str = "") -> str:
         """ Method for writing a module to a string

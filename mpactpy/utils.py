@@ -114,12 +114,12 @@ def unique(elements: List[T]) -> List[T]:
     return list(dict.fromkeys(elements))
 
 
-def is_rectangular(map: List[List[T]]) -> bool:
+def is_rectangular(map_2D: List[List[T]]) -> bool:
     """ A helper function for checking whether or not a 2D map of elements is rectangular or not
 
     Parameters
     ----------
-    map : List[List[T]]
+    map_2D : List[List[T]]
         The 2D Map to be checked
 
     Returns
@@ -127,7 +127,4 @@ def is_rectangular(map: List[List[T]]) -> bool:
     True if the 2D Map is rectangular, False otherwise
     """
 
-    if len(map)    == 0:                                           return False
-    if len(map[0]) == 0:                                           return False
-    if any([len(map[i]) != len(map[0]) for i in range(len(map))]): return False
-    return True
+    return bool(map_2D and map_2D[0]) and all(len(row) == len(map_2D[0]) for row in map_2D)
