@@ -160,18 +160,22 @@ class Assembly():
             The lattices from other assemblies which should be considered as already defined
         """
         # NOTE: To get the ordering correct, other_lattices must by left-hand-side added to the map list
-        already_defined_lattices  = unique(other_lattices + self.lattice_map)
-        already_defined_modules   = unique([module for lattice in already_defined_lattices for module in lattice.modules])
+        already_defined_lattices = other_lattices + self.lattice_map
+        already_defined_lattices = {lattice: i+1 for i, lattice in enumerate(unique(already_defined_lattices))}
+        for lattice, mpact_id in already_defined_lattices.items():
+            lattice.mpact_id = mpact_id
 
-        for i, _ in enumerate(self.lattice_map):
-            self.lattice_map[i].set_unique_elements(already_defined_modules)
-            self._lattice_map[i] = next(lattice for lattice in already_defined_lattices if self.lattice_map[i] == lattice)
-
-        self._lattices  = unique(self.lattice_map)
-        self._modules   = unique([module for lattice in self.lattices for module in lattice.modules])
-        self._pins      = unique([pin for module in self.modules for pin in module.pins])
+        self._lattices  = list(already_defined_lattices)
+        self._modules   = unique([module for lattice in self.lattices for row in lattice.module_map for module in row])
+        self._pins      = unique([pin for module in self.modules for row in module.pin_map for pin in row])
         self._pinmeshes = unique([pin.pinmesh for pin in self.pins])
         self._materials = unique([material for pin in self.pins for material in pin.materials])
+        for lattice in self.lattices:
+            lattice.set_unique_elements(self.modules)
+
+        for i, _ in enumerate(self.lattice_map):
+            self._lattice_map[i] = next(lattice for lattice in self.lattices if self.lattice_map[i] == lattice)
+
 
 
     def get_axial_slice(self, start_pos: float, stop_pos: float) -> Assembly:
