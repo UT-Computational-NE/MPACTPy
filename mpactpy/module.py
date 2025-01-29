@@ -143,18 +143,20 @@ class Module():
             The pins from other modules which should be considered as already defined
         """
         # NOTE: To get the ordering correct, other_pins must by left-hand-side added to the map list
-        already_defined_pins      = unique(other_pins + [pin for row in self.pin_map for pin in row])
-        already_defined_pinmeshes = unique([pin.pinmesh for pin in already_defined_pins])
-        already_defined_materials = unique([material for pin in already_defined_pins for material in pin.materials])
+        already_defined_pins = other_pins + [pin for row in self.pin_map for pin in row]
+        already_defined_pins = {pin: i+1 for i, pin in enumerate(unique(already_defined_pins))}
+        for pin, mpact_id in already_defined_pins.items():
+            pin.mpact_id = mpact_id
+
+        self._pins      = list(already_defined_pins)
+        self._pinmeshes = unique([pin.pinmesh for pin in self.pins])
+        self._materials = unique([material for pin in self.pins for material in pin.materials])
+        for pin in self.pins:
+            pin.set_unique_elements(self.pinmeshes, self.materials)
 
         for i, _ in enumerate(self.pin_map):
             for j, _ in enumerate(self.pin_map[i]):
-                self.pin_map[i][j].set_unique_elements(already_defined_pinmeshes, already_defined_materials)
-                self._pin_map[i][j] = next(pin for pin in already_defined_pins if self.pin_map[i][j] == pin)
-
-        self._pins      = unique([pin for row in self.pin_map for pin in row])
-        self._pinmeshes = unique([pin.pinmesh for pin in self.pins])
-        self._materials = unique([material for pin in self.pins for material in pin.materials])
+                self._pin_map[i][j] = next(pin for pin in self.pins if self.pin_map[i][j] == pin)
 
 
     def get_axial_slice(self, start_pos: float, stop_pos: float) -> Module:
