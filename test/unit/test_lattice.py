@@ -61,8 +61,7 @@ def test_lattice_set_unique_elements(module):
 
 def test_lattice_get_axial_slice(lattice):
     lattice_slice = lattice.get_axial_slice(0.5, 1.5)
-    module_slice  = lattice_slice.modules[-1]
-    pin_slice     = module_slice.pins[-1]
+    pin_slice     = lattice_slice.pins[-1]
 
     assert pin_slice.pinmesh.number_of_material_regions == 8
     assert pin_slice.pinmesh.regions_inside_bounds == [0, 1, 2, 4, 5, 6]
