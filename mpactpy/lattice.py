@@ -142,19 +142,22 @@ class Lattice():
             The modules from other lattices which should be considered as already defined
         """
         # NOTE: To get the ordering correct, other_modules must by left-hand-side added to the map list
-        already_defined_modules   = unique(other_modules + [module for row in self.module_map for module in row])
-        already_defined_pins      = unique([pin for module in already_defined_modules for pin in module.pins])
+        already_defined_modules = other_modules + [module for row in self.module_map for module in row]
+        already_defined_modules = {module: i+1 for i, module in enumerate(unique(already_defined_modules))}
+        for module, mpact_id in already_defined_modules.items():
+            module.mpact_id = mpact_id
+
+        self._modules   = list(already_defined_modules)
+        self._pins      = unique([pin for module in self.modules for row in module.pin_map for pin in row])
+        self._pinmeshes = unique([pin.pinmesh for pin in self.pins])
+        self._materials = unique([material for pin in self.pins for material in pin.materials])
+        for module in self.modules:
+            module.set_unique_elements(self.pins)
 
         for i, _ in enumerate(self.module_map):
             for j, _ in enumerate(self.module_map[i]):
-                self.module_map[i][j].set_unique_elements(already_defined_pins)
-                self._module_map[i][j] = next(module for module in already_defined_modules
-                                              if self.module_map[i][j] == module)
+                self._module_map[i][j] = next(module for module in self.modules if self.module_map[i][j] == module)
 
-        self._modules   = unique([module for row in self.module_map for module in row])
-        self._pins      = unique([pin for module in self.modules for pin in module.pins])
-        self._pinmeshes = unique([pin.pinmesh for pin in self.pins])
-        self._materials = unique([material for pin in self.pins for material in pin.materials])
 
     def get_axial_slice(self, start_pos: float, stop_pos: float) -> Lattice:
         """ Method for creating a new Lattice from an axial slice of this Lattice
