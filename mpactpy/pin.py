@@ -79,8 +79,12 @@ class Pin():
             The string that represents the pin
         """
 
-        materials = [material_mpact_ids[self.materials[i]] for i in self.pinmesh.regions_inside_bounds]
-        string = prefix + f"pin {pin_mpact_ids[self]} {pinmesh_mpact_ids[self.pinmesh]} / {list_to_str(materials)}\n"
+        material_ids = [material_mpact_ids[material] if material_mpact_ids is not None else i
+                        for i, material in enumerate(self.materials)]
+        pin_id = 1 if pin_mpact_ids is None else pin_mpact_ids[self]
+
+        materials = [material_ids[i] for i in self.pinmesh.regions_inside_bounds]
+        string = prefix + f"pin {pin_id} {pinmesh_mpact_ids[self.pinmesh]} / {list_to_str(materials)}\n"
         return string
 
     def get_axial_slice(self, start_pos: float, stop_pos: float) -> Union[Pin, None]:
