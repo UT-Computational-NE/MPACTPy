@@ -60,9 +60,9 @@ def test_core_hash(core, equal_core, unequal_core):
 def test_core_write_to_string(core):
     output = core.write_to_string(prefix="  ")
     expected_output = "  core\n" + \
-                      "      1  \n" + \
+                      "      1\n" + \
                       "    1 1 1\n" + \
-                      "      1  \n"
+                      "      1\n"
     assert output == expected_output
 
 def test_core_set_unique_elements(assembly):

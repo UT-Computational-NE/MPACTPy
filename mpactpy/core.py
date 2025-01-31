@@ -167,7 +167,7 @@ class Core():
         string += "\n"
         for row in self.assembly_map:
             assemblies = [assembly.mpact_id if assembly is not None else "" for assembly in row]
-            string += prefix + f"  {list_to_str(assemblies, id_length)}\n"
+            string += prefix + f"  {list_to_str(assemblies, id_length).rstrip()}\n"
         return string
 
     def set_unique_elements(self, other_assemblies: List[Assembly] = []) -> None:
