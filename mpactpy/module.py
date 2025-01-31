@@ -25,7 +25,7 @@ class Module():
     """
 
     class Pitch(TypedDict):
-        """ A Typed Dictionary class for Pin Pitches
+        """ A Typed Dictionary class for Module Pitches
         """
         X: float
         Y: float
