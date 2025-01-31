@@ -3,7 +3,7 @@ from typing import Dict, List, Any
 from math import isclose
 
 from mpactpy.pin import Pin
-from mpactpy.utils import list_to_str, is_rectangular
+from mpactpy.utils import list_to_str, is_rectangular, unique
 
 
 class Module():
@@ -106,9 +106,15 @@ class Module():
             The string that represents the module
         """
 
+        if pin_mpact_ids is None:
+            pins = unique(pin for row in self.pin_map for pin in row)
+            pin_mpact_ids = {pin: i for i, pin in enumerate(pins)}
+
+        module_id = 1 if module_mpact_ids is None else module_mpact_ids[self]
+
         id_length = max(len(str(pin_mpact_ids[pin])) for row in self.pin_map for pin in row)
 
-        string = prefix + f"module {module_mpact_ids[self]} {self.nx} {self.ny} {self.nz}\n"
+        string = prefix + f"module {module_id} {self.nx} {self.ny} {self.nz}\n"
         for row in self.pin_map:
             pins = [pin_mpact_ids[pin] for pin in row]
             string += prefix + prefix + f"{list_to_str(pins, id_length)}\n"

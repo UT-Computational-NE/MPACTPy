@@ -5,7 +5,7 @@ from copy import deepcopy
 
 from mpactpy.material import Material
 from mpactpy.pinmesh import PinMesh
-from mpactpy.utils import list_to_str
+from mpactpy.utils import list_to_str, unique
 
 
 class Pin():
@@ -79,8 +79,15 @@ class Pin():
             The string that represents the pin
         """
 
+        if material_mpact_ids is None:
+            materials = unique(material for material in self.materials)
+            material_mpact_ids = {material: i for i, material in enumerate(materials)}
+
+        pinmesh_id = 1 if pinmesh_mpact_ids is None else pinmesh_mpact_ids[self.pinmesh]
+        pin_id     = 1 if pin_mpact_ids     is None else pin_mpact_ids[self]
+
         materials = [material_mpact_ids[self.materials[i]] for i in self.pinmesh.regions_inside_bounds]
-        string = prefix + f"pin {pin_mpact_ids[self]} {pinmesh_mpact_ids[self.pinmesh]} / {list_to_str(materials)}\n"
+        string = prefix + f"pin {pin_id} {pinmesh_id} / {list_to_str(materials)}\n"
         return string
 
     def get_axial_slice(self, start_pos: float, stop_pos: float) -> Union[Pin, None]:
