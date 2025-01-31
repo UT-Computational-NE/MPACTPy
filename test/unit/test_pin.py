@@ -37,22 +37,13 @@ def test_pin_hash(pin, equal_pin, unequal_pin):
     assert hash(pin) == hash(equal_pin)
     assert hash(pin) != hash(unequal_pin)
 
-def test_pin_write_to_string(pin):
-    output = pin.write_to_string(prefix="  ")
-    expected_output = "  pin 1 1 / 1 1 1 1 1 1 1 1 1\n"
+def test_pin_write_to_string(pin, pinmesh, material):
+    output = pin.write_to_string(prefix="  ",
+                                 material_mpact_ids={material: 3},
+                                 pinmesh_mpact_ids={pinmesh: 2},
+                                 pin_mpact_ids={pin: 1})
+    expected_output = "  pin 1 2 / 3 3 3 3 3 3 3 3 3\n"
     assert output == expected_output
-
-def test_pin_set_unique_elements(material, pinmesh):
-    materials = [material for _ in range(pinmesh.number_of_material_regions)]
-    pin = Pin(pinmesh, materials)
-
-    other_material = material
-    other_pinmesh  = pinmesh
-    pin.set_unique_elements([other_pinmesh], [other_material])
-
-    assert pin.pinmesh is other_pinmesh
-    assert all([mat is other_material for mat in pin.materials])
-
 
 def test_pin_get_axial_slice(pin):
     pin_slice = pin.get_axial_slice(0.5, 1.5)
