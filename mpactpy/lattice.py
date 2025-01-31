@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List, Any
+from typing import Dict, List, Any, TypedDict
 from math import isclose
 
 from mpactpy.module import Module
@@ -15,13 +15,27 @@ class Lattice():
         Number of modules along the x-dimension
     ny : int
         Number of modules along the y-dimension
-    pitch : Dict[str, float]
+    pitch : Pitch
         The pitch of the lattice in each axis direction (keys: 'X', 'Y', 'Z') (cm)
-    mod_dim : Dict[str, float]
+    mod_dim : ModDim
         The x,y dimensions of the ray-tracing module
     module_map : List[List[Module]]
         a 2-D array of modules
     """
+
+    class Pitch(TypedDict):
+        """ A Typed Dictionary class for Lattice Pitches
+        """
+        X: float
+        Y: float
+        Z: float
+
+    class ModDim(TypedDict):
+            """ A Typed Dictionary class for Lattice Module Dimensions
+            """
+            X: float
+            Y: float
+            Z: float
 
     @property
     def nx(self) -> int:
@@ -32,11 +46,11 @@ class Lattice():
         return len(self.module_map[0])
 
     @property
-    def pitch(self) -> Dict[str, float]:
+    def pitch(self) -> Pitch:
         return self._pitch
 
     @property
-    def mod_dim(self) -> Dict[str, float]:
+    def mod_dim(self) -> ModDim:
         return self._mod_dim
 
     @property
