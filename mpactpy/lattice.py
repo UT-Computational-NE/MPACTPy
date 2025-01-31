@@ -84,6 +84,10 @@ class Lattice():
         ---------
         prefix : str
             A prefix with which to start each line of the written output string
+        module_mpact_ids : Dict[Module, int]
+            A collection of Modules and their corresponding MPACT IDs
+        lattice_mpact_ids : Dict[Lattice, int]
+            A collection of Lattices and their corresponding MPACT IDs
 
         Returns
         -------
