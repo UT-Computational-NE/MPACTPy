@@ -22,12 +22,6 @@ class Module():
     pin_map : List[List[Pin]]
         The 2-D array of pin.  This array is extruded
         nz times in the z-direction
-    pins : List[Pin]
-        The unique pins of this module
-    pinmeshes : List[PinMesh]
-        The unique pin meshes of this module
-    materials : List[Material]
-        The materials of this module
     """
 
     @property
