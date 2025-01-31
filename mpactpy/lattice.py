@@ -2,11 +2,8 @@ from __future__ import annotations
 from typing import Dict, List, Any
 from math import isclose
 
-from mpactpy.material import Material
-from mpactpy.pinmesh import PinMesh
-from mpactpy.pin import Pin
 from mpactpy.module import Module
-from mpactpy.utils import list_to_str, unique, is_rectangular
+from mpactpy.utils import list_to_str, is_rectangular
 
 
 class Lattice():
@@ -14,8 +11,6 @@ class Lattice():
 
     Attributes
     ----------
-    id : int
-        The ID of the module
     nx : int
         Number of modules along the x-dimension
     ny : int
@@ -26,24 +21,7 @@ class Lattice():
         The x,y dimensions of the ray-tracing module
     module_map : List[List[Module]]
         a 2-D array of modules
-    modules : List[Module]
-        The unique modules of this lattice
-    pins : List[Pin]
-        The unique pins of this lattice
-    pinmeshes : List[PinMesh]
-        The unique pin meshes of this lattice
-    materials : List[Material]
-        The materials of this module
     """
-
-    @property
-    def mpact_id(self) -> int:
-        return self._mpact_id
-
-    @mpact_id.setter
-    def mpact_id(self, mpact_id: int) -> None:
-        assert(mpact_id > 0), f"mpact_id = {mpact_id}"
-        self._mpact_id = mpact_id
 
     @property
     def nx(self) -> int:
@@ -65,29 +43,13 @@ class Lattice():
     def module_map(self) -> List[List[Module]]:
         return self._module_map
 
-    @property
-    def modules(self) -> List[Module]:
-        return self._modules
 
-    @property
-    def pins(self) -> List[Pin]:
-        return self._pins
-
-    @property
-    def pinmeshes(self) -> List[PinMesh]:
-        return self._pinmeshes
-
-    @property
-    def materials(self) -> List[Material]:
-        return self._materials
-
-    def __init__(self, module_map: List[List[Module]], mpact_id: int = 1):
+    def __init__(self, module_map: List[List[Module]]):
         assert is_rectangular(module_map)
 
-        self.mpact_id    = mpact_id
         self._module_map = module_map
-        self.set_unique_elements()
-        self._mod_dim    = {'X': self.modules[0].pitch['X'], 'Y': self.modules[0].pitch['Y']}
+        self._mod_dim    = {'X': self.module_map[0][0].pitch['X'],
+                            'Y': self.module_map[0][0].pitch['Y']}
 
         assert all(isclose(self.module_map[i][j].pitch['X'], self.mod_dim['X'])
                    for j in range(self.ny) for i in range(self.nx))
@@ -95,11 +57,12 @@ class Lattice():
         assert all(isclose(self.module_map[i][j].pitch['Y'], self.mod_dim['Y'])
                    for i in range(self.nx) for j in range(self.ny))
 
-        assert all(isclose(module.pitch['Z'], self.modules[0].pitch['Z']) for module in self.modules)
+        assert all(isclose(module.pitch['Z'], self.module_map[0][0].pitch['Z'])
+                   for row in self.module_map for module in row)
 
         self._pitch   = {'X': self.mod_dim['X'] * self.nx,
                          'Y': self.mod_dim['Y'] * self.ny,
-                         'Z': self.modules[0].pitch['Z']}
+                         'Z': self.module_map[0][0].pitch['Z']}
 
     def __eq__(self, other: Any) -> bool:
         if self is other:
@@ -111,7 +74,10 @@ class Lattice():
     def __hash__(self) -> int:
         return hash(tuple(tuple(row) for row in self.module_map))
 
-    def write_to_string(self, prefix: str = "") -> str:
+    def write_to_string(self,
+                        prefix: str = "",
+                        module_mpact_ids: Dict[Module, int] = None,
+                        lattice_mpact_ids: Dict[Lattice, int] = None) -> str:
         """ Method for writing a lattice to a string
 
         Parameter
@@ -125,39 +91,13 @@ class Lattice():
             The string that represents the lattice
         """
 
-        id_length = max(len(str(module.mpact_id)) for row in self.module_map for module in row)
+        id_length = max(len(str(module_mpact_ids[module])) for row in self.module_map for module in row)
 
-        string = prefix + f"lattice {self.mpact_id} {self.nx} {self.ny}\n"
+        string = prefix + f"lattice {lattice_mpact_ids[self]} {self.nx} {self.ny}\n"
         for row in self.module_map:
-            modules = [module.mpact_id for module in row]
+            modules = [module_mpact_ids[module] for module in row]
             string += prefix + prefix + f"{list_to_str(modules, id_length)}\n"
         return string
-
-    def set_unique_elements(self, other_modules: List[Module] = []) -> None:
-        """ Determines and sets the unique elements of the lattice
-
-        Parameters
-        ----------
-        other_modules : List[Modules]
-            The modules from other lattices which should be considered as already defined
-        """
-        # NOTE: To get the ordering correct, other_modules must by left-hand-side added to the map list
-        already_defined_modules = other_modules + [module for row in self.module_map for module in row]
-        already_defined_modules = {module: i+1 for i, module in enumerate(unique(already_defined_modules))}
-        for module, mpact_id in already_defined_modules.items():
-            module.mpact_id = mpact_id
-
-        self._modules   = list(already_defined_modules)
-        self._pins      = unique([pin for module in self.modules for row in module.pin_map for pin in row])
-        self._pinmeshes = unique([pin.pinmesh for pin in self.pins])
-        self._materials = unique([material for pin in self.pins for material in pin.materials])
-        for module in self.modules:
-            module.set_unique_elements(self.pins)
-
-        for i, _ in enumerate(self.module_map):
-            for j, _ in enumerate(self.module_map[i]):
-                self._module_map[i][j] = next(module for module in self.modules if self.module_map[i][j] == module)
-
 
     def get_axial_slice(self, start_pos: float, stop_pos: float) -> Lattice:
         """ Method for creating a new Lattice from an axial slice of this Lattice
