@@ -168,7 +168,7 @@ class Core():
 
         if assembly_mpact_ids is None:
             assemblies = unique(assembly for row in self.assembly_map for assembly in row if assembly)
-            assembly_mpact_ids = {assembly: i for i, assembly in enumerate(assemblies)}
+            assembly_mpact_ids = {assembly: i+1 for i, assembly in enumerate(assemblies)}
 
         id_length = max(len(str(assembly_mpact_ids[assembly])) if assembly is not None else 0
                         for row in self.assembly_map for assembly in row)
