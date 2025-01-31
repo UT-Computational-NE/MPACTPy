@@ -3,7 +3,7 @@ from typing import Dict, List, Any
 from math import isclose
 
 from mpactpy.module import Module
-from mpactpy.utils import list_to_str, is_rectangular
+from mpactpy.utils import list_to_str, is_rectangular, unique
 
 
 class Lattice():
@@ -91,9 +91,15 @@ class Lattice():
             The string that represents the lattice
         """
 
+        if module_mpact_ids is None:
+            modules = unique(module for row in self.module_map for module in row)
+            module_mpact_ids = {module: i for i, module in enumerate(modules)}
+
+        lattice_id = 1 if lattice_mpact_ids is None else lattice_mpact_ids[self]
+
         id_length = max(len(str(module_mpact_ids[module])) for row in self.module_map for module in row)
 
-        string = prefix + f"lattice {lattice_mpact_ids[self]} {self.nx} {self.ny}\n"
+        string = prefix + f"lattice {lattice_id} {self.nx} {self.ny}\n"
         for row in self.module_map:
             modules = [module_mpact_ids[module] for module in row]
             string += prefix + prefix + f"{list_to_str(modules, id_length)}\n"
