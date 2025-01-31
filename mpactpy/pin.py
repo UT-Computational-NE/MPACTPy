@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List, Any, Union
+from typing import Dict, List, Any, Union, TypedDict
 from math import isclose
 from copy import deepcopy
 
@@ -19,9 +19,16 @@ class Pin():
         The materials used in each pin XSR. The number of
         entries must be equal to the number of uniform
         material regions defined in the pin mesh
-    pitch : Dict[str, float]
+    pitch : Pitch
         The pitch of the pin in each axis direction (keys: 'X', 'Y', 'Z') (cm)
     """
+
+    class Pitch(TypedDict):
+        """ A Typed Dictionary class for Pin Pitches
+        """
+        X: float
+        Y: float
+        Z: float
 
     @property
     def pinmesh(self) -> PinMesh:
@@ -32,7 +39,7 @@ class Pin():
         return self._materials
 
     @property
-    def pitch(self) -> Dict[str, float]:
+    def pitch(self) -> Pitch:
         return self._pinmesh.pitch
 
     def __init__(self, pinmesh: PinMesh, materials: List[Material]):

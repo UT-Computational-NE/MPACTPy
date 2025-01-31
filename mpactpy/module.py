@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List, Any
+from typing import Dict, List, Any, TypedDict
 from math import isclose
 
 from mpactpy.pin import Pin
@@ -17,12 +17,19 @@ class Module():
         Number of pins along the y-dimension
     nz : int
         Number of pins along the z-dimension
-    pitch : Dict[str, float]
+    pitch : Pitch
         The pitch of the module in each axis direction (keys: 'X', 'Y', 'Z') (cm)
     pin_map : List[List[Pin]]
         The 2-D array of pin.  This array is extruded
         nz times in the z-direction
     """
+
+    class Pitch(TypedDict):
+        """ A Typed Dictionary class for Module Pitches
+        """
+        X: float
+        Y: float
+        Z: float
 
     @property
     def nx(self) -> int:
@@ -37,7 +44,7 @@ class Module():
         return self._nz
 
     @property
-    def pitch(self) -> Dict[str, float]:
+    def pitch(self) -> Pitch:
         return self._pitch
 
     @property
