@@ -31,11 +31,11 @@ class Lattice():
         Z: float
 
     class ModDim(TypedDict):
-            """ A Typed Dictionary class for Lattice Module Dimensions
-            """
-            X: float
-            Y: float
-            Z: float
+        """ A Typed Dictionary class for Lattice Module Dimensions
+        """
+        X: float
+        Y: float
+        Z: float
 
     @property
     def nx(self) -> int:
