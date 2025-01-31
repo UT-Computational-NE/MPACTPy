@@ -30,9 +30,6 @@ def test_module_initialization(module, pin):
     assert module.nz == 1
     assert_allclose([module.pitch[i] for i in ['X','Y','Z']], [4., 4., 3.])
     assert all([p == pin for row in module.pin_map for p in row])
-    assert len(module.pins)      == 1
-    assert len(module.pinmeshes) == 1
-    assert len(module.materials) == 1
 
 def test_module_equality(module, equal_module, unequal_module):
     assert module == equal_module
@@ -42,24 +39,18 @@ def test_module_hash(module, equal_module, unequal_module):
     assert hash(module) == hash(equal_module)
     assert hash(module) != hash(unequal_module)
 
-def test_module_write_to_string(module):
-    output = module.write_to_string(prefix="  ")
-    expected_output = "  module 1 2 2 1\n" + \
-                      "    1 1\n" + \
-                      "    1 1\n"
+def test_module_write_to_string(module, pin):
+    output = module.write_to_string(prefix="  ",
+                                    pin_mpact_ids={pin: 5},
+                                    module_mpact_ids={module: 3})
+    expected_output = "  module 3 2 2 1\n" + \
+                      "    5 5\n" + \
+                      "    5 5\n"
     assert output == expected_output
-
-def test_module_set_unique_elements(pin):
-    module = Module(1, [[pin, pin],
-                        [pin, pin]])
-
-    other_pin = pin
-    module.set_unique_elements([other_pin])
-    assert all([p is other_pin for row in module.pin_map for p in row])
 
 def test_module_get_axial_slice(module):
     module_slice = module.get_axial_slice(0.5, 1.5)
-    pin_slice    = module_slice.pins[-1]
+    pin_slice    = module_slice.pin_map[0][0]
 
     assert pin_slice.pinmesh.number_of_material_regions == 8
     assert pin_slice.pinmesh.regions_inside_bounds == [0, 1, 2, 4, 5, 6]
