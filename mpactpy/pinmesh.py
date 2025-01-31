@@ -21,8 +21,6 @@ class PinMesh(ABC):
 
     Attributes
     ----------
-    mpact_id : int
-        The MPACT ID of the pinmesh
     number_of_material_regions : int
         The total number of pinmesh material regions (i.e. cross-section regions) regardless
         of whether they fall within the bounds of the pinmesh or not
@@ -36,21 +34,11 @@ class PinMesh(ABC):
     regions_inside_bounds = List[int]
         The list of material regions that lie within the bounds of the pinmesh
     """
-    _mpact_id: int
     _number_of_material_regions: int
     _zvals: List[float]
     _ndivz: List[int]
     _pitch: Dict[str, float]
     _regions_inside_bounds: List[int]
-
-    @property
-    def mpact_id(self) -> int:
-        return self._mpact_id
-
-    @mpact_id.setter
-    def mpact_id(self, mpact_id: int) -> None:
-        assert(mpact_id > 0), f"mpact_id = {mpact_id}"
-        self._mpact_id = mpact_id
 
     @property
     def number_of_material_regions(self) -> int:
@@ -73,13 +61,15 @@ class PinMesh(ABC):
         return self._regions_inside_bounds
 
     @abstractmethod
-    def write_to_string(self, prefix: str = "") -> str:
+    def write_to_string(self, prefix: str = "", mpact_ids: Dict[PinMesh, int] = None) -> str:
         """ Method for writing pin mesh to a string
 
         Parameter
         ---------
         prefix : str
             A prefix with which to start each line of the written output string
+        mpact_ids : Dict[PinMesh, int]
+            A collection of PinMeshes and their corresponding MPACT IDs
 
         Returns
         -------
@@ -116,7 +106,6 @@ class PinMesh(ABC):
     def _set_pitch(self) -> None:
         """ Method for setting the pinmesh pitches
         """
-
 
     @abstractmethod
     def _set_number_of_material_regions(self) -> None:
@@ -169,7 +158,6 @@ class RectangularPinMesh(PinMesh):
                  ndivx:    List[int],
                  ndivy:    List[int],
                  ndivz:    List[int],
-                 mpact_id: int = 1
     ):
         assert len(xvals) > 0, f"len(xvals) = {len(xvals)}"
         assert len(yvals) > 0, f"len(yvals) = {len(yvals)}"
@@ -183,7 +171,6 @@ class RectangularPinMesh(PinMesh):
         assert all(val > 0 for val in ndivx), f"ndivx = {ndivx}"
         assert all(val > 0 for val in ndivy), f"ndivy = {ndivy}"
 
-        self.mpact_id = mpact_id
         self._xvals   = xvals
         self._yvals   = yvals
         self._ndivx   = ndivx
@@ -216,10 +203,11 @@ class RectangularPinMesh(PinMesh):
                      tuple(sorted(pitches)),
                      self.number_of_material_regions))
 
-    def write_to_string(self, prefix: str = "") -> str:
+    def write_to_string(self, prefix: str = "", mpact_ids: Dict[PinMesh, int] = None) -> str:
 
+        mpact_id = 1 if mpact_ids is None else mpact_ids[self]
         string =  prefix
-        string += f"pinmesh {self.mpact_id} rec {list_to_str(self._xvals)} / " \
+        string += f"pinmesh {mpact_id} rec {list_to_str(self._xvals)} / " \
                +  f"{list_to_str(self._yvals)} / {list_to_str(self._zvals)} / " \
                +  f"{list_to_str(self._ndivx)} / {list_to_str(self._ndivy)} / {list_to_str(self._ndivz)}\n"
 
@@ -300,7 +288,6 @@ class GeneralCylindricalPinMesh(PinMesh):
         ndivr   : List[int],
         ndiva   : List[int],
         ndivz   : List[int],
-        mpact_id: int = 1
     ):
         assert len(r) > 0, f"len(r) = {len(r)}"
         assert all(val > 0. for val in r), f"r = {r}"
@@ -311,7 +298,6 @@ class GeneralCylindricalPinMesh(PinMesh):
         assert all(val > 0 for val in ndivr), f"ndivr = {ndivr}"
         assert all(val > 0 for val in ndiva), f"ndiva = {ndiva}"
 
-        self.mpact_id = mpact_id
         self._r       = r
         self._xMin    = xMin
         self._xMax    = xMax
@@ -353,10 +339,11 @@ class GeneralCylindricalPinMesh(PinMesh):
                      tuple(sorted(pitches)),
                      self.number_of_material_regions))
 
-    def write_to_string(self, prefix: str = "") -> str:
+    def write_to_string(self, prefix: str = "", mpact_ids: Dict[PinMesh, int] = None) -> str:
 
+        mpact_id = 1 if mpact_ids is None else mpact_ids[self]
         string = prefix
-        string += f"pinmesh {self.mpact_id} gcyl {list_to_str(self._r_inside_bounds)} / " \
+        string += f"pinmesh {mpact_id} gcyl {list_to_str(self._r_inside_bounds)} / " \
                +  f"{self._xMin} {self._xMax} {self._yMin} {self._yMax} / " \
                +  f"{list_to_str(self._zvals)} / {list_to_str(self._ndivr_inside_bounds)} / " \
                +  f"{list_to_str(self._ndiva_inside_bounds)} / {list_to_str(self._ndivz)}\n"
@@ -390,7 +377,8 @@ class GeneralCylindricalPinMesh(PinMesh):
         radii_inside_bounds = [i for i,r in enumerate(self.r)
                                if box_overlaps_circle(r) and not circle_encloses_box(r)]
 
-        assert radii_inside_bounds, f"No radii found within bounds of PinMesh: {self.mpact_id}"
+        assert radii_inside_bounds, f"GCYL PinMesh with bounds {self.xMin, self.yMin, self.xMax, self.yMax} "+ \
+                                     "has no cylinder regions which fall within the bounds"
 
         self._r_inside_bounds       = [self._r[i] for i in radii_inside_bounds]
         self._ndivr_inside_bounds   = [self._ndivr[i] for i in radii_inside_bounds]

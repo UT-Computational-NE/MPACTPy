@@ -14,7 +14,7 @@ def rectangular_pinmesh():
     ndivx = [10, 10, 10]
     ndivy = [10, 10, 10]
     ndivz = [5, 5, 5]
-    return RectangularPinMesh(xvals, yvals, zvals, ndivx, ndivy, ndivz, mpact_id=1)
+    return RectangularPinMesh(xvals, yvals, zvals, ndivx, ndivy, ndivz)
 
 @pytest.fixture
 def equal_rectangular_pinmesh():
@@ -24,7 +24,7 @@ def equal_rectangular_pinmesh():
     ndivx = [10, 10, 10]
     ndivy = [10, 10, 10]
     ndivz = [5, 5, 5]
-    return RectangularPinMesh(xvals, yvals, zvals, ndivx, ndivy, ndivz, mpact_id=1)
+    return RectangularPinMesh(xvals, yvals, zvals, ndivx, ndivy, ndivz)
 
 @pytest.fixture
 def unequal_rectangular_pinmesh():
@@ -34,11 +34,10 @@ def unequal_rectangular_pinmesh():
     ndivx = [10, 10, 10]
     ndivy = [10, 10, 10]
     ndivz = [5, 5, 5]
-    return RectangularPinMesh(xvals, yvals, zvals, ndivx, ndivy, ndivz, mpact_id=1)
+    return RectangularPinMesh(xvals, yvals, zvals, ndivx, ndivy, ndivz)
 
 def test_rectangular_pinmesh_initialization(rectangular_pinmesh):
     pinmesh = rectangular_pinmesh
-    assert pinmesh.mpact_id == 1
     assert pinmesh.number_of_material_regions == 27
     assert pinmesh.regions_inside_bounds == [i for i in range(27)]
     assert_allclose([pinmesh.pitch[i] for i in ['X','Y','Z']], [3., 3., 3.])
@@ -62,8 +61,8 @@ def test_rectangular_pinmesh_hash(rectangular_pinmesh,
     assert hash(rectangular_pinmesh) != hash(unequal_rectangular_pinmesh)
 
 def test_rectangular_pinmesh_write_to_string(rectangular_pinmesh):
-    output = rectangular_pinmesh.write_to_string(prefix="  ")
-    expected_output = "  pinmesh 1 rec 1.0 2.0 3.0 / 1.0 2.0 3.0 / 1.0 2.0 3.0 / 10 10 10 / 10 10 10 / 5 5 5\n"
+    output = rectangular_pinmesh.write_to_string(prefix="  ", mpact_ids={rectangular_pinmesh: 42})
+    expected_output = "  pinmesh 42 rec 1.0 2.0 3.0 / 1.0 2.0 3.0 / 1.0 2.0 3.0 / 10 10 10 / 10 10 10 / 5 5 5\n"
     assert output == expected_output
 
 
@@ -76,7 +75,7 @@ def general_cylindrical_pinmesh():
     ndivr = [1, 2, 2]
     ndiva = [8, 8, 8, 8, 8, 8]
     ndivz = [5, 5, 5]
-    return GeneralCylindricalPinMesh(r, xMin, xMax, yMin, yMax, zvals, ndivr, ndiva, ndivz, mpact_id=1)
+    return GeneralCylindricalPinMesh(r, xMin, xMax, yMin, yMax, zvals, ndivr, ndiva, ndivz)
 
 @pytest.fixture
 def equal_general_cylindrical_pinmesh():
@@ -87,7 +86,7 @@ def equal_general_cylindrical_pinmesh():
     ndivr = [1, 2, 2]
     ndiva = [8, 8, 8, 8, 8, 8]
     ndivz = [5, 5, 5]
-    return GeneralCylindricalPinMesh(r, xMin, xMax, yMin, yMax, zvals, ndivr, ndiva, ndivz, mpact_id=1)
+    return GeneralCylindricalPinMesh(r, xMin, xMax, yMin, yMax, zvals, ndivr, ndiva, ndivz)
 
 @pytest.fixture
 def unequal_general_cylindrical_pinmesh():
@@ -98,11 +97,10 @@ def unequal_general_cylindrical_pinmesh():
     ndivr = [1, 2, 2]
     ndiva = [8, 8, 8, 8, 8, 8]
     ndivz = [5, 5, 5]
-    return GeneralCylindricalPinMesh(r, xMin, xMax, yMin, yMax, zvals, ndivr, ndiva, ndivz, mpact_id=1)
+    return GeneralCylindricalPinMesh(r, xMin, xMax, yMin, yMax, zvals, ndivr, ndiva, ndivz)
 
 def test_general_cylindrical_pinmesh_initialization(general_cylindrical_pinmesh):
     pinmesh = general_cylindrical_pinmesh
-    assert pinmesh.mpact_id == 1
     assert pinmesh.number_of_material_regions == 12
     assert pinmesh.regions_inside_bounds == [0, 1, 2, 4, 5, 6, 8, 9, 10]
     assert_allclose([pinmesh.pitch[i] for i in ['X','Y','Z']], [2., 2., 3.])
@@ -129,6 +127,6 @@ def test_general_cylindrical_pinmesh_hash(general_cylindrical_pinmesh,
     assert hash(general_cylindrical_pinmesh) != hash(unequal_general_cylindrical_pinmesh)
 
 def test_general_cylindrical_pinmesh_write_to_string(general_cylindrical_pinmesh):
-    output = general_cylindrical_pinmesh.write_to_string(prefix="test ")
-    expected_output = "test pinmesh 1 gcyl 0.5 1.0 / -1.0 1.0 -1.0 1.0 / 1.0 2.0 3.0 / 1 2 / 8 8 8 8 / 5 5 5\n"
+    output = general_cylindrical_pinmesh.write_to_string(prefix="  ", mpact_ids={general_cylindrical_pinmesh: 42})
+    expected_output = "  pinmesh 42 gcyl 0.5 1.0 / -1.0 1.0 -1.0 1.0 / 1.0 2.0 3.0 / 1 2 / 8 8 8 8 / 5 5 5\n"
     assert output == expected_output

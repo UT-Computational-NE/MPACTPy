@@ -1,12 +1,6 @@
 from __future__ import annotations
 from typing import List, Dict, Any
 
-from mpactpy.material import Material
-from mpactpy.pinmesh import PinMesh
-from mpactpy.pin import Pin
-from mpactpy.module import Module
-from mpactpy.lattice import Lattice
-from mpactpy.assembly import Assembly
 from mpactpy.core import Core
 from mpactpy.utils import list_to_str
 
@@ -22,24 +16,10 @@ class Model():
 
     Attributes
     ----------
-    materials : List[Material]
-        The model materials
     states : List[Dict[str, str]]
         The model states
-    pinmeshes : List[PinMesh]
-        The model pinmeshes
-    pins : List[Pin]
-        The model pins
-    modules : List[Module]
-        The model modules
-    lattices : List[Lattice]
-        The model lattices
-    assemblies : List[Assembly]
-        The model assemblies
     core : Core
         The model core
-    mod_dim : Assembly.ModDim
-        The x,y,z dimensions of the ray-tracing module
     xsec_settings : Dict[str, str]
         The model cross-section settings
     options : Dict[str, str]
@@ -47,40 +27,12 @@ class Model():
     """
 
     @property
-    def materials(self) -> List[Material]:
-        return self.core.materials
-
-    @property
     def states(self) -> List[Dict[str, str]]:
         return self._states
 
     @property
-    def pinmeshes(self) -> List[PinMesh]:
-        return self.core.pinmeshes
-
-    @property
-    def pins(self) -> List[Pin]:
-        return self.core.pins
-
-    @property
-    def modules(self) -> List[Module]:
-        return self.core.modules
-
-    @property
-    def lattices(self) -> List[Lattice]:
-        return self.core.lattices
-
-    @property
-    def assemblies(self) -> List[Assembly]:
-        return self.core.assemblies
-
-    @property
     def core(self) -> Core:
         return self._core
-
-    @property
-    def mod_dim(self) -> Assembly.ModDim:
-        return self.core.mod_dim
 
     @property
     def xsec_settings(self) -> Dict[str, str]:
@@ -136,13 +88,22 @@ class Model():
 
         assert indent > 0
 
+        material_ids = {material: i+1 for i, material  in enumerate(self.core.materials)}
+        pinmesh_ids  = {pinmesh:  i+1 for i, pinmesh   in enumerate(self.core.pinmeshes)}
+        pin_ids      = {pin:      i+1 for i, pin       in enumerate(self.core.pins)}
+        module_ids   = {module:   i+1 for i, module    in enumerate(self.core.modules)}
+        lattice_ids  = {lattice:  i+1 for i, lattice   in enumerate(self.core.lattices)}
+        assembly_ids = {assembly: i+1 for i, assembly  in enumerate(self.core.assemblies)}
+
+        print(material_ids)
+
         prefix = "".ljust(indent)
 
         string = f"CASEID {caseid}\n\n"
 
         string += "MATERIAL\n"
-        for material in self.materials:
-            string += material.write_to_string(prefix)
+        for material in self.core.materials:
+            string += material.write_to_string(prefix, material_ids)
         string += "\n"
 
         for state in self.states:
@@ -153,29 +114,31 @@ class Model():
         string += "\n"
 
         string += "GEOM\n"
-        string += prefix + f"mod_dim {self.mod_dim['X']} {self.mod_dim['Y']} {list_to_str(self.mod_dim['Z'])}\n\n"
+        string += prefix + f"mod_dim {self.core.mod_dim['X']} " + \
+                                   f"{self.core.mod_dim['Y']} " + \
+                                   f"{list_to_str(self.core.mod_dim['Z'])}\n\n"
 
-        for pinmesh in self.pinmeshes:
-            string += pinmesh.write_to_string(prefix)
+        for pinmesh in self.core.pinmeshes:
+            string += pinmesh.write_to_string(prefix, pinmesh_ids)
         string += "\n"
 
-        for pin in self.pins:
-            string += pin.write_to_string(prefix)
+        for pin in self.core.pins:
+            string += pin.write_to_string(prefix, material_ids, pinmesh_ids, pin_ids)
         string += "\n"
 
-        for module in self.modules:
-            string += module.write_to_string(prefix)
+        for module in self.core.modules:
+            string += module.write_to_string(prefix, pin_ids, module_ids)
         string += "\n"
 
-        for lattice in self.lattices:
-            string += lattice.write_to_string(prefix)
+        for lattice in self.core.lattices:
+            string += lattice.write_to_string(prefix, module_ids, lattice_ids)
         string += "\n"
 
-        for assembly in self.assemblies:
-            string += assembly.write_to_string(prefix)
+        for assembly in self.core.assemblies:
+            string += assembly.write_to_string(prefix, lattice_ids, assembly_ids)
         string += "\n"
 
-        string += self.core.write_to_string(prefix) + "\n"
+        string += self.core.write_to_string(prefix, assembly_ids) + "\n"
 
         string += "XSEC\n"
         for setting, argument in sorted(self.xsec_settings.items()):

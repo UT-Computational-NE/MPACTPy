@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Any, Literal
+from typing import List, Any, Literal, Dict
 from math import isclose
 
 from mpactpy.material import Material
@@ -45,7 +45,7 @@ class Core():
     pinmeshes : List[PinMesh]
         The unique pin meshes of this core
     materials : List[Material]
-        The materials of this module
+        The unqiue materials of this core
     """
 
     SymmetryOption = Literal["360", "90", ""]
@@ -118,7 +118,13 @@ class Core():
         self._symmetry_opt    = symmetry_opt
         self._quarter_sym_opt = quarter_sym_opt
         self._assembly_map    = assembly_map
-        self.set_unique_elements()
+
+        self._assemblies = unique(assembly for row in self.assembly_map for assembly in row if assembly)
+        self._lattices   = unique(lattice for assembly in self.assemblies for lattice in assembly.lattice_map)
+        self._modules    = unique(module for lattice in self.lattices for row in lattice.module_map for module in row)
+        self._pins       = unique(pin for module in self.modules for row in module.pin_map for pin in row)
+        self._pinmeshes  = unique(pin.pinmesh for pin in self.pins)
+        self._materials  = unique(material for pin in self.pins for material in pin.materials)
 
         assert len(self.assemblies) > 0
 
@@ -142,13 +148,17 @@ class Core():
                     self.quarter_sym_opt,
                     tuple(tuple(row) for row in self.assembly_map)))
 
-    def write_to_string(self, prefix: str = "") -> str:
+    def write_to_string(self,
+                        prefix: str = "",
+                        assembly_mpact_ids = Dict[Assembly, int]) -> str:
         """ Method for writing a to a string
 
         Parameter
         ---------
         prefix : str
             A prefix with which to start each line of the written output string
+        assembly_mpact_ids : Dict[Lattice, int]
+            A collection of Assemblies and their corresponding MPACT IDs
 
         Returns
         -------
@@ -156,7 +166,11 @@ class Core():
             The string that represents the
         """
 
-        id_length = max(len(str(assembly.mpact_id)) if assembly is not None else 0
+        if assembly_mpact_ids is None:
+            assemblies = unique(assembly for row in self.assembly_map for assembly in row if assembly)
+            assembly_mpact_ids = {assembly: i+1 for i, assembly in enumerate(assemblies)}
+
+        id_length = max(len(str(assembly_mpact_ids[assembly])) if assembly is not None else 0
                         for row in self.assembly_map for assembly in row)
 
         string = prefix + "core"
@@ -166,40 +180,9 @@ class Core():
             string += f" {self.quarter_sym_opt}"
         string += "\n"
         for row in self.assembly_map:
-            assemblies = [assembly.mpact_id if assembly is not None else "" for assembly in row]
+            assemblies = [assembly_mpact_ids[assembly] if assembly is not None else "" for assembly in row]
             string += prefix + f"  {list_to_str(assemblies, id_length).rstrip()}\n"
         return string
-
-    def set_unique_elements(self, other_assemblies: List[Assembly] = []) -> None:
-        """ Determines and sets the unique elements of the core
-
-        Parameters
-        ----------
-        already_defined_assemblies : List[Assembly]
-            The assemblies which should be considered as already defined
-        """
-        # NOTE: To get the ordering correct, other_assemblies must by left-hand-side added to the map list
-        already_defined_assemblies = other_assemblies + [assembly for row in self.assembly_map
-                                                         for assembly in row if assembly is not None]
-        already_defined_assemblies = {assembly: i+1 for i, assembly in enumerate(unique(already_defined_assemblies))}
-        for assembly, mpact_id in already_defined_assemblies.items():
-            assembly.mpact_id = mpact_id
-
-        self._assemblies = list(already_defined_assemblies)
-        self._lattices   = unique([lattice for assembly in self.assemblies for lattice in assembly.lattice_map])
-        self._modules    = unique([module for lattice in self.lattices for row in lattice.module_map for module in row])
-        self._pins       = unique([pin for module in self.modules for row in module.pin_map for pin in row])
-        self._pinmeshes  = unique([pin.pinmesh for pin in self.pins])
-        self._materials  = unique([material for pin in self.pins for material in pin.materials])
-        for assembly in self.assemblies:
-            assembly.set_unique_elements(self.lattices)
-
-        for i, _ in enumerate(self.assembly_map):
-            for j, _ in enumerate(self.assembly_map[i]):
-                self._assembly_map[i][j] = None if self.assembly_map[i][j] is None else \
-                                           next(assembly for assembly in self.assemblies
-                                                if self.assembly_map[i][j] == assembly)
-
 
     def _assemblies_have_same_axial_spacing(self)->bool:
         """ A helper method for checking that all assemblies have the same axial spacing along their lengths

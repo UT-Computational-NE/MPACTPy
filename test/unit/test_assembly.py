@@ -35,11 +35,6 @@ def test_assembly_initialization(assembly, lattice):
     assert_allclose([assembly.mod_dim[i] for i in ['X','Y']], [4., 4.])
     assert_allclose(assembly.mod_dim['Z'], [3.])
     assert all([l == lattice for l in assembly.lattice_map])
-    assert len(assembly.lattices)  == 1
-    assert len(assembly.modules)   == 1
-    assert len(assembly.pins)      == 1
-    assert len(assembly.pinmeshes) == 1
-    assert len(assembly.materials) == 1
 
 def test_assembly_equality(assembly, equal_assembly, unequal_assembly):
     assert assembly == equal_assembly
@@ -49,23 +44,19 @@ def test_assembly_hash(assembly, equal_assembly, unequal_assembly):
     assert hash(assembly) == hash(equal_assembly)
     assert hash(assembly) != hash(unequal_assembly)
 
-def test_assembly_write_to_string(assembly):
-    output = assembly.write_to_string(prefix="  ")
-    expected_output = "  assembly 1\n" + \
-                      "    1 1 1 1\n"
+def test_assembly_write_to_string(assembly, lattice):
+    output = assembly.write_to_string(prefix="  ",
+                                      lattice_mpact_ids={lattice: 4},
+                                      assembly_mpact_ids={assembly: 3})
+    expected_output = "  assembly 3\n" + \
+                      "    4 4 4 4\n"
     assert output == expected_output
-
-def test_assembly_set_unique_elements(lattice):
-    assembly = Assembly([lattice, lattice,
-                         lattice, lattice])
-
-    other_lattice = lattice
-    assembly.set_unique_elements([other_lattice])
-    assert all([l is other_lattice for l in assembly.lattice_map])
 
 def test_assembly_get_axial_slice(assembly):
     assembly_slice = assembly.get_axial_slice(0.5, 1.5)
-    pin_slice      = assembly_slice.pins[-1]
+    lattice_slice  = assembly_slice.lattice_map[0]
+    module_slice  = lattice_slice.module_map[0][0]
+    pin_slice     = module_slice.pin_map[0][0]
 
     assert pin_slice.pinmesh.number_of_material_regions == 8
     assert pin_slice.pinmesh.regions_inside_bounds == [0, 1, 2, 4, 5, 6]

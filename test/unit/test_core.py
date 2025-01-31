@@ -42,12 +42,12 @@ def test_core_initialization(core, assembly):
     assert_allclose([core.mod_dim[i] for i in ['X','Y']], [4., 4.])
     assert_allclose(core.mod_dim['Z'], [3.])
     assert all([a == assembly for row in core.assembly_map for a in row if a])
-    assert len(core.assemblies)    == 1
-    assert len(assembly.lattices)  == 1
-    assert len(assembly.modules)   == 1
-    assert len(assembly.pins)      == 1
-    assert len(assembly.pinmeshes) == 1
-    assert len(assembly.materials) == 1
+    assert len(core.assemblies) == 1
+    assert len(core.lattices)   == 1
+    assert len(core.modules)    == 1
+    assert len(core.pins)       == 1
+    assert len(core.pinmeshes)  == 1
+    assert len(core.materials)  == 1
 
 def test_core_equality(core, equal_core, unequal_core):
     assert core == equal_core
@@ -57,22 +57,14 @@ def test_core_hash(core, equal_core, unequal_core):
     assert hash(core) == hash(equal_core)
     assert hash(core) != hash(unequal_core)
 
-def test_core_write_to_string(core):
-    output = core.write_to_string(prefix="  ")
+def test_core_write_to_string(core, assembly):
+    output = core.write_to_string(prefix="  ",
+                                  assembly_mpact_ids={assembly: 3})
     expected_output = "  core\n" + \
-                      "      1\n" + \
-                      "    1 1 1\n" + \
-                      "      1\n"
+                      "      3\n" + \
+                      "    3 3 3\n" + \
+                      "      3\n"
     assert output == expected_output
-
-def test_core_set_unique_elements(assembly):
-    core = Core([[None,     assembly, None    ],
-                 [assembly, assembly, assembly],
-                 [None,     assembly, None    ]])
-
-    other_assembly = assembly
-    core.set_unique_elements([other_assembly])
-    assert all([a is other_assembly for row in core.assembly_map for a in row if a])
 
 def test_core_get_axial_slice(core):
     core_slice = core.get_axial_slice(0.5, 1.5)

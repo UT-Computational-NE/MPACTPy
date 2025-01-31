@@ -2,10 +2,6 @@ from __future__ import annotations
 from typing import Dict, List, Any, TypedDict
 from math import isclose
 
-from mpactpy.material import Material
-from mpactpy.pinmesh import PinMesh
-from mpactpy.pin import Pin
-from mpactpy.module import Module
 from mpactpy.lattice import Lattice
 from mpactpy.utils import list_to_str, unique
 
@@ -15,8 +11,6 @@ class Assembly():
 
     Attributes
     ----------
-    id : int
-        The ID of the module
     pitch : Dict[str, float]
         The pitch of the lattice in the X-Y axis direction (keys: 'X', 'Y') (cm)
     height : float
@@ -27,16 +21,6 @@ class Assembly():
         The x,y,z dimensions of the ray-tracing module
     lattice_map : List[Lattice]
         1-D array of lattice names
-    lattices : List[Lattice]
-        The unique lattices of this assembly
-    modules : List[Module]
-        The unique modules of this assembly
-    pins : List[Pin]
-        The unique pins of this assembly
-    pinmeshes : List[PinMesh]
-        The unique pin meshes of this assembly
-    materials : List[Material]
-        The materials of this module
     """
 
     class ModDim(TypedDict):
@@ -45,15 +29,6 @@ class Assembly():
         X: float
         Y: float
         Z: List[float]
-
-    @property
-    def mpact_id(self) -> int:
-        return self._mpact_id
-
-    @mpact_id.setter
-    def mpact_id(self, mpact_id: int) -> None:
-        assert(mpact_id > 0), f"mpact_id = {mpact_id}"
-        self._mpact_id = mpact_id
 
     @property
     def pitch(self) -> Dict[str, float]:
@@ -75,51 +50,30 @@ class Assembly():
     def lattice_map(self) -> List[Lattice]:
         return self._lattice_map
 
-    @property
-    def lattices(self) -> List[Lattice]:
-        return self._lattices
 
-    @property
-    def modules(self) -> List[Module]:
-        return self._modules
-
-    @property
-    def pins(self) -> List[Pin]:
-        return self._pins
-
-    @property
-    def pinmeshes(self) -> List[PinMesh]:
-        return self._pinmeshes
-
-    @property
-    def materials(self) -> List[Material]:
-        return self._materials
-
-    def __init__(self, lattice_map: List[Lattice], mpact_id: int = 1):
+    def __init__(self, lattice_map: List[Lattice]):
         assert len(lattice_map) > 0
 
-        self.mpact_id     = mpact_id
         self._lattice_map = lattice_map
-        self.set_unique_elements()
 
-        assert all(isclose(lattice.mod_dim['X'], self.lattices[0].mod_dim['X']) for lattice in self.lattices)
-        assert all(isclose(lattice.mod_dim['Y'], self.lattices[0].mod_dim['Y']) for lattice in self.lattices)
-        assert all(lattice.nx == self.lattices[0].nx for lattice in self.lattices)
-        assert all(lattice.ny == self.lattices[0].ny for lattice in self.lattices)
+        assert all(isclose(lattice.mod_dim['X'], self.lattice_map[0].mod_dim['X']) for lattice in self.lattice_map)
+        assert all(isclose(lattice.mod_dim['Y'], self.lattice_map[0].mod_dim['Y']) for lattice in self.lattice_map)
+        assert all(lattice.nx == self.lattice_map[0].nx for lattice in self.lattice_map)
+        assert all(lattice.ny == self.lattice_map[0].ny for lattice in self.lattice_map)
 
-        self._pitch  = {'X': self.lattices[0].pitch['X'],
-                        'Y': self.lattices[0].pitch['Y']}
+        self._pitch  = {'X': self.lattice_map[0].pitch['X'],
+                        'Y': self.lattice_map[0].pitch['Y']}
 
         self._height = sum(self.lattice_map[i].pitch['Z'] for i in range(self.nz))
 
         unique_lattice_heights = []
-        for lattice in self.lattices:
+        for lattice in self.lattice_map:
             if not any(isclose(lattice.pitch['Z'], unique_height) for unique_height in unique_lattice_heights):
                 unique_lattice_heights.append(lattice.pitch['Z'])
         unique_lattice_heights = sorted(unique_lattice_heights)
 
-        self._mod_dim = {'X': self.lattices[0].mod_dim['X'],
-                         'Y': self.lattices[0].mod_dim['Y'],
+        self._mod_dim = {'X': self.lattice_map[0].mod_dim['X'],
+                         'Y': self.lattice_map[0].mod_dim['Y'],
                          'Z': unique_lattice_heights}
 
     def __eq__(self, other: Any) -> bool:
@@ -132,13 +86,19 @@ class Assembly():
     def __hash__(self) -> int:
         return hash(tuple(self.lattice_map))
 
-    def write_to_string(self, prefix: str = "") -> str:
+    def write_to_string(self, prefix: str = "",
+                        lattice_mpact_ids: Dict[Lattice, int] = None,
+                        assembly_mpact_ids: Dict[Assembly, int] = None) -> str:
         """ Method for writing a to a string
 
         Parameter
         ---------
         prefix : str
             A prefix with which to start each line of the written output string
+        lattice_mpact_ids : Dict[Pin, int]
+            A collection of Lattices and their corresponding MPACT IDs
+        assembly_mpact_ids : Dict[Pin, int]
+            A collection of Assemblies and their corresponding MPACT IDs
 
         Returns
         -------
@@ -146,36 +106,16 @@ class Assembly():
             The string that represents the
         """
 
-        string = prefix + f"assembly {self.mpact_id}\n"
-        lattices = [lattice.mpact_id for lattice in self.lattice_map]
+        if lattice_mpact_ids is None:
+            lattice = unique(lattice for lattice in self.lattice_map)
+            lattice_mpact_ids = {lattice: i+1 for i, lattice in enumerate(lattice)}
+
+        assembly_id = 1 if assembly_mpact_ids is None else assembly_mpact_ids[self]
+
+        string = prefix + f"assembly {assembly_id}\n"
+        lattices = [lattice_mpact_ids[lattice] for lattice in self.lattice_map]
         string += prefix + prefix + f"{list_to_str(lattices)}\n"
         return string
-
-    def set_unique_elements(self, other_lattices: List[Lattice] = []) -> None:
-        """ Determines and sets the unique elements of the assembly
-
-        Parameters
-        ----------
-        other_lattices : List[Lattice]
-            The lattices from other assemblies which should be considered as already defined
-        """
-        # NOTE: To get the ordering correct, other_lattices must by left-hand-side added to the map list
-        already_defined_lattices = other_lattices + self.lattice_map
-        already_defined_lattices = {lattice: i+1 for i, lattice in enumerate(unique(already_defined_lattices))}
-        for lattice, mpact_id in already_defined_lattices.items():
-            lattice.mpact_id = mpact_id
-
-        self._lattices  = list(already_defined_lattices)
-        self._modules   = unique([module for lattice in self.lattices for row in lattice.module_map for module in row])
-        self._pins      = unique([pin for module in self.modules for row in module.pin_map for pin in row])
-        self._pinmeshes = unique([pin.pinmesh for pin in self.pins])
-        self._materials = unique([material for pin in self.pins for material in pin.materials])
-        for lattice in self.lattices:
-            lattice.set_unique_elements(self.modules)
-
-        for i, _ in enumerate(self.lattice_map):
-            self._lattice_map[i] = next(lattice for lattice in self.lattices if self.lattice_map[i] == lattice)
-
 
 
     def get_axial_slice(self, start_pos: float, stop_pos: float) -> Assembly:
