@@ -9,6 +9,11 @@ from mpactpy.utils import list_to_str, is_rectangular, unique
 class Lattice():
     """  Lattice of an MPACT model
 
+    Parameters
+    ----------
+    module_map : List[List[Module]]
+        a 2-D array of modules
+
     Attributes
     ----------
     nx : int
@@ -111,7 +116,7 @@ class Lattice():
 
         if module_mpact_ids is None:
             modules = unique(module for row in self.module_map for module in row)
-            module_mpact_ids = {module: i for i, module in enumerate(modules)}
+            module_mpact_ids = {module: i+1 for i, module in enumerate(modules)}
 
         lattice_id = 1 if lattice_mpact_ids is None else lattice_mpact_ids[self]
 

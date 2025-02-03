@@ -120,6 +120,24 @@ class PinMesh(ABC):
 class RectangularPinMesh(PinMesh):
     """  An MPACT model pin mesh made up of a 3-D rectilinear grid
 
+    Parameters
+    ----------
+    xvals : List[float]
+        The x-coordinates marking material interfaces within the pin
+    yvals : List[float]
+        The y-coordinates marking material interfaces within the pin
+    zvals : List[float]
+        The z-coordinates marking material interfaces within the pin
+    ndivx : List[int]
+        The number of equally spaced flat source regions to use when
+        dividing the grid defined by xval
+    ndivy : List[int]
+        The number of equally spaced flat source regions to use when
+        dividing the grid defined by yval
+    ndivz : List[int]
+        The number of equally spaced flat source regions to use when
+        dividing the grid defined by zval
+
     Attributes
     ----------
     xvals : List[float]
@@ -225,6 +243,30 @@ class RectangularPinMesh(PinMesh):
 
 class GeneralCylindricalPinMesh(PinMesh):
     """  An MPACT model pin mesh made up of a concentric cylinders centered at (0,0) with arbitrary pin boundaries
+
+    Parameters
+    ----------
+    r : List[float]
+        Array of radii for indicating the different material interfaces
+    xMin : float
+        Pin boundary x-min
+    xMax : float
+        Pin boundary x-max
+    yMin : float
+        Pin boundary y-min
+    yMax : float
+        Pin boundary y-max
+    ndivr : List[int]
+        The number of equal-volume rings to use when dividing the concentric cylinders
+        into flat source regions
+    ndiva : List[int]
+        The number of equal-angle ”pie-slices” to use when dividing each concentric ring
+        into flat source regions azimuthally
+    zvals : List[float]
+        The z-coordinates marking material interfaces within the pin
+    ndivz : List[int]
+        The number of equally spaced flat source regions to use when
+        dividing the grid defined by zval
 
     Attributes
     ----------

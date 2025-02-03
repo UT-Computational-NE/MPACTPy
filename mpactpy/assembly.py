@@ -9,6 +9,11 @@ from mpactpy.utils import list_to_str, unique
 class Assembly():
     """ Assembly of an MPACT model
 
+    Parameters
+    ----------
+    lattice_map : List[Lattice]
+        1-D array of lattice names
+
     Attributes
     ----------
     pitch : Dict[str, float]
