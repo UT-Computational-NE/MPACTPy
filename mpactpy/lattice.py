@@ -9,6 +9,11 @@ from mpactpy.utils import list_to_str, is_rectangular, unique
 class Lattice():
     """  Lattice of an MPACT model
 
+    Parameters
+    ----------
+    module_map : List[List[Module]]
+        a 2-D array of modules
+
     Attributes
     ----------
     nx : int
