@@ -3,53 +3,40 @@ from typing import Dict, List, Optional, Any
 from math import isclose
 import openmc
 
-from mpactpy.utils import relative_round
+from mpactpy.utils import relative_round, ROUNDING_RELATIVE_TOLERANCE as TOL
 
 
 class Material():
     """ Class for specifying materials of an MPACT model
 
     Parameters
-        ----------
-        material_type : int
-            The MPACT material type number
-        density : float
-            The density (g/cc)
-        temperature : float
-            The temperature (K)
-        number_densities : Dict[str, float]
-            The isotopic number densities (atoms/b-cm)
-            (key: isotope ID, value: number density)
-        mpact_id : int
-            The MPACT ID for the material
-        thermal_scattering_isotopes : Optional[List[str]]
-            List of isotopes that should use thermal scattering libraries
+    ----------
+    material_type : int
+        The MPACT material type number
+    density : float
+        The density (g/cc)
+    temperature : float
+        The temperature (K)
+    number_densities : Dict[str, float]
+        The isotopic number densities (atoms/b-cm)
+        (key: isotope ID, value: number density)
+    thermal_scattering_isotopes : Optional[List[str]]
+        List of isotopes that should use thermal scattering libraries
 
     Attributes
-        ----------
-        mpact_id : int
-            The MPACT ID for the material
-        material_type : int
-            The MPACT material type number
-        density : float
-            The density (g/cc)
-        temperature : float
-            The temperature (K)
-        number_densities : Dict[str, float]
-            The isotopic number densities (atoms/b-cm)
-            (key: isotope ID, value: number density)
-        thermal_scattering_isotopes : List[str]
-            List of isotopes that should use thermal scattering libraries
+    ----------
+    material_type : int
+        The MPACT material type number
+    density : float
+        The density (g/cc)
+    temperature : float
+        The temperature (K)
+    number_densities : Dict[str, float]
+        The isotopic number densities (atoms/b-cm)
+        (key: isotope ID, value: number density)
+    thermal_scattering_isotopes : List[str]
+        List of isotopes that should use thermal scattering libraries
     """
-
-    @property
-    def mpact_id(self) -> int:
-        return self._mpact_id
-
-    @mpact_id.setter
-    def mpact_id(self, mpact_id: int) -> None:
-        assert mpact_id > 0
-        self._mpact_id = mpact_id
 
     @property
     def material_type(self) -> int:
@@ -76,19 +63,19 @@ class Material():
                  density:                     float,
                  temperature:                 float,
                  number_densities:            Dict[str, float],
-                 mpact_id:                    int = 1,
                  thermal_scattering_isotopes: Optional[List[str]] = None,
     ):
 
         thermal_scattering_isotopes = [] if thermal_scattering_isotopes is None else thermal_scattering_isotopes
 
-        assert material_type in VALID_MATERIAL_TYPES
-        assert density >= 0.
-        assert temperature >= 0.
-        assert all(number_dens >= 0. for number_dens in number_densities.values())
-        assert all(iso in number_densities for iso in thermal_scattering_isotopes)
+        assert material_type in VALID_MATERIAL_TYPES, f"material_type = {material_type}"
+        assert density >= 0., f"density = {density}"
+        assert temperature >= 0., f"temperature = {temperature}"
+        assert all(number_dens >= 0. for number_dens in number_densities.values()), \
+            f"number_densities = {number_densities}"
+        assert all(iso in number_densities for iso in thermal_scattering_isotopes), \
+            f"thermal_scattering_isotopes = {thermal_scattering_isotopes}"
 
-        self.mpact_id                     = mpact_id
         self._material_type               = material_type
         self._density                     = density
         self._temperature                 = temperature
@@ -97,26 +84,24 @@ class Material():
 
 
     def __eq__(self, other: Any) -> bool:
-        tol = 1E-5
         if self is other:
             return True
         return (isinstance(other, Material)                                           and
                 self.material_type == other.material_type                             and
-                isclose(self.density, other.density, rel_tol=tol)                     and
-                isclose(self.temperature, other.temperature, rel_tol=tol)             and
+                isclose(self.density, other.density, rel_tol=TOL)                     and
+                isclose(self.temperature, other.temperature, rel_tol=TOL)             and
                 self.number_densities.keys() == other.number_densities.keys()         and
                 self.thermal_scattering_isotopes == other.thermal_scattering_isotopes and
-                all(isclose(self.number_densities[iso], other.number_densities[iso], rel_tol=tol)
+                all(isclose(self.number_densities[iso], other.number_densities[iso], rel_tol=TOL)
                     for iso in self.number_densities.keys())
                 )
 
     def __hash__(self) -> int:
-        tol = 1E-5
-        number_densities = sorted({iso: relative_round(numd, tol)
+        number_densities = sorted({iso: relative_round(numd, TOL)
                                    for iso, numd in self.number_densities.items()})
         return hash((self.material_type,
-                     relative_round(self.density, tol),
-                     relative_round(self.temperature, tol),
+                     relative_round(self.density, TOL),
+                     relative_round(self.temperature, TOL),
                      tuple(number_densities),
                      tuple(self.thermal_scattering_isotopes)))
 
@@ -124,7 +109,6 @@ class Material():
     @staticmethod
     def from_openmc_material(material:                    openmc.Material,
                              material_type:               int,
-                             mpact_id:                    int = 1,
                              thermal_scattering_isotopes: List[str] = []) -> Material:
         """ Factory method for building an Material from an openmc.Material
 
@@ -138,8 +122,6 @@ class Material():
 
         Parameters
         ----------
-        mpact_id : int
-            The MPACT ID for the material
         material : openmc.Material
             The openmc Material with which to build this new material from
         material_type : int
@@ -153,8 +135,8 @@ class Material():
             The MPACT Model material created from the OpenMC Material
         """
 
-        assert material_type in VALID_MATERIAL_TYPES
-        assert material.density_units in ['g/cc', 'g/cm3']
+        assert material_type in VALID_MATERIAL_TYPES, f"material_type = {material_type}"
+        assert material.density_units in ['g/cc', 'g/cm3'], f"density_units = {material.density_units}"
 
         number_densities = {}
         for iso in thermal_scattering_isotopes:
@@ -172,8 +154,7 @@ class Material():
 
         number_densities = {iso: num_dens for iso, num_dens in number_densities.items() if not isclose(num_dens, 0.0)}
 
-        mpact_material = Material(mpact_id                    = mpact_id,
-                                  material_type               = material_type,
+        mpact_material = Material(material_type               = material_type,
                                   density                     = material.density,
                                   temperature                 = material.temperature,
                                   number_densities            = number_densities,
@@ -209,7 +190,7 @@ class Material():
 
         return ZZZAAAI
 
-    def write_to_string(self, prefix: str = "") -> str:
+    def write_to_string(self, prefix: str = "", mpact_ids: Dict[Material, int] = None) -> str:
         """ Method for writing the material to a string
 
         It should be noted that this method will only write out those elements / isotopes
@@ -220,6 +201,8 @@ class Material():
         ----------
         prefix : str
             A prefix with which to start each line of the written output string
+        mpact_ids : Dict[Material, int]
+            A collection of Materials and their corresponding MPACT IDs
 
         Returns
         -------
@@ -227,7 +210,8 @@ class Material():
             The string representing the material definition
         """
 
-        string = prefix + f"mat {self.mpact_id} {self.material_type} {self.density} g/cc {self.temperature} K \\\n"
+        mpact_id = 1 if mpact_ids is None else mpact_ids[self]
+        string = prefix + f"mat {mpact_id} {self.material_type} {self.density} g/cc {self.temperature} K \\\n"
 
         for iso, number_density in sorted(self.number_densities.items()):
             is_thermal_scattering = iso in self.thermal_scattering_isotopes
