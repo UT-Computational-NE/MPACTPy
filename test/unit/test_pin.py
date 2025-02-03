@@ -1,6 +1,7 @@
 import pytest
 from numpy.testing import assert_allclose
-from mpactpy.pin import Pin
+from mpactpy.pinmesh import RectangularPinMesh, GeneralCylindricalPinMesh
+from mpactpy.pin import Pin, build_rec_pin, build_gcyl_pin
 from test.unit.test_material import material, equal_material, unequal_material
 from test.unit.test_pinmesh import general_cylindrical_pinmesh as pinmesh,\
                                    equal_general_cylindrical_pinmesh as equal_pinmesh,\
@@ -61,3 +62,35 @@ def test_pin_axial_merge(pin):
     assert len(merged_pin.pinmesh.ndivz) == 6
     assert_allclose([merged_pin.pinmesh.pitch[i] for i in ['X','Y','Z']], [2., 2., 6.])
     assert_allclose(merged_pin.pinmesh.zvals, [1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+
+def test_build_gcyl_pin(material):
+    pin = build_gcyl_pin(bounds                  = (-2.5, 2.5, -2.5, 2.5),
+                         thicknesses             = {"R": [2.0], "Z": [1.0]},
+                         materials               = [material, material],
+                         target_cell_thicknesses = {"R": 1.0, "S": 6.0, "Z": 0.5})
+
+    materials    = [material, material, material]
+    pin_mesh     = GeneralCylindricalPinMesh(r     = [1.0, 2.0],
+                                             xMin  = -2.5, xMax = 2.5,
+                                             yMin  = -2.5, yMax = 2.5,
+                                             zvals = [1.0],
+                                             ndivr = [1, 1], ndiva = [4, 4, 4], ndivz = [2])
+    expected_pin = Pin(pin_mesh, materials)
+
+    assert pin == expected_pin
+
+def test_build_rec_pin(material):
+    pin = build_rec_pin(thicknesses             = {"X": [1.0, 1.0], "Y": [3.0], "Z": [5.0]},
+                        materials               = [material, material],
+                        target_cell_thicknesses = {"X": 0.5, "Y": 1.5})
+
+    materials    = [material, material]
+    pin_mesh     = RectangularPinMesh(xvals = [1.0, 2.0],
+                                      yvals = [3.0],
+                                      zvals = [5.0],
+                                      ndivx = [2, 2],
+                                      ndivy = [2],
+                                      ndivz = [1])
+    expected_pin = Pin(pin_mesh, materials)
+
+    assert pin == expected_pin
