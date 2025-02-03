@@ -14,6 +14,17 @@ class Model():
     (i.e. geometry elements that are identical to some previously defined geometry
     element in all features except ID) are purged.
 
+    Parameters
+    ----------
+    states : List[Dict[str, str]]
+        The model states
+    core : Core
+        The model core
+    xsec_settings : Dict[str, str]
+        The model cross-section settings
+    options : Dict[str, str]
+        The model options
+
     Attributes
     ----------
     states : List[Dict[str, str]]
