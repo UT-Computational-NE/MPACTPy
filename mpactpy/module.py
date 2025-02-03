@@ -9,6 +9,14 @@ from mpactpy.utils import list_to_str, is_rectangular, unique
 class Module():
     """  Module of an MPACT model
 
+    Parameters
+    ----------
+    nz : int
+        Number of pins along the z-dimension
+    pin_map : List[List[Pin]]
+        The 2-D array of pin.  This array is extruded
+        nz times in the z-direction
+
     Attributes
     ----------
     nx : int
