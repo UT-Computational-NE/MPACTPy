@@ -286,18 +286,19 @@ class Core():
         all_points = [0.0] + sorted([x for mesh in meshes for x in mesh])
         unionized_mesh = [all_points[0]]
         for point in all_points[1:]:
-            if not(isclose(point, unionized_mesh[-1])):
+            if not isclose(point, unionized_mesh[-1]):
                 unionized_mesh.append(point)
 
         for i in range(1, len(unionized_mesh)):
             if unionized_mesh[i] - unionized_mesh[i-1] < min_thickness:
-                raise RuntimeError("Axial Mesh Unionization results in a mesh element less than the minimum thickness limit: " +\
+                raise RuntimeError("Axial Mesh Unionization results in a mesh element " + \
+                                   "less than the minimum thickness limit: " +\
                                    f"{min_thickness} starting at axial position: {unionized_mesh[i-1]}")
 
         unionized_assemblies = []
         for assembly in self.assemblies:
             unionized_assemblies.append(None)
-            if not(assembly is None):
+            if not assembly is None:
                 lattice_map = []
                 for start_pos, stop_pos in zip(unionized_mesh[:-1], unionized_mesh[1:]):
                     lattice_map.extend(assembly.get_axial_slice(start_pos, stop_pos).lattice_map)

@@ -248,14 +248,16 @@ def build_gcyl_pin(bounds:                  Tuple[float, float, float, float],
         The constructed Pin
     """
 
-    xmin = bounds[0]; xmax = bounds[1]
-    ymin = bounds[2]; ymax = bounds[3]
+    xmin = bounds[0]
+    xmax = bounds[1]
+    ymin = bounds[2]
+    ymax = bounds[3]
 
     for dim in ["R", "S", "Z"]:
         target_cell_thicknesses.setdefault(dim, inf)
 
-    assert(xmin < xmax)
-    assert(ymin < ymax)
+    assert xmin < xmax
+    assert ymin < ymax
     assert all(thickness > 0. for axis in thicknesses.values() for thickness in axis)
     assert all(thickness > 0. for thickness in target_cell_thicknesses.values())
     assert len(materials) == (len(thicknesses['R']) + 1) * len(thicknesses['Z'])
@@ -270,7 +272,8 @@ def build_gcyl_pin(bounds:                  Tuple[float, float, float, float],
     r     = list(accumulate(r_subds))
     ndivr = [1] * len(r) # Subdivision was already performed by the target_cell_thickness
 
-    num_a_subd = max(1, (int(2.*pi*r[-1] // target_cell_thicknesses["S"]) + 3) // 4 * 4) # Special arithmetic here ensures azimuthal subdivisions are divisible by 4
+    # Special arithmetic here ensures azimuthal subdivisions are divisible by 4
+    num_a_subd = max(1, (int(2.*pi*r[-1] // target_cell_thicknesses["S"]) + 3) // 4 * 4)
     ndiva      = [num_a_subd] * len(r) + [num_a_subd]
 
     ndivz = [max(1, int(thickness // target_cell_thicknesses["Z"])) for thickness in thicknesses["Z"]]
