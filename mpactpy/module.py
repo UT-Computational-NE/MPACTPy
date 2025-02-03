@@ -9,6 +9,14 @@ from mpactpy.utils import list_to_str, is_rectangular, unique
 class Module():
     """  Module of an MPACT model
 
+    Parameters
+    ----------
+    nz : int
+        Number of pins along the z-dimension
+    pin_map : List[List[Pin]]
+        The 2-D array of pin.  This array is extruded
+        nz times in the z-direction
+
     Attributes
     ----------
     nx : int
@@ -109,7 +117,7 @@ class Module():
 
         if pin_mpact_ids is None:
             pins = unique(pin for row in self.pin_map for pin in row)
-            pin_mpact_ids = {pin: i for i, pin in enumerate(pins)}
+            pin_mpact_ids = {pin: i+1 for i, pin in enumerate(pins)}
 
         module_id = 1 if module_mpact_ids is None else module_mpact_ids[self]
 

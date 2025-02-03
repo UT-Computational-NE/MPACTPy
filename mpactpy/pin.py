@@ -12,6 +12,15 @@ from mpactpy.utils import list_to_str, unique
 class Pin():
     """ Pin of an MPACT model
 
+    Parameters
+    ----------
+    pinmesh : PinMesh
+        The pin mesh associated with this pin
+    materials : List[Material]
+        The materials used in each pin XSR. The number of
+        entries must be equal to the number of uniform
+        material regions defined in the pin mesh
+
     Attributes
     ----------
     pinmesh : PinMesh
