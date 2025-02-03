@@ -14,6 +14,17 @@ from mpactpy.utils import list_to_str, is_rectangular, unique
 class Core():
     """ Core of an MPACT model
 
+    Parameters
+    ----------
+    assembly_map : List[List[Assembly]]
+        2-D map of the core assemblies
+    symmetry_opt : SymmetryOption
+        Core symmetry ("360", "90")
+    quarter_sym_opt : QuarterSymmetryOption
+        Quarter core centerline symmetry
+        (i.e. whether the centerline bisects an assembly through the
+        center, or passes between assemblies along the edge)
+
     Attributes
     ----------
     symmetry_opt : SymmetryOption
