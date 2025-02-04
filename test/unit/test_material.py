@@ -8,34 +8,42 @@ TOL = ROUNDING_RELATIVE_TOLERANCE * 1E-1
 
 @pytest.fixture
 def material():
-    mat_type         = 1
     dens             = 10.0
     temp             = 300.0
     numd             = {"U235": 1e-3, "H": 2e-3}
     thermal_scat_iso = ["H"]
-    return Material(mat_type, dens, temp, numd, thermal_scat_iso)
+    is_fluid         = True
+    is_depl          = False
+    has_res          = False
+    is_fuel          = False
+    return Material(dens, temp, numd, thermal_scat_iso, is_fluid, is_depl, has_res, is_fuel)
 
 @pytest.fixture
 def equal_material():
-    mat_type         = 1
     dens             = 10.0*(1+TOL)
     temp             = 300.0*(1-TOL)
     numd             = {"U235": 1e-3*(1+TOL), "H": 2e-3*(1-TOL)}
     thermal_scat_iso = ["H"]
-    return Material(mat_type, dens, temp, numd, thermal_scat_iso)
+    is_fluid         = True
+    is_depl          = False
+    has_res          = False
+    is_fuel          = False
+    return Material(dens, temp, numd, thermal_scat_iso, is_fluid, is_depl, has_res, is_fuel)
 
 @pytest.fixture
 def unequal_material():
-    mat_type         = 1
     dens             = 5.0
     temp             = 300.0
     numd             = {"U235": 1e-3, "H": 2e-3}
     thermal_scat_iso = ["H"]
-    return Material(mat_type, dens, temp, numd, thermal_scat_iso)
+    is_fluid         = True
+    is_depl          = False
+    has_res          = False
+    is_fuel          = False
+    return Material(dens, temp, numd, thermal_scat_iso, is_fluid, is_depl, has_res, is_fuel)
 
 
 def test_material_initialization(material):
-    assert material.material_type == 1
     assert isclose(material.density, 10.0)
     assert isclose(material.temperature, 300.0)
     assert material.number_densities == {"U235": 1e-3, "H": 2e-3}
@@ -57,10 +65,8 @@ def test_material_from_openmc_material():
     openmc_material.add_nuclide('H1', 2e-3)
 
     material = Material.from_openmc_material(material                    = openmc_material,
-                                             material_type               = 1,
                                              thermal_scattering_isotopes = ["H1"])
 
-    assert material.material_type == 1
     assert isclose(material.density, 10.0)
     assert isclose(material.temperature, 300.0)
     assert material.number_densities["U235"] == openmc_material.get_nuclide_atom_densities()["U235"]
