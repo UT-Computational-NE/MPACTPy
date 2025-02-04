@@ -4,7 +4,7 @@ from mpactpy.material import Material
 from mpactpy.utils import ROUNDING_RELATIVE_TOLERANCE
 import openmc
 
-TOL = ROUNDING_RELATIVE_TOLERANCE * 1E-1
+TOL = ROUNDING_RELATIVE_TOLERANCE * 1E-2
 
 @pytest.fixture
 def material():

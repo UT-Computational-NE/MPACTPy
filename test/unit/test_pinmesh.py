@@ -4,7 +4,7 @@ from numpy.testing import assert_allclose
 from mpactpy.utils import ROUNDING_RELATIVE_TOLERANCE
 from mpactpy.pinmesh import RectangularPinMesh, GeneralCylindricalPinMesh
 
-TOL = ROUNDING_RELATIVE_TOLERANCE * 1E-1
+TOL = ROUNDING_RELATIVE_TOLERANCE * 1E-2
 
 @pytest.fixture
 def rectangular_pinmesh():

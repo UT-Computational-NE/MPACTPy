@@ -33,7 +33,7 @@ def relative_round(value: float, rel_tol: float =1e-9) -> float:
     if value == 0:
         return 0.0
 
-    abs_tol       = rel_tol * max(abs(value), 1.0)
+    abs_tol       = rel_tol * abs(value)
     decimals      = max(0, int(math.ceil(-math.log10(abs_tol))))
     quantization  = Decimal(f'1e-{decimals}')
     rounded_value = Decimal(value).quantize(quantization, rounding=ROUND_HALF_UP)
