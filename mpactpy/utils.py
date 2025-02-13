@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import List, Union, Hashable, TypeVar
 from decimal import Decimal, ROUND_HALF_UP
 import math
 
@@ -95,3 +95,19 @@ def list_to_str(input_list: List[Union[float, int]], print_length: int = None) -
         return f"{str(num)}" if print_length is None else f"{str(num):{print_length}}"
 
     return ' '.join(print_num(x, print_length) for x in input_list)
+
+T = TypeVar('T', bound=Hashable)
+def unique(elements: List[T]) -> List[T]:
+    """ Function for extracting the unique elements of a list while preserving the original order of the elements
+
+    Parameters
+    ----------
+    elements : List[T]
+        The list of elements from which the unique elements will be identified
+
+    Returns
+    -------
+    List[T]
+        The list of unique elements
+    """
+    return list(dict.fromkeys(elements))

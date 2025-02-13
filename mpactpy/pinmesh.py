@@ -77,7 +77,7 @@ class PinMesh(ABC):
             The string that represents the pin mesh
         """
 
-    def _set_axial_mesh(self, zvals: List[float] = None, ndivz: List[int] = None) -> None:
+    def set_axial_mesh(self, zvals: List[float] = None, ndivz: List[int] = None) -> None:
         """ A method for setting the axial meshing of a pinmesh
 
         Parameters
@@ -96,6 +96,10 @@ class PinMesh(ABC):
 
         self._zvals = zvals
         self._ndivz = ndivz
+
+        self._set_pitch()
+        self._set_number_of_material_regions()
+        self._set_regions_inside_bounds()
 
 
     @abstractmethod
@@ -190,10 +194,7 @@ class RectangularPinMesh(PinMesh):
         self._ndivx   = ndivx
         self._ndivy   = ndivy
 
-        self._set_axial_mesh(zvals, ndivz)
-        self._set_pitch()
-        self._set_number_of_material_regions()
-        self._set_regions_inside_bounds()
+        self.set_axial_mesh(zvals, ndivz)
 
 
     def __eq__(self, other: Any) -> bool:
@@ -286,6 +287,9 @@ class GeneralCylindricalPinMesh(PinMesh):
         The number of equal-angle ”pie-slices” to use when dividing each concentric ring
         into flat source regions azimuthally
     """
+    _r_inside_bounds: List[float]
+    _ndivr_inside_bounds: List[int]
+    _ndiva_inside_bounds: List[int]
 
     @property
     def r(self) -> List[float]:
@@ -344,10 +348,7 @@ class GeneralCylindricalPinMesh(PinMesh):
         self._ndivr   = ndivr
         self._ndiva   = ndiva
 
-        self._set_axial_mesh(zvals, ndivz)
-        self._set_pitch()
-        self._set_number_of_material_regions()
-        self._set_regions_inside_bounds()
+        self.set_axial_mesh(zvals, ndivz)
 
 
     def __eq__(self, other: Any) -> bool:

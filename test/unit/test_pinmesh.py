@@ -40,6 +40,7 @@ def test_rectangular_pinmesh_initialization(rectangular_pinmesh):
     pinmesh = rectangular_pinmesh
     assert pinmesh.number_of_material_regions == 27
     assert pinmesh.regions_inside_bounds == 27
+    assert_allclose([pinmesh.pitch[i] for i in ['X','Y','Z']], [3., 3., 3.])
     assert_allclose(pinmesh.xvals, [1.0, 2.0, 3.0])
     assert_allclose(pinmesh.yvals, [1.0, 2.0, 3.0])
     assert_allclose(pinmesh.zvals, [1.0, 2.0, 3.0])
@@ -102,6 +103,7 @@ def test_general_cylindrical_pinmesh_initialization(general_cylindrical_pinmesh)
     pinmesh = general_cylindrical_pinmesh
     assert pinmesh.number_of_material_regions == 12
     assert pinmesh.regions_inside_bounds == [0, 1, 2, 4, 5, 6, 8, 9, 10]
+    assert_allclose([pinmesh.pitch[i] for i in ['X','Y','Z']], [2., 2., 3.])
     assert isclose(pinmesh.xMin, -1.0)
     assert isclose(pinmesh.xMax,  1.0)
     assert isclose(pinmesh.yMin, -1.0)
