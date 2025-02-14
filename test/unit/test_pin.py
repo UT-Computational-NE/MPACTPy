@@ -38,11 +38,11 @@ def test_pin_hash(pin, equal_pin, unequal_pin):
     assert hash(pin) != hash(unequal_pin)
 
 def test_pin_write_to_string(pin, pinmesh, material):
-    output = pin.write_to_string(prefix="test ",
+    output = pin.write_to_string(prefix="  ",
                                  material_mpact_ids={material: 3},
                                  pinmesh_mpact_ids={pinmesh: 2},
                                  pin_mpact_ids={pin: 1})
-    expected_output = "test pin 1 2 / 3 3 3 3 3 3 3 3 3\n"
+    expected_output = "  pin 1 2 / 3 3 3 3 3 3 3 3 3\n"
     assert output == expected_output
 
 def test_pin_get_axial_slice(pin):

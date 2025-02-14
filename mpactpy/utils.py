@@ -97,6 +97,7 @@ def list_to_str(input_list: List[Union[float, int]], print_length: int = None) -
     return ' '.join(print_num(x, print_length) for x in input_list)
 
 T = TypeVar('T', bound=Hashable)
+
 def unique(elements: List[T]) -> List[T]:
     """ Function for extracting the unique elements of a list while preserving the original order of the elements
 
@@ -111,3 +112,19 @@ def unique(elements: List[T]) -> List[T]:
         The list of unique elements
     """
     return list(dict.fromkeys(elements))
+
+
+def is_rectangular(map_2D: List[List[T]]) -> bool:
+    """ A helper function for checking whether or not a 2D map of elements is rectangular or not
+
+    Parameters
+    ----------
+    map_2D : List[List[T]]
+        The 2D Map to be checked
+
+    Returns
+    -------
+    True if the 2D Map is rectangular, False otherwise
+    """
+
+    return bool(map_2D and map_2D[0]) and all(len(row) == len(map_2D[0]) for row in map_2D)
