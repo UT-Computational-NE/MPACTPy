@@ -54,5 +54,5 @@ def test_module_get_axial_slice(module):
 
     assert pin_slice.pinmesh.number_of_material_regions == 8
     assert pin_slice.pinmesh.regions_inside_bounds == [0, 1, 2, 4, 5, 6]
-    assert_allclose([pin_slice.pinmesh.pitch[i] for i in ['X','Y','Z']], [2., 2., 1.])
+    assert_allclose([module_slice.pitch[i] for i in ['X','Y','Z']], [4., 4., 1.])
     assert_allclose(pin_slice.pinmesh.zvals, [0.5, 1.0])
