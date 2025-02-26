@@ -39,7 +39,7 @@ def unequal_rectangular_pinmesh():
 def test_rectangular_pinmesh_initialization(rectangular_pinmesh):
     pinmesh = rectangular_pinmesh
     assert pinmesh.number_of_material_regions == 27
-    assert pinmesh.regions_inside_bounds == 27
+    assert pinmesh.regions_inside_bounds == [i for i in range(27)]
     assert_allclose([pinmesh.pitch[i] for i in ['X','Y','Z']], [3., 3., 3.])
     assert_allclose(pinmesh.xvals, [1.0, 2.0, 3.0])
     assert_allclose(pinmesh.yvals, [1.0, 2.0, 3.0])

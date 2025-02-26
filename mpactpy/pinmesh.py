@@ -238,7 +238,7 @@ class RectangularPinMesh(PinMesh):
         self._number_of_material_regions = len(self.xvals)*len(self.yvals)*len(self.zvals)
 
     def _set_regions_inside_bounds(self) -> None:
-        self._regions_inside_bounds = len(self.xvals)*len(self.yvals)*len(self.zvals)
+        self._regions_inside_bounds = list(range(len(self.xvals)*len(self.yvals)*len(self.zvals)))
 
 
 class GeneralCylindricalPinMesh(PinMesh):

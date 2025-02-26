@@ -61,9 +61,9 @@ def test_core_write_to_string(core, assembly):
     output = core.write_to_string(prefix="  ",
                                   assembly_mpact_ids={assembly: 3})
     expected_output = "  core\n" + \
-                      "      3  \n" + \
+                      "      3\n" + \
                       "    3 3 3\n" + \
-                      "      3  \n"
+                      "      3\n"
     assert output == expected_output
 
 def test_core_get_axial_slice(core):
