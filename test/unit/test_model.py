@@ -106,8 +106,8 @@ def test_harder_model():
     """ This tests a harder model with multiple repeated element definitions that the model
         must successfully NOT repeat when writing to string
     """
-    mat = [Material(1, 10.0, 300.0, {"U235": 1e-3, "H": 2e-3}, ["H"]),
-           Material(1, 10.0, 300.0, {"U235": 5e-3, "H": 8e-3}, ["H"])]
+    mat = [Material(10.0, 300.0, {"U235": 1e-3, "H": 2e-3}, ["H"]),
+           Material(10.0, 300.0, {"U235": 5e-3, "H": 8e-3}, ["H"])]
 
     pin_meshes = [RectangularPinMesh([0.5, 1.0], [0.5, 1.0], [1.0], [2, 2], [1, 1], [1]),
                   RectangularPinMesh([0.5, 1.0], [0.5, 1.0], [2.0], [2, 2], [1, 1], [1]),
@@ -151,10 +151,10 @@ def test_harder_model():
 """CASEID test
 
 MATERIAL
-  mat 1 1 10.0 g/cc 300.0 K \\
+  mat 1 0 10.0 g/cc 300.0 K \\
     1001 0.008
     92235 0.005
-  mat 2 1 10.0 g/cc 300.0 K \\
+  mat 2 0 10.0 g/cc 300.0 K \\
     1001 0.002
     92235 0.001
 
