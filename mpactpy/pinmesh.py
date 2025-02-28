@@ -419,8 +419,9 @@ class GeneralCylindricalPinMesh(PinMesh):
         radii_inside_bounds = [i for i,r in enumerate(self.r)
                                if box_overlaps_circle(r) and not circle_encloses_box(r)]
 
-        assert radii_inside_bounds, f"GCYL PinMesh with bounds {self.xMin, self.yMin, self.xMax, self.yMax} "+ \
-                                     "has no cylinder regions which fall within the bounds"
+        assert radii_inside_bounds or circle_encloses_box(self.r[0]), \
+            f"GCYL PinMesh with bounds {self.xMin, self.yMin, self.xMax, self.yMax} "+ \
+             "has no cylinder regions which fall within the bounds"
 
         self._r_inside_bounds       = [self._r[i] for i in radii_inside_bounds]
         self._ndivr_inside_bounds   = [self._ndivr[i] for i in radii_inside_bounds]

@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import List, Any, Literal, Dict
 from math import isclose
+from itertools import accumulate
 
 from mpactpy.material import Material
 from mpactpy.pinmesh import PinMesh
@@ -24,6 +25,11 @@ class Core():
         Quarter core centerline symmetry
         (i.e. whether the centerline bisects an assembly through the
         center, or passes between assemblies along the edge)
+    min_thickness: float
+        The minimum allowed thickness for unionization.  If the unionized mesh
+        produces a mesh element with an axial height less than the minimum thickness,
+        an error will be thrown.  This is meant as a failsafe for applications in which
+        a minimum axial thickness is required.
 
     Attributes
     ----------
@@ -34,9 +40,9 @@ class Core():
         (i.e. whether the centerline bisects an assembly through the
         center, or passes between assemblies along the edge)
     nx : int
-        Number of modules along the x-dimension
+        Number of assemblies along the x-dimension
     ny : int
-        Number of modules along the y-dimension
+        Number of assemblies along the y-dimension
     nz : int
         Number of modules along the z-dimension
     height : float
@@ -122,7 +128,8 @@ class Core():
     def __init__(self,
                  assembly_map: List[List[Assembly]],
                  symmetry_opt: SymmetryOption = "",
-                 quarter_sym_opt: QuarterSymmetryOption = ""):
+                 quarter_sym_opt: QuarterSymmetryOption = "",
+                 min_thickness: float = 0.):
 
         assert is_rectangular(assembly_map)
 
@@ -131,19 +138,22 @@ class Core():
         self._assembly_map    = assembly_map
 
         self._assemblies = unique(assembly for row in self.assembly_map for assembly in row if assembly)
-        self._lattices   = unique(lattice for assembly in self.assemblies for lattice in assembly.lattice_map)
-        self._modules    = unique(module for lattice in self.lattices for row in lattice.module_map for module in row)
-        self._pins       = unique(pin for module in self.modules for row in module.pin_map for pin in row)
-        self._pinmeshes  = unique(pin.pinmesh for pin in self.pins)
-        self._materials  = unique(material for pin in self.pins for material in pin.materials)
 
         assert len(self.assemblies) > 0
 
         assert all(isclose(assembly.mod_dim['X'], self.mod_dim['X']) for assembly in self.assemblies)
         assert all(isclose(assembly.mod_dim['Y'], self.mod_dim['Y']) for assembly in self.assemblies)
-        assert all(assembly.nz == self.assemblies[0].nz for assembly in self.assemblies)
-        assert self._assemblies_have_same_axial_spacing()
         assert self._assembly_map_is_radially_internally_continuous()
+
+        assert all(isclose(assembly.height, self.assemblies[0].height) for assembly in self.assemblies if assembly)
+        if not self._assemblies_have_same_axial_meshing():
+            self._unionize_axial_mesh(min_thickness)
+
+        self._lattices   = unique(lattice for assembly in self.assemblies for lattice in assembly.lattice_map)
+        self._modules    = unique(module for lattice in self.lattices for row in lattice.module_map for module in row)
+        self._pins       = unique(pin for module in self.modules for row in module.pin_map for pin in row)
+        self._pinmeshes  = unique(pin.pinmesh for pin in self.pins)
+        self._materials  = unique(material for pin in self.pins for material in pin.materials)
 
     def __eq__(self, other: Any) -> bool:
         if self is other:
@@ -195,9 +205,16 @@ class Core():
             string += prefix + f"  {list_to_str(assemblies, id_length).rstrip()}\n"
         return string
 
-    def _assemblies_have_same_axial_spacing(self)->bool:
-        """ A helper method for checking that all assemblies have the same axial spacing along their lengths
+    def _assemblies_have_same_axial_meshing(self)->bool:
+        """ A helper method for checking if all assemblies have the same axial axial meshing along their lengths
+
+        Returns
+        -------
+        True if all assemblies have the same axial meshing, False otherwise
         """
+
+        if any(assembly.nz != self.assemblies[0].nz for assembly in self.assemblies):
+            return False
 
         for assembly in self.assemblies:
             for i in range(assembly.nz):
@@ -211,6 +228,10 @@ class Core():
         This method allows for "stair-case" core boundaries, but does not allow for missing
         assemblies within the core boundaries, or inconsistent assembly pitches along each
         row and column
+
+        Returns
+        -------
+        True if the assembly map is radially internally continuous, False otherwise
         """
 
         def is_continuous_line(line, axis):
@@ -245,6 +266,54 @@ class Core():
                 return False
 
         return True
+
+    def _unionize_axial_mesh(self, min_thickness: float = 0.) -> None:
+        """ Helper method that unionizes the axial meshes of the core assemblies
+
+        This method currently only supports cases where all pinmeshes have a single axial material division
+
+        Parameters
+        ----------
+        min_thickness: float
+            The minimum allowed thickness for unionization.  If the unionized mesh
+            produces a mesh element with an axial height less than the minimum thickness,
+            an error will be thrown.  This is meant as a failsafe for applications in which
+            a minimum axial thickness is required.
+        """
+
+        meshes = [list(accumulate(lattice.pitch["Z"] for lattice in assembly.lattice_map)) for assembly in self.assemblies]
+
+        all_points = [0.0] + sorted([x for mesh in meshes for x in mesh])
+        unionized_mesh = [all_points[0]]
+        for point in all_points[1:]:
+            if not isclose(point, unionized_mesh[-1]):
+                unionized_mesh.append(point)
+
+        for i in range(1, len(unionized_mesh)):
+            if unionized_mesh[i] - unionized_mesh[i-1] < min_thickness:
+                raise RuntimeError("Axial Mesh Unionization results in a mesh element " + \
+                                   "less than the minimum thickness limit: " +\
+                                   f"{min_thickness} starting at axial position: {unionized_mesh[i-1]}")
+
+        unionized_assemblies = []
+        for assembly in self.assemblies:
+            unionized_assemblies.append(None)
+            if not assembly is None:
+                lattice_map = []
+                for start_pos, stop_pos in zip(unionized_mesh[:-1], unionized_mesh[1:]):
+                    lattice_map.extend(assembly.get_axial_slice(start_pos, stop_pos).lattice_map)
+                unionized_assemblies[-1] = Assembly(lattice_map)
+
+        # This effectively creates a mapping between unionized assemblies and their original unique assembly counterparts
+        orig_to_unionized = dict(zip(self.assemblies, unionized_assemblies))
+
+        self._assembly_map = [[orig_to_unionized[assembly] if not(assembly is None) else None
+                               for assembly in row] for row in self._assembly_map]
+
+        self._assemblies = unique(unionized_assemblies)
+
+        assert self._assemblies_have_same_axial_meshing()
+
 
     def get_axial_slice(self, start_pos: float, stop_pos: float) -> Core:
         """ Method for creating a new Core from an axial slice of this Core
