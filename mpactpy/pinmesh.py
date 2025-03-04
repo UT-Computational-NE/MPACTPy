@@ -88,6 +88,9 @@ class PinMesh(ABC):
             The number of equally spaced flat source regions to use when
             dividing the grid defined by zval
         """
+        zvals = zvals if zvals else []
+        ndivz = ndivz if ndivz else []
+
         assert len(zvals) > 0, f"len(zvals) = {len(zvals)}"
         assert all(val > 0. for val in zvals), f"zvals = {zvals}"
         assert all(zvals[i-1] < zvals[i] for i in range(1,len(zvals))), f"zvals = {zvals}"
