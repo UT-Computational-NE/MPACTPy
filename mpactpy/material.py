@@ -182,6 +182,7 @@ class Material():
         for element in MPACT_NATURAL_ELEMENTS:
             number_densities[element] = 0.
         for iso, number_density in material.get_nuclide_atom_densities().items():
+            iso = str(iso)
             element = ''.join(filter(str.isalpha, iso))
             if iso in number_densities:
                 number_densities[iso] += number_density
