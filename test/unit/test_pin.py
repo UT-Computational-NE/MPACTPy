@@ -1,7 +1,7 @@
 import pytest
 from numpy.testing import assert_allclose
-from mpactpy.pinmesh import RectangularPinMesh, GeneralCylindricalPinMesh
-from mpactpy.pin import Pin, build_rec_pin, build_gcyl_pin
+from mpactpy import RectangularPinMesh, GeneralCylindricalPinMesh, \
+                    Pin, build_rec_pin, build_gcyl_pin
 from test.unit.test_material import material, equal_material, unequal_material
 from test.unit.test_pinmesh import general_cylindrical_pinmesh as pinmesh,\
                                    equal_general_cylindrical_pinmesh as equal_pinmesh,\

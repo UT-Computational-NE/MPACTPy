@@ -1,7 +1,7 @@
 import pytest
 from numpy.testing import assert_allclose
 
-from mpactpy.lattice import Lattice
+from mpactpy import Lattice
 from test.unit.test_material import material, equal_material, unequal_material
 from test.unit.test_pinmesh import general_cylindrical_pinmesh as pinmesh,\
                                    equal_general_cylindrical_pinmesh as equal_pinmesh,\

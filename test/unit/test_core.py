@@ -2,11 +2,7 @@ import pytest
 from math import isclose
 from numpy.testing import assert_allclose
 
-from mpactpy.pin import build_rec_pin
-from mpactpy.module import Module
-from mpactpy.lattice import Lattice
-from mpactpy.assembly import Assembly
-from mpactpy.core import Core
+from mpactpy import build_rec_pin, Module, Lattice, Assembly, Core
 from test.unit.test_material import material, equal_material, unequal_material
 from test.unit.test_pinmesh import general_cylindrical_pinmesh as pinmesh,\
                                    equal_general_cylindrical_pinmesh as equal_pinmesh,\
