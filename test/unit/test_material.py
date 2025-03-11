@@ -1,6 +1,6 @@
 import pytest
 from math import isclose
-from mpactpy.material import Material
+from mpactpy import Material
 from mpactpy.utils import ROUNDING_RELATIVE_TOLERANCE
 import openmc
 

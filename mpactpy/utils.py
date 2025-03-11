@@ -1,4 +1,5 @@
-from typing import List, Union, Hashable, TypeVar
+from typing import List, Union, TypeVar
+from collections.abc import Hashable
 from decimal import Decimal, ROUND_HALF_UP
 import math
 
