@@ -68,6 +68,9 @@ def test_assembly_get_axial_slice(assembly):
     assert_allclose([assembly_slice.pitch[i] for i in ['X','Y']], [8., 8.])
     assert_allclose(pin_slice.pinmesh.zvals, [0.5, 1.0])
 
-def test_assembly_with_height(assembly_2D):
-    assembly = assembly_2D.with_height(3.0)
-    assert isclose(assembly.height, 3.0)
+def test_assembly_with_height(assembly, assembly_2D):
+    new_assembly = assembly_2D.with_height(3.0)
+    assert isclose(new_assembly.height, 3.0)
+
+    with pytest.raises(AssertionError, match=f"nz = {assembly.nz}, Assembly must be strictly 2D"):
+        new_assembly = assembly.with_height(3.0)

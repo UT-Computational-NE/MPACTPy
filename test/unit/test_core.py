@@ -112,6 +112,9 @@ def test_core_axial_mesh_unionization(material):
     assert len(core.pinmeshes)  == 1
     assert len(core.materials)  == 1
 
-def test_core_with_height(core_2D):
-    core = core_2D.with_height(3.0)
-    assert isclose(core.height, 3.0)
+def test_core_with_height(core, core_2D):
+    new_core = core_2D.with_height(3.0)
+    assert isclose(new_core.height, 3.0)
+
+    with pytest.raises(AssertionError, match=f"nz = {core.nz}, Core must be strictly 2D"):
+        new_core = core.with_height(3.0)

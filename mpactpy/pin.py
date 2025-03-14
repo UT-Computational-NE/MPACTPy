@@ -198,7 +198,7 @@ class Pin():
 
         pinmesh = deepcopy(self.pinmesh)
 
-        assert len(pinmesh.zvals), \
+        assert len(pinmesh.zvals) == 1, \
             f"len(zvals) = {len(pinmesh.zvals)}, Pin must be strictly 2D"
 
         pinmesh.set_axial_mesh([height], [1])

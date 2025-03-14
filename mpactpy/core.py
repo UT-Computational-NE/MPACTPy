@@ -360,7 +360,7 @@ class Core():
             The new core with the new height
         """
 
-        assert self.nz == 1, f"NZ = {self.nz}, Core must be strictly 2D"
+        assert self.nz == 1, f"nz = {self.nz}, Core must be strictly 2D"
 
         return Core([[assembly.with_height(height) if assembly else None
                       for assembly in row] for row in self.assembly_map])

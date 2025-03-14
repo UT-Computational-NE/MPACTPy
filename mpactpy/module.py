@@ -184,7 +184,7 @@ class Module():
             The new module with the new height
         """
 
-        assert self.nz == 1, f"NZ = {self.nz}, Module must be strictly 2D"
+        assert self.nz == 1, f"nz = {self.nz}, Module must be strictly 2D"
 
         return Module(1, [[pin.with_height(height) for pin in row]
                       for row in self.pin_map])

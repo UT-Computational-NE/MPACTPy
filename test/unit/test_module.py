@@ -63,6 +63,12 @@ def test_module_get_axial_slice(module):
     assert_allclose([module_slice.pitch[i] for i in ['X','Y','Z']], [4., 4., 1.])
     assert_allclose(pin_slice.pinmesh.zvals, [0.5, 1.0])
 
-def test_module_with_height(module_2D):
-    module = module_2D.with_height(3.0)
-    assert isclose(module.pitch['Z'], 3.0)
+def test_module_with_height(module_2D, pin):
+    new_module = module_2D.with_height(3.0)
+    assert isclose(new_module.pitch['Z'], 3.0)
+
+    module = Module(2, [[pin, pin],
+                        [pin, pin]])
+
+    with pytest.raises(AssertionError, match=f"nz = {module.nz}, Module must be strictly 2D"):
+        new_module = module.with_height(3.0)

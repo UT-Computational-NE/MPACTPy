@@ -173,6 +173,6 @@ class Assembly():
             The new assembly with the new height
         """
 
-        assert self.nz == 1, f"NZ = {self.nz}, Assembly must be strictly 2D"
+        assert self.nz == 1, f"nz = {self.nz}, Assembly must be strictly 2D"
 
         return Assembly([self.lattice_map[0].with_height(height)])

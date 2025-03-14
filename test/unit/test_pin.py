@@ -70,9 +70,13 @@ def test_pin_axial_merge(pin):
     assert_allclose([merged_pin.pinmesh.pitch[i] for i in ['X','Y','Z']], [2., 2., 6.])
     assert_allclose(merged_pin.pinmesh.zvals, [1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
 
-def test_pin_with_height(pin_2D):
-    pin = pin_2D.with_height(3.0)
-    assert isclose(pin.pitch["Z"], 3.0)
+def test_pin_with_height(pin, pin_2D):
+    new_pin = pin_2D.with_height(3.0)
+    assert isclose(new_pin.pitch["Z"], 3.0)
+
+    with pytest.raises(AssertionError, match=f"len\(zvals\) = {len(pin.pinmesh.zvals)}, Pin must be strictly 2D"):
+        new_pin = pin.with_height(3.0)
+
 
 def test_build_gcyl_pin(material):
     pin = build_gcyl_pin(bounds                  = (-2.5, 2.5, -2.5, 2.5),
