@@ -182,6 +182,30 @@ class Pin():
         return Pin(pinmesh_template, materials)
 
 
+    def with_height(self, height: float) -> Pin:
+        """ Method for changing the height of 2D Pin
+
+        Parameters
+        ----------
+        height : float
+            The height of the new 2D pin
+
+        Returns
+        -------
+        Pin
+            The new pin with the new height
+        """
+
+        pinmesh = deepcopy(self.pinmesh)
+
+        assert len(pinmesh.zvals) == 1, \
+            f"len(zvals) = {len(pinmesh.zvals)}, Pin must be strictly 2D"
+
+        pinmesh.set_axial_mesh([height], [1])
+
+        return Pin(pinmesh, self.materials)
+
+
 def build_rec_pin(thicknesses:             Dict[str, List[float]],
                   materials:               List[Material],
                   target_cell_thicknesses: Dict[str, float] = {}) -> Pin:

@@ -7,6 +7,16 @@ from mpactpy import RectangularPinMesh, GeneralCylindricalPinMesh
 TOL = ROUNDING_RELATIVE_TOLERANCE * 1E-2
 
 @pytest.fixture
+def pinmesh_2D():
+    xvals = [1.0, 2.0, 3.0]
+    yvals = [1.0, 2.0, 3.0]
+    zvals = [1.0]
+    ndivx = [10, 10, 10]
+    ndivy = [10, 10, 10]
+    ndivz = [1]
+    return RectangularPinMesh(xvals, yvals, zvals, ndivx, ndivy, ndivz)
+
+@pytest.fixture
 def rectangular_pinmesh():
     xvals = [1.0, 2.0, 3.0]
     yvals = [1.0, 2.0, 3.0]

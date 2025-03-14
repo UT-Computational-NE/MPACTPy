@@ -1,11 +1,13 @@
 import pytest
+from math import isclose
 from numpy.testing import assert_allclose
 from mpactpy import RectangularPinMesh, GeneralCylindricalPinMesh, \
                     Pin, build_rec_pin, build_gcyl_pin
 from test.unit.test_material import material, equal_material, unequal_material
 from test.unit.test_pinmesh import general_cylindrical_pinmesh as pinmesh,\
                                    equal_general_cylindrical_pinmesh as equal_pinmesh,\
-                                   unequal_general_cylindrical_pinmesh as unequal_pinmesh
+                                   unequal_general_cylindrical_pinmesh as unequal_pinmesh, \
+                                   pinmesh_2D
 
 
 @pytest.fixture
@@ -22,6 +24,11 @@ def equal_pin(equal_material, equal_pinmesh):
 def unequal_pin(unequal_material, unequal_pinmesh):
     materials = [unequal_material for _ in range(unequal_pinmesh.number_of_material_regions)]
     return Pin(unequal_pinmesh, materials)
+
+@pytest.fixture
+def pin_2D(material, pinmesh_2D):
+    materials = [material for _ in range(pinmesh_2D.number_of_material_regions)]
+    return Pin(pinmesh_2D, materials)
 
 def test_pin_initialization(pin, pinmesh, material):
     number_of_material_regions = pinmesh.number_of_material_regions
@@ -62,6 +69,14 @@ def test_pin_axial_merge(pin):
     assert len(merged_pin.pinmesh.ndivz) == 6
     assert_allclose([merged_pin.pinmesh.pitch[i] for i in ['X','Y','Z']], [2., 2., 6.])
     assert_allclose(merged_pin.pinmesh.zvals, [1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+
+def test_pin_with_height(pin, pin_2D):
+    new_pin = pin_2D.with_height(3.0)
+    assert isclose(new_pin.pitch["Z"], 3.0)
+
+    with pytest.raises(AssertionError, match=f"len\(zvals\) = {len(pin.pinmesh.zvals)}, Pin must be strictly 2D"):
+        new_pin = pin.with_height(3.0)
+
 
 def test_build_gcyl_pin(material):
     pin = build_gcyl_pin(bounds                  = (-2.5, 2.5, -2.5, 2.5),

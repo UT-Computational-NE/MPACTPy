@@ -6,10 +6,10 @@ from mpactpy import Assembly
 from test.unit.test_material import material, equal_material, unequal_material
 from test.unit.test_pinmesh import general_cylindrical_pinmesh as pinmesh,\
                                    equal_general_cylindrical_pinmesh as equal_pinmesh,\
-                                   unequal_general_cylindrical_pinmesh as unequal_pinmesh
-from test.unit.test_pin import pin, equal_pin, unequal_pin
-from test.unit.test_module import module, equal_module, unequal_module
-from test.unit.test_lattice import lattice, equal_lattice, unequal_lattice
+                                   unequal_general_cylindrical_pinmesh as unequal_pinmesh, pinmesh_2D
+from test.unit.test_pin import pin, equal_pin, unequal_pin, pin_2D
+from test.unit.test_module import module, equal_module, unequal_module, module_2D
+from test.unit.test_lattice import lattice, equal_lattice, unequal_lattice, lattice_2D
 
 
 @pytest.fixture
@@ -26,6 +26,10 @@ def equal_assembly(equal_lattice):
 def unequal_assembly(unequal_lattice):
     return Assembly([unequal_lattice, unequal_lattice,
                      unequal_lattice, unequal_lattice])
+
+@pytest.fixture
+def assembly_2D(lattice_2D):
+    return Assembly([lattice_2D])
 
 def test_assembly_initialization(assembly, lattice):
     assert isclose(assembly.height, 12.0)
@@ -63,3 +67,10 @@ def test_assembly_get_axial_slice(assembly):
     assert isclose(assembly_slice.height, 1.0)
     assert_allclose([assembly_slice.pitch[i] for i in ['X','Y']], [8., 8.])
     assert_allclose(pin_slice.pinmesh.zvals, [0.5, 1.0])
+
+def test_assembly_with_height(assembly, assembly_2D):
+    new_assembly = assembly_2D.with_height(3.0)
+    assert isclose(new_assembly.height, 3.0)
+
+    with pytest.raises(AssertionError, match=f"nz = {assembly.nz}, Assembly must be strictly 2D"):
+        new_assembly = assembly.with_height(3.0)

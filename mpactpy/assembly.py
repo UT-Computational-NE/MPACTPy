@@ -157,3 +157,22 @@ class Assembly():
             z0 += lattice.pitch["Z"]
 
         return Assembly(lattice_map)
+
+
+    def with_height(self, height: float) -> Assembly:
+        """ Method for changing the height of 2D Assemblies
+
+        Parameters
+        ----------
+        height : float
+            The height of the new 2D assembly
+
+        Returns
+        -------
+        Assembly
+            The new assembly with the new height
+        """
+
+        assert self.nz == 1, f"nz = {self.nz}, Assembly must be strictly 2D"
+
+        return Assembly([self.lattice_map[0].with_height(height)])
