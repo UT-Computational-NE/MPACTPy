@@ -6,11 +6,11 @@ from mpactpy import build_rec_pin, Module, Lattice, Assembly, Core
 from test.unit.test_material import material, equal_material, unequal_material
 from test.unit.test_pinmesh import general_cylindrical_pinmesh as pinmesh,\
                                    equal_general_cylindrical_pinmesh as equal_pinmesh,\
-                                   unequal_general_cylindrical_pinmesh as unequal_pinmesh
-from test.unit.test_pin import pin, equal_pin, unequal_pin
-from test.unit.test_module import module, equal_module, unequal_module
-from test.unit.test_lattice import lattice, equal_lattice, unequal_lattice
-from test.unit.test_assembly import assembly, equal_assembly, unequal_assembly
+                                   unequal_general_cylindrical_pinmesh as unequal_pinmesh, pinmesh_2D
+from test.unit.test_pin import pin, equal_pin, unequal_pin, pin_2D
+from test.unit.test_module import module, equal_module, unequal_module, module_2D
+from test.unit.test_lattice import lattice, equal_lattice, unequal_lattice, lattice_2D
+from test.unit.test_assembly import assembly, equal_assembly, unequal_assembly, assembly_2D
 
 
 @pytest.fixture
@@ -30,6 +30,12 @@ def unequal_core(unequal_assembly):
     return Core([[None,             unequal_assembly, None            ],
                  [unequal_assembly, unequal_assembly, unequal_assembly],
                  [None,             unequal_assembly, None            ]])
+
+@pytest.fixture
+def core_2D(assembly_2D):
+    return Core([[None,        assembly_2D, None       ],
+                 [assembly_2D, assembly_2D, assembly_2D],
+                 [None,        assembly_2D, None       ]])
 
 def test_core_initialization(core, assembly):
     assert isclose(core.height, 12.0)
@@ -105,3 +111,7 @@ def test_core_axial_mesh_unionization(material):
     assert len(core.pins)       == 1
     assert len(core.pinmeshes)  == 1
     assert len(core.materials)  == 1
+
+def test_core_with_height(core_2D):
+    core = core_2D.with_height(3.0)
+    assert isclose(core.height, 3.0)

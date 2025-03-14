@@ -1,19 +1,25 @@
 import pytest
+from math import isclose
 from numpy.testing import assert_allclose
 
 from mpactpy import Lattice
 from test.unit.test_material import material, equal_material, unequal_material
 from test.unit.test_pinmesh import general_cylindrical_pinmesh as pinmesh,\
                                    equal_general_cylindrical_pinmesh as equal_pinmesh,\
-                                   unequal_general_cylindrical_pinmesh as unequal_pinmesh
-from test.unit.test_pin import pin, equal_pin, unequal_pin
-from test.unit.test_module import module, equal_module, unequal_module
+                                   unequal_general_cylindrical_pinmesh as unequal_pinmesh, pinmesh_2D
+from test.unit.test_pin import pin, equal_pin, unequal_pin, pin_2D
+from test.unit.test_module import module, equal_module, unequal_module, module_2D
 
 
 @pytest.fixture
 def lattice(module):
     return Lattice([[module, module],
                     [module, module]])
+
+@pytest.fixture
+def lattice_2D(module_2D):
+    return Lattice([[module_2D, module_2D],
+                    [module_2D, module_2D]])
 
 @pytest.fixture
 def equal_lattice(equal_module):
@@ -58,3 +64,7 @@ def test_lattice_get_axial_slice(lattice):
     assert pin_slice.pinmesh.regions_inside_bounds == [0, 1, 2, 4, 5, 6]
     assert_allclose([lattice_slice.pitch[i] for i in ['X','Y','Z']], [8., 8., 1.])
     assert_allclose(pin_slice.pinmesh.zvals, [0.5, 1.0])
+
+def test_lattice_with_height(lattice_2D):
+    lattice = lattice_2D.with_height(3.0)
+    assert isclose(lattice.pitch['Z'], 3.0)

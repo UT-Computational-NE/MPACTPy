@@ -168,3 +168,23 @@ class Module():
                 pin_map[-1].append(stack)
 
         return Module(1, pin_map)
+
+
+    def with_height(self, height: float) -> Module:
+        """ Method for changing the height of 2D Modules
+
+        Parameters
+        ----------
+        height : float
+            The height of the new 2D module
+
+        Returns
+        -------
+        Module
+            The new module with the new height
+        """
+
+        assert self.nz == 1, f"NZ = {self.nz}, Module must be strictly 2D"
+
+        return Module(1, [[pin.with_height(height) for pin in row]
+                      for row in self.pin_map])

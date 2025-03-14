@@ -344,3 +344,23 @@ class Core():
                          for assembly in row] for row in self.assembly_map]
 
         return Core(assembly_map, self.symmetry_opt, self.quarter_sym_opt)
+
+
+    def with_height(self, height: float) -> Core:
+        """ Method for getting changing core height of 2D cores
+
+        Parameters
+        ----------
+        height : float
+            The height of the new 2D Core
+
+        Returns
+        -------
+        Core
+            The new core with the new height
+        """
+
+        assert self.nz == 1, f"NZ = {self.nz}, Core must be strictly 2D"
+
+        return Core([[assembly.with_height(height) if assembly else None
+                      for assembly in row] for row in self.assembly_map])

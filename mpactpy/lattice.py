@@ -156,3 +156,21 @@ class Lattice():
         module_map = [[module.get_axial_slice(start_pos, stop_pos) for module in row] for row in self.module_map]
 
         return Lattice(module_map)
+
+
+    def with_height(self, height: float) -> Lattice:
+        """ Method for changing the height of 2D Lattices
+
+        Parameters
+        ----------
+        height : float
+            The height of the new 2D lattice
+
+        Returns
+        -------
+        Lattice
+            The new lattice with the new height
+        """
+
+        return Lattice([[module.with_height(height) for module in row]
+                      for row in self.module_map])
