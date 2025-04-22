@@ -29,7 +29,7 @@ jobs:
 
     - name: Download and Set Up OpenMC Cross Sections
       run: |
-        sudo apt-get update && sudo apt-get install -y wget tar
+        source $(conda info --base)/etc/profile.d/conda.sh && conda activate openmc-env
         mkdir -p $HOME/openmc-xs
         openmc_data_downloader -l ENDFB-7.1-NNDC -d $HOME/openmc-xs
         echo "OPENMC_CROSS_SECTIONS=$HOME/openmc-xs/cross_sections.xml" >> $GITHUB_ENV
