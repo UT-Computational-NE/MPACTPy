@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Any, Tuple, Optional
 from math import isclose, hypot
 from concurrent.futures import ThreadPoolExecutor
+import os
 
 import openmc
 import numpy as np
@@ -357,6 +358,9 @@ class RectangularPinMesh(PinMesh):
             materials = arr.flatten(order='C').tolist()
         else:
             with temporary_environment("OMP_NUM_THREADS", str(overlay_policy.num_procs)):
+                model.export_to_xml()
+                assert os.path.exists("geometry.xml")
+                assert os.path.exists("materials.xml")
                 material_volumes = mesh.material_volumes(model, overlay_policy.n_samples)
 
             elements = [material_volumes.by_element(i) for i in range(material_volumes.num_elements)]
