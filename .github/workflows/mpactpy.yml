@@ -23,7 +23,7 @@ jobs:
     - name: Set Up and Configure Environment
       run: |
         conda install -n base -y mamba -c conda-forge
-        mamba create -n openmc-env -y python=3.11 openmc hdf5 mpi4py numpy scipy pandas -c conda-forge
+        mamba create -n openmc-env -y python=3.11 openmc openmc-data hdf5 mpi4py numpy scipy pandas -c conda-forge
         source $(conda info --base)/etc/profile.d/conda.sh && conda activate openmc-env
         python -m pip install pylint pytest
 
