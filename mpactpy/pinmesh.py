@@ -345,17 +345,6 @@ class RectangularPinMesh(PinMesh):
         ny = len(self.yvals)
         nz = len(self.zvals)
 
-        if overlay_policy.num_procs > 1:
-            print("== DEBUG ==", flush=True)
-            print("Working dir:", os.getcwd(), flush=True)
-            print("Files:", os.listdir(), flush=True)
-            model.export_to_xml()
-            print("Exported geometry.xml:", os.path.exists("geometry.xml"), flush=True)
-            print("Exported materials.xml:", os.path.exists("materials.xml"), flush=True)
-            print("OpenMC path:", openmc.config.get('openmc'), flush=True)
-            print("OMP_NUM_THREADS:", os.environ.get("OMP_NUM_THREADS"), flush=True)
-            print("Calling mesh.material_volumes()...", flush=True)
-            print("OpenMC binary path:", openmc.config.get('openmc'), flush=True)
         materials = []
         if overlay_policy.method == "centroid":
             centroids = mesh.centroids.reshape((-1, 3))
