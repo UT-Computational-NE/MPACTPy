@@ -4,7 +4,6 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Any, Tuple, Optional
 from math import isclose, hypot
 from concurrent.futures import ThreadPoolExecutor
-import os
 
 import openmc
 import numpy as np
