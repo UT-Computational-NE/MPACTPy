@@ -29,12 +29,9 @@ jobs:
 
     - name: Download and Set Up OpenMC Cross Sections
       run: |
-        sudo apt-get update && sudo apt-get install -y wget tar
-        mkdir -p $HOME/openmc-xs
-        cd $HOME/openmc-xs
-        wget https://openmc.org/official-data-libraries/endf-b-vii.1-hdf5.tar.xz
-        tar -xf endf-b-vii.1-hdf5.tar.xz
-        echo "OPENMC_CROSS_SECTIONS=$HOME/openmc-xs/endf-b-vii.1-hdf5/cross_sections.xml" >> $GITHUB_ENV
+        source $(conda info --base)/etc/profile.d/conda.sh && conda activate openmc-env
+        openmc-get-nndc-data --destination $HOME/openmc-xs
+        echo "OPENMC_CROSS_SECTIONS=$HOME/openmc-xs/cross_sections.xml" >> $GITHUB_ENV
 
     - name: Install and Test MPACTPy
       run: |
