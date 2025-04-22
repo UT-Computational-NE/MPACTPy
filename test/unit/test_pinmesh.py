@@ -144,7 +144,7 @@ def test_rectangular_pinmesh_write_to_string(rectangular_pinmesh):
     expected_output = "  pinmesh 42 rec 1.0 2.0 3.0 / 1.0 2.0 3.0 / 1.0 2.0 3.0 / 10 10 10 / 10 10 10 / 5 5 5\n"
     assert output == expected_output
 
-def test_rectangular_pinmesh_overlary(rectangular_pinmesh, openmc_fuel_material, openmc_moderator_material, openmc_pin):
+def test_rectangular_pinmesh_overlay(rectangular_pinmesh, openmc_fuel_material, openmc_moderator_material, openmc_pin):
 
     fuel_area = pi*0.4**2
     box_area  = 1.0*1.0

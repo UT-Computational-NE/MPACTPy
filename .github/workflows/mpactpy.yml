@@ -35,5 +35,5 @@ jobs:
     - name: Install and Test MPACTPy
       run: |
         source $(conda info --base)/etc/profile.d/conda.sh && conda activate openmc-env
-        pytest -v --maxfail=1
+        pytest -v -s --maxfail=1
         python -m pylint ./mpactpy
