@@ -25,12 +25,13 @@ jobs:
         conda install -n base -y mamba -c conda-forge
         mamba create -n openmc-env -y python=3.11 openmc hdf5 mpi4py numpy scipy pandas -c conda-forge
         source $(conda info --base)/etc/profile.d/conda.sh && conda activate openmc-env
-        python -m pip install pylint pytest
+        python -m pip install pylint pytest openmc_data_downloader
 
     - name: Download and Set Up OpenMC Cross Sections
       run: |
-        source $(conda info --base)/etc/profile.d/conda.sh && conda activate openmc-env
-        openmc-get-nndc-data --destination $HOME/openmc-xs
+        sudo apt-get update && sudo apt-get install -y wget tar
+        mkdir -p $HOME/openmc-xs
+        openmc_data_downloader -l ENDFB-7.1-NNDC -d $HOME/openmc-xs
         echo "OPENMC_CROSS_SECTIONS=$HOME/openmc-xs/cross_sections.xml" >> $GITHUB_ENV
 
     - name: Install and Test MPACTPy
