@@ -6,6 +6,11 @@ on:
     # Run every day at 8:00 AM UTC (3:00 AM CDT)
     - cron: '0 8 * * *'
 
+env:
+  OMP_NUM_THREADS: 1
+  OPENBLAS_NUM_THREADS: 1
+  MKL_NUM_THREADS: 1
+
 jobs:
   build-linux:
     runs-on: ubuntu-latest
@@ -30,5 +35,5 @@ jobs:
     - name: Install and Test MPACTPy
       run: |
         source $(conda info --base)/etc/profile.d/conda.sh && conda activate openmc-env
-        pytest
+        pytest -v --maxfail=1
         python -m pylint ./mpactpy
