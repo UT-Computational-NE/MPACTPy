@@ -346,6 +346,10 @@ class RectangularPinMesh(PinMesh):
         nz = len(self.zvals)
 
         materials = []
+        model.export_to_xml()
+        print(os.path.exists("geometry.xml"))
+        print(os.path.exists("materials.xml"))
+        print("Here")
         if overlay_policy.method == "centroid":
             centroids = mesh.centroids.reshape((-1, 3))
             with ThreadPoolExecutor(max_workers=overlay_policy.num_procs) as executor:
@@ -358,9 +362,6 @@ class RectangularPinMesh(PinMesh):
             materials = arr.flatten(order='C').tolist()
         else:
             with temporary_environment("OMP_NUM_THREADS", str(overlay_policy.num_procs)):
-                model.export_to_xml()
-                print(os.path.exists("geometry.xml"))
-                print(os.path.exists("materials.xml"))
                 material_volumes = mesh.material_volumes(model, overlay_policy.n_samples)
 
             elements = [material_volumes.by_element(i) for i in range(material_volumes.num_elements)]
