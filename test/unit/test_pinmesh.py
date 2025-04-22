@@ -1,8 +1,10 @@
 import pytest
 from math import isclose, pi
+import shutil
 
 from numpy.testing import assert_allclose
 import openmc
+openmc.config['openmc'] = shutil.which("openmc")
 
 
 from mpactpy.utils import ROUNDING_RELATIVE_TOLERANCE
@@ -157,7 +159,6 @@ def test_rectangular_pinmesh_overlay(rectangular_pinmesh, openmc_fuel_material, 
     M       = Material.from_openmc_material(openmc_moderator_material)
     H       = Material.mix_materials([F, M], [fuel_frac, mod_frac], Material.MixPolicy(percent_type='vo'))
 
-    print("Here 1", flush=True)
     overlay_policy = PinMesh.OverlayPolicy(method="centroid", num_procs=2)
     materials = pinmesh.overlay(model=openmc_pin, offset=offset, overlay_policy=overlay_policy)
     assert len(materials) == pinmesh.number_of_material_regions
@@ -168,7 +169,6 @@ def test_rectangular_pinmesh_overlay(rectangular_pinmesh, openmc_fuel_material, 
     assert all(materials_are_close(material, expected_material)
                for material, expected_material in zip(materials, expected_materials))
 
-    print("Here 2", flush=True)
     overlay_policy = PinMesh.OverlayPolicy(method="homogenized", n_samples=100000, num_procs=2)
     materials = pinmesh.overlay(model=openmc_pin, offset=offset, overlay_policy=overlay_policy)
     expected_materials = [M, M, M,
