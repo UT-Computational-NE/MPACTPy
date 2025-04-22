@@ -29,11 +29,11 @@ jobs:
 
     - name: Download and Set Up OpenMC Cross Sections
       run: |
-        sudo apt-get update && sudo apt-get install -y wget unzip
+        sudo apt-get update && sudo apt-get install -y wget tar
         mkdir -p $HOME/openmc-xs
         cd $HOME/openmc-xs
-        wget https://github.com/openmc-dev/data/releases/download/v0.12-nndc-endf-b-vii.1/endf-b-vii.1-hdf5.zip
-        unzip endf-b-vii.1-hdf5.zip
+        wget https://openmc.org/official-data-libraries/endf-b-vii.1-hdf5.tar.xz
+        tar -xf endf-b-vii.1-hdf5.tar.xz
         echo "OPENMC_CROSS_SECTIONS=$HOME/openmc-xs/endf-b-vii.1-hdf5/cross_sections.xml" >> $GITHUB_ENV
 
     - name: Install and Test MPACTPy
