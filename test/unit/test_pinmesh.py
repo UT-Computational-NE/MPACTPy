@@ -172,6 +172,7 @@ def test_rectangular_pinmesh_overlay(rectangular_pinmesh, openmc_fuel_material, 
                           M, H, M,
                           M, M, M] * 3
 
+    assert(False)
     assert all(materials_are_close(material, expected_material)
                for material, expected_material in zip(materials, expected_materials))
 
