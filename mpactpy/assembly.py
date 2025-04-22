@@ -1,8 +1,10 @@
 from __future__ import annotations
-from typing import Dict, List, Any, TypedDict
+from typing import Dict, List, Any, TypedDict, Tuple, Optional
 from math import isclose
 
-from mpactpy.lattice import Lattice
+import openmc
+
+from mpactpy.lattice import PinMesh, Lattice
 from mpactpy.utils import list_to_str, unique
 
 
@@ -16,7 +18,7 @@ class Assembly():
 
     Attributes
     ----------
-    pitch : Dict[str, float]
+    pitch : Pitch
         The pitch of the lattice in the X-Y axis direction (keys: 'X', 'Y') (cm)
     height : float
         The total height of the assembly (cm)
@@ -28,6 +30,12 @@ class Assembly():
         1-D array of lattice names
     """
 
+    class Pitch(TypedDict):
+        """ A Typed Dictionary class for Assembly Pitches
+        """
+        X: float
+        Y: float
+
     class ModDim(TypedDict):
         """ A Typed Dictionary class for Assembly Module Dimensions
         """
@@ -36,7 +44,7 @@ class Assembly():
         Z: List[float]
 
     @property
-    def pitch(self) -> Dict[str, float]:
+    def pitch(self) -> Pitch:
         return {'X': self.lattice_map[0].pitch['X'], 'Y': self.lattice_map[0].pitch['Y']}
 
     @property
@@ -176,3 +184,51 @@ class Assembly():
         assert self.nz == 1, f"nz = {self.nz}, Assembly must be strictly 2D"
 
         return Assembly([self.lattice_map[0].with_height(height)])
+
+
+
+    OverlayMask = Dict[Lattice, Optional[Lattice.OverlayMask]]
+
+    def overlay(self,
+                model:          openmc.Model,
+                offset:         Tuple[float, float, float] = (0.0, 0.0, 0.0),
+                include_only:   Optional[OverlayMask] = None,
+                overlay_policy: PinMesh.OverlayPolicy = PinMesh.OverlayPolicy()) -> Assembly:
+        """ A method for overlaying an OpenMC model over top an MPACTPy Assembly
+
+        Parameters
+        ----------
+        model : openmc.Model
+            The OpenMC Model to be mapped onto the MPACTPy Assembly
+        offset : Tuple(float, float, float)
+            Offset of the OpenMC geometry's lower-left corner relative to the
+            MPACT Assembly lower-left. Default is (0.0, 0.0, 0.0)
+        include_only : Optional[OverlayMask]
+            Specifies which MPACT elements should be considered during overlay.
+            If None, all elements are included.
+        overlay_policy : OverlayPolicy
+            A configuration object specifying how a mesh overlay should be done.
+
+        Returns
+        -------
+        Assembly
+            A new MPACTPy Assembly which is a copy of the original,
+            but with the OpenMC Model overlaid on top.
+        """
+
+        include_only: Assembly.OverlayMask = include_only if include_only else \
+                                            {lattice: None for lattice in self.lattice_map}
+
+        x0, y0, z0 = offset
+
+        lattices = []
+        z = z0
+        for lattice in self.lattice_map:
+            if lattice in include_only:
+                overlaid = lattice.overlay(model, (x0, y0, z), include_only[lattice], overlay_policy)
+                if overlaid:
+                    lattice = overlaid
+            lattices.append(lattice)
+            z += lattice.pitch['Z']
+
+        return Assembly(lattices)

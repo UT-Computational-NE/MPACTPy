@@ -1,8 +1,10 @@
 from __future__ import annotations
-from typing import Dict, List, Any, Union, TypedDict, Tuple
+from typing import Dict, List, Any, Union, TypedDict, Tuple, Set, Optional
 from math import isclose, inf, pi
 from copy import deepcopy
 from itertools import accumulate
+
+import openmc
 
 from mpactpy.material import Material
 from mpactpy.pinmesh import PinMesh, RectangularPinMesh, GeneralCylindricalPinMesh
@@ -204,6 +206,50 @@ class Pin():
         pinmesh.set_axial_mesh([height], [1])
 
         return Pin(pinmesh, self.materials)
+
+
+    OverlayMask = Set[Material]
+
+    def overlay(self,
+                model:          openmc.Model,
+                offset:         Tuple[float, float, float] = (0.0, 0.0, 0.0),
+                include_only:   Optional[OverlayMask] = None,
+                overlay_policy: PinMesh.OverlayPolicy = PinMesh.OverlayPolicy()) -> Pin:
+        """ A method for overlaying an OpenMC model over top an MPACTPy Pin
+
+        Parameters
+        ----------
+        model : openmc.Model
+            The OpenMC Model to be mapped onto the MPACTPy Pin
+        offset : Tuple(float, float, float)
+            Offset of the OpenMC geometry's lower-left corner relative to the
+            MPACT PinMesh lower-left. Default is (0.0, 0.0, 0.0)
+        include_only : Optional[OverlayMask]
+            Specifies which MPACT elements should be considered during overlay.
+            If None, all elements are included.
+        overlay_policy : OverlayPolicy
+            A configuration object specifying how a mesh overlay should be done.
+
+        Returns
+        -------
+        Pin
+            A new MPACTPy Pin which is a copy of the original,
+            but with the OpenMC Model overlaid on top.
+        """
+
+        include_mats: Pin.OverlayMask = include_only if include_only else set(self.materials)
+
+        openmc_materials = self.pinmesh.overlay(model, offset, overlay_policy)
+        assert len(openmc_materials) == len(self.materials), \
+            f"len(openmc_materials) = {len(openmc_materials)} " + \
+            f"len(self.materials) = {len(self.materials)}"
+
+        new_materials = [openmc_mat if openmc_mat and (old_mat in include_mats) else old_mat
+                         for openmc_mat, old_mat in zip(openmc_materials, self.materials)]
+
+        return Pin(self.pinmesh, new_materials)
+
+
 
 
 def build_rec_pin(thicknesses:             Dict[str, List[float]],

@@ -2,11 +2,17 @@ from typing import List, Union, TypeVar
 from collections.abc import Hashable
 from decimal import Decimal, ROUND_HALF_UP
 import math
+from contextlib import contextmanager
+import os
 
 import numpy as np
+import openmc
 
 # The relative tolerance for rounding floating point numbers
 ROUNDING_RELATIVE_TOLERANCE = 1E-5
+
+# Avogadro's number
+AVOGADRO = openmc.data.AVOGADRO
 
 def relative_round(value: float, rel_tol: float =1e-9) -> float:
     """ Rounds a floating-point number to a precision consistent with a given relative tolerance.
@@ -129,3 +135,61 @@ def is_rectangular(map_2D: List[List[T]]) -> bool:
     """
 
     return bool(map_2D and map_2D[0]) and all(len(row) == len(map_2D[0]) for row in map_2D)
+
+def atomic_mass(name: str) -> float:
+    """ Return the atomic mass of a nuclide or element.
+
+    If an isotope is provided (e.g., 'U235', 'H1'), returns the exact atomic mass.
+    If an element is provided (e.g., 'U', 'H'), returns the natural-abundance-weighted
+    average atomic mass.
+
+    Parameters
+    ----------
+    name : str
+        Isotope (e.g., 'U235') or element (e.g., 'U')
+
+    Returns
+    -------
+    float
+        Atomic mass in g/mol (amu)
+
+    Raises
+    ------
+    ValueError
+        If the element/isotope is not recognized or lacks abundance data.
+    """
+
+    name = name.strip()
+
+    try:
+        return openmc.data.atomic_mass(name)
+    except KeyError:
+        pass
+
+    try:
+        return sum(abundance * openmc.data.atomic_mass(isotope)
+                   for isotope, abundance in openmc.data.isotopes(name))
+    except (ValueError, KeyError) as exc:
+        raise ValueError(f"Cannot find atomic mass for '{name}'.") from exc
+
+
+@contextmanager
+def temporary_environment(var: str, value: str):
+    """ Context manager for temporarily setting environment variables
+
+    Parameters
+    ----------
+    var : str
+        The name of the environment variable to set.
+    value : str
+        The temporary value to assign to the environment variable.
+    """
+    original = os.environ.get(var)
+    os.environ[var] = value
+    try:
+        yield
+    finally:
+        if original is not None:
+            os.environ[var] = original
+        else:
+            del os.environ[var]
