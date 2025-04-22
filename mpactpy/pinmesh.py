@@ -345,6 +345,17 @@ class RectangularPinMesh(PinMesh):
         ny = len(self.yvals)
         nz = len(self.zvals)
 
+        if overlay_policy.num_procs > 1:
+            print("== DEBUG ==")
+            print("Working dir:", os.getcwd())
+            print("Files:", os.listdir())
+            model.export_to_xml()
+            print("Exported geometry.xml:", os.path.exists("geometry.xml"))
+            print("Exported materials.xml:", os.path.exists("materials.xml"))
+            print("OpenMC path:", openmc.config.get('openmc'))
+            print("OMP_NUM_THREADS:", os.environ.get("OMP_NUM_THREADS"))
+            print("Calling mesh.material_volumes()...")
+            print("OpenMC binary path:", openmc.config.get('openmc'))
         materials = []
         if overlay_policy.method == "centroid":
             centroids = mesh.centroids.reshape((-1, 3))
@@ -357,16 +368,6 @@ class RectangularPinMesh(PinMesh):
             arr = np.array(materials).reshape((nx, ny, nz), order='F')
             materials = arr.flatten(order='C').tolist()
         else:
-            print("== DEBUG ==")
-            print("Working dir:", os.getcwd())
-            print("Files:", os.listdir())
-            model.export_to_xml()
-            print("Exported geometry.xml:", os.path.exists("geometry.xml"))
-            print("Exported materials.xml:", os.path.exists("materials.xml"))
-            print("OpenMC path:", openmc.config.get('openmc'))
-            print("OMP_NUM_THREADS:", os.environ.get("OMP_NUM_THREADS"))
-            print("Calling mesh.material_volumes()...")
-            print("OpenMC binary path:", openmc.config.get('openmc'))
             model.settings.run_mode = 'volume'
             with temporary_environment("OMP_NUM_THREADS", str(overlay_policy.num_procs)):
                 material_volumes = mesh.material_volumes(model, overlay_policy.n_samples)
