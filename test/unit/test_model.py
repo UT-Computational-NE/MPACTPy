@@ -50,14 +50,14 @@ def test_model_hash(model, equal_model, unequal_model):
     assert hash(model) == hash(equal_model)
     assert hash(model) != hash(unequal_model)
 
-def test_model_write_to_string(model):
+def test_model_write_to_string(model, material):
     output = model.write_to_string(caseid="test", indent=2)
     expected_output = \
-"""CASEID test
+f"""CASEID test
 
 MATERIAL
-  mat 1 1 10.0 g/cc 300.0 K \\
-    1001 0.002
+  mat 1 1 {material.density} g/cc 300.0 K \\
+    6001 0.002
     92235 0.001
 
 STATE power 0.0
@@ -100,8 +100,9 @@ def test_harder_model():
     """ This tests a harder model with multiple repeated element definitions that the model
         must successfully NOT repeat when writing to string
     """
-    mat = [Material(10.0, 300.0, {"U235": 1e-3, "H": 2e-3}, ["H"]),
-           Material(10.0, 300.0, {"U235": 5e-3, "H": 8e-3}, ["H"])]
+
+    mat = [Material(300.0, {"U235": 1e-3, "H": 2e-3}, Material.MPACTSpecs(thermal_scattering_isotopes=["H"])),
+           Material(300.0, {"U235": 5e-3, "H": 8e-3}, Material.MPACTSpecs(thermal_scattering_isotopes=["H"]))]
 
     pin_meshes = [RectangularPinMesh([0.5, 1.0], [0.5, 1.0], [1.0], [2, 2], [1, 1], [1]),
                   RectangularPinMesh([0.5, 1.0], [0.5, 1.0], [2.0], [2, 2], [1, 1], [1]),
@@ -142,13 +143,13 @@ def test_harder_model():
                    xsec_settings = {"xslib": "ORNL mpact_lib.fmt"},
                    options       = {"bound_cond": "1 1 1 1 1 1"}).write_to_string(caseid="test", indent=2)
     expected_output = \
-"""CASEID test
+f"""CASEID test
 
 MATERIAL
-  mat 1 0 10.0 g/cc 300.0 K \\
+  mat 1 0 {mat[1].density} g/cc 300.0 K \\
     1001 0.008
     92235 0.005
-  mat 2 0 10.0 g/cc 300.0 K \\
+  mat 2 0 {mat[0].density} g/cc 300.0 K \\
     1001 0.002
     92235 0.001
 

@@ -2,14 +2,21 @@ import pytest
 from math import isclose
 from numpy.testing import assert_allclose
 
-from mpactpy import Assembly
+import openmc
+
+from mpactpy import PinMesh, Pin, Module, Lattice, Assembly
 from test.unit.test_material import material, equal_material, unequal_material
 from test.unit.test_pinmesh import general_cylindrical_pinmesh as pinmesh,\
                                    equal_general_cylindrical_pinmesh as equal_pinmesh,\
-                                   unequal_general_cylindrical_pinmesh as unequal_pinmesh, pinmesh_2D
-from test.unit.test_pin import pin, equal_pin, unequal_pin, pin_2D
-from test.unit.test_module import module, equal_module, unequal_module, module_2D
-from test.unit.test_lattice import lattice, equal_lattice, unequal_lattice, lattice_2D
+                                   unequal_general_cylindrical_pinmesh as unequal_pinmesh, \
+                                   rectangular_pinmesh as overlay_mesh, \
+                                   pinmesh_2D, openmc_pin, openmc_fuel_material, openmc_moderator_material
+from test.unit.test_pin import pin, equal_pin, unequal_pin, pin_2D, overlay_pin, \
+                               template_material, template_pin
+from test.unit.test_module import module, equal_module, unequal_module, module_2D, \
+                                  template_module, overlay_module, openmc_module
+from test.unit.test_lattice import lattice, equal_lattice, unequal_lattice, lattice_2D, \
+                                   template_lattice, overlay_lattice, openmc_lattice
 
 
 @pytest.fixture
@@ -30,6 +37,36 @@ def unequal_assembly(unequal_lattice):
 @pytest.fixture
 def assembly_2D(lattice_2D):
     return Assembly([lattice_2D])
+
+@pytest.fixture
+def template_assembly(template_lattice):
+    return Assembly([template_lattice, template_lattice,
+                     template_lattice, template_lattice])
+
+@pytest.fixture
+def overlay_assembly(overlay_lattice):
+    return Assembly([overlay_lattice, overlay_lattice,
+                     overlay_lattice, overlay_lattice])
+
+@pytest.fixture
+def openmc_assembly(openmc_lattice):
+    model  = openmc_lattice
+    lattice = model.geometry.root_universe
+
+    z = [openmc.ZPlane(-3.0),
+         openmc.ZPlane(0.0),
+         openmc.ZPlane(3.0)]
+
+    cells = [openmc.Cell(fill=lattice, region=-z[0]),
+             openmc.Cell(fill=lattice, region=-z[1] & +z[0]),
+             openmc.Cell(fill=lattice, region=-z[2] & +z[1]),
+             openmc.Cell(fill=lattice, region=+z[2]),]
+
+    universe  = openmc.Universe(cells=cells)
+    geometry  = openmc.Geometry(universe)
+    materials = model.materials
+
+    return openmc.Model(geometry=geometry, materials=materials)
 
 def test_assembly_initialization(assembly, lattice):
     assert isclose(assembly.height, 12.0)
@@ -74,3 +111,16 @@ def test_assembly_with_height(assembly, assembly_2D):
 
     with pytest.raises(AssertionError, match=f"nz = {assembly.nz}, Assembly must be strictly 2D"):
         new_assembly = assembly.with_height(3.0)
+
+def test_module_overlay(openmc_assembly, template_assembly, template_lattice, template_module, template_pin, template_material, overlay_assembly):
+    model                              = openmc_assembly
+    offset                             = (-6.0, -6.0, -6.0)
+    overlay_policy                     = PinMesh.OverlayPolicy(method="centroid")
+    pin_mask: Pin.OverlayMask          = {template_material}
+    module_mask: Module.OverlayMask    = {template_pin : pin_mask}
+    lattice_mask: Lattice.OverlayMask  = {template_module : module_mask}
+    include_only: Assembly.OverlayMask = {template_lattice : lattice_mask}
+
+    assembly          = template_assembly.overlay(model, offset, include_only, overlay_policy)
+    expected_assembly = overlay_assembly
+    assert assembly == expected_assembly

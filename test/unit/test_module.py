@@ -2,12 +2,17 @@ import pytest
 from math import isclose
 from numpy.testing import assert_allclose
 
-from mpactpy.module import Module
+import openmc
+
+from mpactpy import PinMesh, Pin, Module
 from test.unit.test_material import material, equal_material, unequal_material
 from test.unit.test_pinmesh import general_cylindrical_pinmesh as pinmesh,\
                                    equal_general_cylindrical_pinmesh as equal_pinmesh,\
-                                   unequal_general_cylindrical_pinmesh as unequal_pinmesh, pinmesh_2D
-from test.unit.test_pin import pin, equal_pin, unequal_pin, pin_2D
+                                   unequal_general_cylindrical_pinmesh as unequal_pinmesh, \
+                                   rectangular_pinmesh as overlay_mesh, \
+                                   pinmesh_2D, openmc_pin, openmc_fuel_material, openmc_moderator_material
+from test.unit.test_pin import pin, equal_pin, unequal_pin, pin_2D, overlay_pin, \
+                               template_material, template_pin
 
 
 @pytest.fixture
@@ -29,6 +34,36 @@ def unequal_module(unequal_pin):
 def module_2D(pin_2D):
     return Module(1, [[pin_2D, pin_2D],
                       [pin_2D, pin_2D]])
+
+@pytest.fixture
+def template_module(template_pin):
+    return Module(1, [[template_pin, template_pin],
+                      [template_pin, template_pin]])
+
+@pytest.fixture
+def overlay_module(overlay_pin):
+    return Module(1, [[overlay_pin, overlay_pin],
+                      [overlay_pin, overlay_pin]])
+
+@pytest.fixture
+def openmc_module(openmc_pin):
+    model = openmc_pin
+    pin   = model.geometry.root_universe
+
+    lattice            = openmc.RectLattice(name='2x2 pin lattice')
+    lattice.pitch      = (3.0, 3.0)
+    lattice.lower_left = (-3.0, -3.0)
+    lattice.universes  = [[pin, pin],
+                          [pin, pin]]
+
+    box           = openmc.model.rectangular_prism(6.0, 6.0, boundary_type='reflective')
+    lattice_cell  = openmc.Cell(name='lattice cell', fill=lattice, region=box)
+
+    universe  = openmc.Universe(cells=[lattice_cell])
+    geometry  = openmc.Geometry(universe)
+    materials = model.materials
+
+    return openmc.Model(geometry=geometry, materials=materials)
 
 def test_module_initialization(module, pin):
     assert module.nx == 2
@@ -72,3 +107,14 @@ def test_module_with_height(module_2D, pin):
 
     with pytest.raises(AssertionError, match=f"nz = {module.nz}, Module must be strictly 2D"):
         new_module = module.with_height(3.0)
+
+def test_module_overlay(openmc_module, template_module, template_pin, template_material, overlay_module):
+    model                            = openmc_module
+    offset                           = (-3.0, -3.0, 0.0)
+    overlay_policy                   = PinMesh.OverlayPolicy(method="centroid")
+    pin_mask: Pin.OverlayMask        = {template_material}
+    include_only: Module.OverlayMask = {template_pin : pin_mask}
+
+    module          = template_module.overlay(model, offset, include_only, overlay_policy)
+    expected_module = overlay_module
+    assert module == expected_module

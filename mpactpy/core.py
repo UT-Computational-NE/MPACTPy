@@ -1,7 +1,9 @@
 from __future__ import annotations
-from typing import List, Any, Literal, Dict
+from typing import List, Any, Literal, Dict, Tuple, Optional, TypedDict
 from math import isclose
 from itertools import accumulate
+
+import openmc
 
 from mpactpy.material import Material
 from mpactpy.pinmesh import PinMesh
@@ -47,6 +49,12 @@ class Core():
         Number of modules along the z-dimension
     height : float
         The total height of the core (cm)
+    width : Width
+        The total width of the core (cm) in either X or Y directions
+        keys: ['X', 'Y']
+    pitch : Pitch
+        The pitch of each row / column of the core
+        keys: ['row', 'column']
     mod_dim : Assembly.ModDim
         The x,y,z dimensions of the ray-tracing module
     assembly_map : List[List[Assembly]]
@@ -67,6 +75,18 @@ class Core():
 
     SymmetryOption = Literal["360", "90", ""]
     QuarterSymmetryOption = Literal["EDGE", "CENT", ""]
+
+    class Width(TypedDict):
+        """ A Typed Dictionary class for Core Radial Widths
+        """
+        X: float
+        Y: float
+
+    class Pitch(TypedDict):
+        """ A Typed Dictionary class for Core row / column pitches
+        """
+        row:    List[float]
+        column: List[float]
 
     @property
     def symmetry_opt(self) -> SymmetryOption:
@@ -91,6 +111,14 @@ class Core():
     @property
     def height(self) -> float:
         return self.assemblies[0].height
+
+    @property
+    def width(self) -> Width:
+        return self._width
+
+    @property
+    def pitch(self) -> Pitch:
+        return self._pitch
 
     @property
     def mod_dim(self) -> Assembly.ModDim:
@@ -148,6 +176,14 @@ class Core():
         assert all(isclose(assembly.height, self.assemblies[0].height) for assembly in self.assemblies if assembly)
         if not self._assemblies_have_same_axial_meshing():
             self._unionize_axial_mesh(min_thickness)
+
+        self._pitch = {'row':    [next((assembly.pitch['Y'] for assembly in row if assembly), 0.0)
+                                       for row in self.assembly_map],
+                       'column': [next((self.assembly_map[i][j].pitch['X']
+                                        for i in range(self.ny) if self.assembly_map[i][j]), 0.0)
+                                        for j in range(self.nx)]}
+
+        self._width = {'X': sum(self.pitch["column"]), 'Y': sum(self.pitch["row"])}
 
         self._lattices   = unique(lattice for assembly in self.assemblies for lattice in assembly.lattice_map)
         self._modules    = unique(module for lattice in self.lattices for row in lattice.module_map for module in row)
@@ -364,3 +400,56 @@ class Core():
 
         return Core([[assembly.with_height(height) if assembly else None
                       for assembly in row] for row in self.assembly_map])
+
+
+
+    OverlayMask = Dict[Module, Optional[Module.OverlayMask]]
+
+    def overlay(self,
+                model:          openmc.Model,
+                offset:         Tuple[float, float, float] = (0.0, 0.0, 0.0),
+                include_only:   Optional[OverlayMask] = None,
+                overlay_policy: PinMesh.OverlayPolicy = PinMesh.OverlayPolicy()) -> Core:
+        """ A method for overlaying an OpenMC model over top an MPACTPy Core
+
+        Parameters
+        ----------
+        model : openmc.Model
+            The OpenMC Model to be mapped onto the MPACTPy Core
+        offset : Tuple(float, float, float)
+            Offset of the OpenMC geometry's lower-left corner relative to the
+            MPACT Core lower-left. Default is (0.0, 0.0, 0.0)
+        include_only : Optional[OverlayMask]
+            Specifies which MPACT elements should be considered during overlay.
+            If None, all elements are included.
+        overlay_policy : OverlayPolicy
+            A configuration object specifying how a mesh overlay should be done.
+
+        Returns
+        -------
+        Core
+            A new MPACTPy Core which is a copy of the original,
+            but with the OpenMC Model overlaid on top.
+        """
+
+        include_only: Core.OverlayMask = include_only if include_only else \
+                                         {assembly: None for row in self.assembly_map for assembly in row if assembly}
+
+        x0, y0, z0 = offset
+
+        assemblies = []
+        y = y0 + self.width['Y']
+        for i, row in enumerate(self.assembly_map):
+            row_assemblies = []
+            x  = x0
+            y -= self.pitch['row'][i]
+            for j, assembly in enumerate(row):
+                if assembly and assembly in include_only:
+                    overlaid = assembly.overlay(model, (x, y, z0), include_only[assembly], overlay_policy)
+                    if overlaid:
+                        assembly = overlaid
+                row_assemblies.append(assembly)
+                x += self.pitch['column'][j]
+            assemblies.append(row_assemblies)
+
+        return Core(assemblies)

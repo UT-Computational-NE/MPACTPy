@@ -1,9 +1,16 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from typing import Dict, List, Any
+from dataclasses import dataclass, field
+from typing import Dict, List, Any, Tuple, Optional
 from math import isclose, hypot
+from concurrent.futures import ThreadPoolExecutor
 
-from mpactpy.utils import relative_round, allclose, list_to_str, ROUNDING_RELATIVE_TOLERANCE as TOL
+import openmc
+import numpy as np
+
+from mpactpy.material import Material
+from mpactpy.utils import relative_round, allclose, list_to_str, ROUNDING_RELATIVE_TOLERANCE as TOL, \
+                          temporary_environment
 
 
 class PinMesh(ABC):
@@ -119,6 +126,85 @@ class PinMesh(ABC):
     def _set_regions_inside_bounds(self) -> None:
         """ Method for setting the material regions that are inside the pinmesh bounds
         """
+
+    @dataclass
+    class OverlayPolicy():
+        """ Data class for specifying how to pinmesh overlays
+
+        Attributes
+        ----------
+        method : str
+            Material mapping method:
+            - 'centroid'   : Assigns each region the material located at its centroid.
+            - 'homogenized': Computes a volume-weighted mixture of materials within each region.
+            Defaults to 'centroid'.
+        n_samples : int
+            Number of samples (rays) used for estimating material fractions when using
+            the 'homogenized' method. Ignored if method is 'centroid'.
+        mat_specs : Dict[openmc.Material, Material.MPACTSpecs]
+            A mapping from OpenMC materials to corresponding MPACT material specifications.
+            If a material is not found in this mapping, `Material.MPACTSpecs()` is used as the default.
+        mix_policy : Optional[Material.MixPolicy]
+            Policy for how to mix materials. Used only when `method='homogenized'`.
+            If a mix_policy is not found, then Material.MixPolicy() is used by default.
+        num_procs : int
+            Number of processors to use for executing the overlay operation
+        """
+
+        method:     str = "centroid"
+        n_samples:  int = 10000
+        mat_specs:  Dict[openmc.Material, Material.MPACTSpecs] = field(default_factory=dict)
+        mix_policy: Optional[Material.MixPolicy] = None
+        num_procs:  int = 1
+
+        def __post_init__(self):
+            assert self.method in ["centroid", "homogenized"], f"Unknown method: {self.method}"
+            assert self.n_samples > 0, f"n_samples = {self.n_samples}"
+            assert self.num_procs > 0, f"num_procs = {self.num_procs}"
+            self.mix_policy = Material.MixPolicy() if self.mix_policy is None else self.mix_policy
+
+        def get_mpact_specs(self, mat: openmc.Material) -> Material.MPACTSpecs:
+            """ Method for retrieving the Material.MPACTSpecs associated with an openmc.Material
+
+            Parameters
+            ----------
+            material : openmc.Material
+                The OpenMC material for which MPACT specifications are being requested.
+
+            Returns
+            -------
+            Material.MPACTSpecs
+                The MPACT specifications associated with the given material, or a default
+                `Material.MPACTSpecs()` if no explicit entry is provided.
+            """
+            return self.mat_specs.get(mat, Material.MPACTSpecs())
+
+
+    @abstractmethod
+    def overlay(self,
+                model:          openmc.Model,
+                offset:         Tuple[float, float, float] = (0.0, 0.0, 0.0),
+                overlay_policy: OverlayPolicy = OverlayPolicy(),
+    ) -> List[Optional[Material]]:
+        """ A method for overlaying an OpenMC model over top a MPACTPy PinMesh
+
+        Parameters
+        ----------
+        model : openmc.Model
+            The OpenMC Model to be mapped onto the MPACTPy PinMesh
+        offset : Tuple[float, float, float]
+            Offset of the OpenMC model's lower-left corner relative to the
+            MPACT PinMesh lower-left. Default is (0.0, 0.0, 0.0)
+        overlay_policy : OverlayPolicy
+            A configuration object specifying how a mesh overlay should be done.
+
+        Returns
+        -------
+        List[Optional[Material]]
+            List of materials assigned to each cell in the PinMesh based on
+            the overlaid OpenMC model.
+        """
+
 
 class RectangularPinMesh(PinMesh):
     """  An MPACT model pin mesh made up of a 3-D rectilinear grid
@@ -243,6 +329,46 @@ class RectangularPinMesh(PinMesh):
     def _set_regions_inside_bounds(self) -> None:
         self._regions_inside_bounds = list(range(len(self.xvals)*len(self.yvals)*len(self.zvals)))
 
+    def overlay(self,
+                model:          openmc.Model,
+                offset:         Tuple[float, float, float] = (0.0, 0.0, 0.0),
+                overlay_policy: PinMesh.OverlayPolicy = PinMesh.OverlayPolicy(),
+    ) -> List[Optional[Material]]:
+
+        mesh = openmc.RectilinearMesh()
+        mesh.x_grid = np.array([0.0] + self.xvals) + offset[0]
+        mesh.y_grid = np.array([0.0] + self.yvals) + offset[1]
+        mesh.z_grid = np.array([0.0] + self.zvals) + offset[2]
+
+        nx = len(self.xvals)
+        ny = len(self.yvals)
+        nz = len(self.zvals)
+
+        materials = []
+        if overlay_policy.method == "centroid":
+            centroids = mesh.centroids.reshape((-1, 3))
+            with ThreadPoolExecutor(max_workers=overlay_policy.num_procs) as executor:
+                materials = list(executor.map(
+                    lambda pt: Material.from_openmc_model_point(pt, model, overlay_policy.mat_specs),
+                    centroids))
+
+            # Convert OpenMC's FORTRAN ordering to MPACT expectation
+            arr = np.array(materials).reshape((nx, ny, nz), order='F')
+            materials = arr.flatten(order='C').tolist()
+        else:
+            with temporary_environment("OMP_NUM_THREADS", str(overlay_policy.num_procs)):
+                material_volumes = mesh.material_volumes(model, overlay_policy.n_samples)
+
+            elements = [material_volumes.by_element(i) for i in range(material_volumes.num_elements)]
+            with ThreadPoolExecutor(max_workers=overlay_policy.num_procs) as executor:
+                materials = list(executor.map(
+                    lambda element: Material.from_openmc_model_element(element,
+                                                                       model,
+                                                                       overlay_policy.mat_specs,
+                                                                       overlay_policy.mix_policy),
+                    elements))
+
+        return materials
 
 class GeneralCylindricalPinMesh(PinMesh):
     """  An MPACT model pin mesh made up of a concentric cylinders centered at (0,0) with arbitrary pin boundaries
@@ -446,3 +572,12 @@ class GeneralCylindricalPinMesh(PinMesh):
             for z in range(len(self.zvals))
             for i in radii_inside_bounds + [radii_inside_bounds[-1] + 1]
         ]
+
+
+    def overlay(self,
+                model:          openmc.Model,
+                offset:         Tuple[float, float, float] = (0.0, 0.0, 0.0),
+                overlay_policy: PinMesh.OverlayPolicy = PinMesh.OverlayPolicy(),
+    ) -> List[Optional[Material]]:
+
+        raise NotImplementedError("Overlay not implemented for GeneralCylindricalPinMesh")

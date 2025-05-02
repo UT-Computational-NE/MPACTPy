@@ -1,8 +1,10 @@
 from __future__ import annotations
-from typing import Dict, List, Any, TypedDict
+from typing import Dict, List, Any, TypedDict, Tuple, Optional
 from math import isclose
 
-from mpactpy.pin import Pin
+import openmc
+
+from mpactpy.pin import Pin, PinMesh
 from mpactpy.utils import list_to_str, is_rectangular, unique
 
 
@@ -188,3 +190,55 @@ class Module():
 
         return Module(1, [[pin.with_height(height) for pin in row]
                       for row in self.pin_map])
+
+
+    OverlayMask = Dict[Pin, Optional[Pin.OverlayMask]]
+
+    def overlay(self,
+                model:          openmc.Model,
+                offset:         Tuple[float, float, float] = (0.0, 0.0, 0.0),
+                include_only:   Optional[OverlayMask] = None,
+                overlay_policy: PinMesh.OverlayPolicy = PinMesh.OverlayPolicy()) -> Module:
+        """ A method for overlaying an OpenMC model over top an MPACTPy Module
+
+        Parameters
+        ----------
+        model : openmc.Model
+            The OpenMC Model to be mapped onto the MPACTPy Module
+        offset : Tuple(float, float, float)
+            Offset of the OpenMC geometry's lower-left corner relative to the
+            MPACT Module lower-left. Default is (0.0, 0.0, 0.0)
+        include_only : Optional[OverlayMask]
+            Specifies which MPACT elements should be considered during overlay.
+            If None, all elements are included.
+        overlay_policy : OverlayPolicy
+            A configuration object specifying how a mesh overlay should be done.
+
+        Returns
+        -------
+        Module
+            A new MPACTPy Module which is a copy of the original,
+            but with the OpenMC Model overlaid on top.
+        """
+
+        include_only: Module.OverlayMask = include_only if include_only else \
+                                           {pin: None for row in self.pin_map for pin in row}
+
+        x0, y0, z0 = offset
+
+        pins = []
+        y = y0 + self.pitch['Y']
+        for row in self.pin_map:
+            row_pins = []
+            x  = x0
+            y -= row[0].pitch['Y']
+            for pin in row:
+                if pin in include_only:
+                    overlaid = pin.overlay(model, (x, y, z0), include_only[pin], overlay_policy)
+                    if overlaid:
+                        pin = overlaid
+                row_pins.append(pin)
+                x += pin.pitch['X']
+            pins.append(row_pins)
+
+        return Module(1, pins)

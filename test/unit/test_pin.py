@@ -1,13 +1,14 @@
 import pytest
 from math import isclose
 from numpy.testing import assert_allclose
-from mpactpy import RectangularPinMesh, GeneralCylindricalPinMesh, \
+from mpactpy import PinMesh, RectangularPinMesh, GeneralCylindricalPinMesh, Material, \
                     Pin, build_rec_pin, build_gcyl_pin
 from test.unit.test_material import material, equal_material, unequal_material
 from test.unit.test_pinmesh import general_cylindrical_pinmesh as pinmesh,\
                                    equal_general_cylindrical_pinmesh as equal_pinmesh,\
                                    unequal_general_cylindrical_pinmesh as unequal_pinmesh, \
-                                   pinmesh_2D
+                                   rectangular_pinmesh as overlay_mesh, \
+                                   pinmesh_2D, openmc_pin, openmc_fuel_material, openmc_moderator_material
 
 
 @pytest.fixture
@@ -24,6 +25,27 @@ def equal_pin(equal_material, equal_pinmesh):
 def unequal_pin(unequal_material, unequal_pinmesh):
     materials = [unequal_material for _ in range(unequal_pinmesh.number_of_material_regions)]
     return Pin(unequal_pinmesh, materials)
+
+@pytest.fixture
+def template_material():
+    return Material(300.0, {"H": 1e0}, Material.MPACTSpecs())
+
+@pytest.fixture
+def template_pin(template_material, overlay_mesh):
+    T = template_material
+    materials = [T, T, T,
+                 T, T, T,
+                 T, T, T] * 3
+    return Pin(overlay_mesh, materials)
+
+@pytest.fixture
+def overlay_pin(openmc_fuel_material, openmc_moderator_material, overlay_mesh):
+    F = Material.from_openmc_material(openmc_fuel_material)
+    M = Material.from_openmc_material(openmc_moderator_material)
+    materials = [M, M, M,
+                 M, F, M,
+                 M, M, M] * 3
+    return Pin(overlay_mesh, materials)
 
 @pytest.fixture
 def pin_2D(material, pinmesh_2D):
@@ -76,6 +98,16 @@ def test_pin_with_height(pin, pin_2D):
 
     with pytest.raises(AssertionError, match=f"len\(zvals\) = {len(pin.pinmesh.zvals)}, Pin must be strictly 2D"):
         new_pin = pin.with_height(3.0)
+
+def test_pin_overlay(openmc_pin, template_pin, template_material, overlay_pin):
+    model                         = openmc_pin
+    offset                        = (-1.5, -1.5, 0.0)
+    overlay_policy                = PinMesh.OverlayPolicy(method="centroid")
+    include_only: Pin.OverlayMask = {template_material}
+
+    pin          = template_pin.overlay(model, offset, include_only, overlay_policy)
+    expected_pin = overlay_pin
+    assert pin == expected_pin
 
 
 def test_build_gcyl_pin(material):

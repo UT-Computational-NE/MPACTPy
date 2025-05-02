@@ -1,8 +1,10 @@
 from __future__ import annotations
-from typing import Dict, List, Any, TypedDict
+from typing import Dict, List, Any, TypedDict, Tuple, Optional
 from math import isclose
 
-from mpactpy.module import Module
+import openmc
+
+from mpactpy.module import PinMesh, Module
 from mpactpy.utils import list_to_str, is_rectangular, unique
 
 
@@ -174,3 +176,55 @@ class Lattice():
 
         return Lattice([[module.with_height(height) for module in row]
                       for row in self.module_map])
+
+
+    OverlayMask = Dict[Module, Optional[Module.OverlayMask]]
+
+    def overlay(self,
+                model:          openmc.Model,
+                offset:         Tuple[float, float, float] = (0.0, 0.0, 0.0),
+                include_only:   Optional[OverlayMask] = None,
+                overlay_policy: PinMesh.OverlayPolicy = PinMesh.OverlayPolicy()) -> Lattice:
+        """ A method for overlaying an OpenMC model over top an MPACTPy Lattice
+
+        Parameters
+        ----------
+        model : openmc.Model
+            The OpenMC Model to be mapped onto the MPACTPy Lattice
+        offset : Tuple(float, float, float)
+            Offset of the OpenMC geometry's lower-left corner relative to the
+            MPACT Lattice lower-left. Default is (0.0, 0.0, 0.0)
+        include_only : Optional[OverlayMask]
+            Specifies which MPACT elements should be considered during overlay.
+            If None, all elements are included.
+        overlay_policy : OverlayPolicy
+            A configuration object specifying how a mesh overlay should be done.
+
+        Returns
+        -------
+        Lattice
+            A new MPACTPy Lattice which is a copy of the original,
+            but with the OpenMC Model overlaid on top.
+        """
+
+        include_only: Lattice.OverlayMask = include_only if include_only else \
+                                            {module: None for row in self.module_map for module in row}
+
+        x0, y0, z0 = offset
+
+        modules = []
+        y = y0 + self.pitch['Y']
+        for row in self.module_map:
+            row_modules = []
+            x  = x0
+            y -= row[0].pitch['Y']
+            for module in row:
+                if module in include_only:
+                    overlaid = module.overlay(model, (x, y, z0), include_only[module], overlay_policy)
+                    if overlaid:
+                        module = overlaid
+                row_modules.append(module)
+                x += module.pitch['X']
+            modules.append(row_modules)
+
+        return Lattice(modules)

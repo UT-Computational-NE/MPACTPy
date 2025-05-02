@@ -21,7 +21,7 @@ classifiers = [
 ]
 dependencies = [
     "numpy>=1.24.0",
-    "openmc>=0.14.0",
+    "openmc>=0.15.2",
 ]
 
 [project.optional-dependencies]
