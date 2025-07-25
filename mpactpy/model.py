@@ -106,8 +106,6 @@ class Model():
         lattice_ids  = {lattice:  i+1 for i, lattice   in enumerate(self.core.lattices)}
         assembly_ids = {assembly: i+1 for i, assembly  in enumerate(self.core.assemblies)}
 
-        print(material_ids)
-
         prefix = "".ljust(indent)
 
         string = f"CASEID {caseid}\n\n"
