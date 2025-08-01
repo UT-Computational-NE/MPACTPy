@@ -524,10 +524,6 @@ class GeneralCylindricalPinMesh(PinMesh):
         def circle_encloses_box(r):
             return all(corner < r for corner in corners)
 
-        def box_encloses_circle(r):
-            return ((self.xMin < -r or isclose(self.xMin, -r)) and (r < self.xMax or isclose(self.xMax, r)) and
-                    (self.yMin < -r or isclose(self.yMin, -r)) and (r < self.yMax or isclose(self.yMax, r)))
-
         def box_overlaps_circle(r):
             return  not(all(r < corner or isclose(r, corner) for corner in corners) and
                        (self.xMin > 0.0 and self.yMin > 0.0 or
