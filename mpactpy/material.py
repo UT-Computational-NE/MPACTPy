@@ -370,7 +370,7 @@ class Material():
             given point. Returns None if no material is found.
         """
 
-        mpact_specs = mpact_specs or {}
+        mpact_specs = {mat.id: spec for mat, spec in mpact_specs.items()} if mpact_specs else {}
         try:
             elements = model.geometry.find(tuple(point))
             mat = None
@@ -378,7 +378,7 @@ class Material():
                 if isinstance(item, openmc.Cell) and item.fill_type == 'material':
                     mat = item.fill
                     break
-            return Material.from_openmc_material(mat, mpact_specs.get(mat, Material.MPACTSpecs())) if mat else None
+            return Material.from_openmc_material(mat, mpact_specs.get(mat.id, Material.MPACTSpecs())) if mat else None
         except RuntimeError:
             return None
 
@@ -412,14 +412,14 @@ class Material():
             are in the element.
         """
 
-        mpact_specs = mpact_specs or {}
+        mpact_specs = {mat.id: spec for mat, spec in mpact_specs.items()} if mpact_specs else {}
         mix_policy = mix_policy or Material.MixPolicy()
         openmc_materials = model.geometry.get_all_materials()
         if not element:
             return None
 
         mats = [openmc_materials[mat_id] for mat_id, _ in element]
-        mats = [Material.from_openmc_material(mat, mpact_specs.get(mat, Material.MPACTSpecs())) for mat in mats]
+        mats = [Material.from_openmc_material(mat, mpact_specs.get(mat.id, Material.MPACTSpecs())) for mat in mats]
 
         vols         = [vol for _, vol in element]
         total_volume = sum(vols)

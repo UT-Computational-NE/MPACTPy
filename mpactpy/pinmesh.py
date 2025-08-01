@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Dict, List, Any, Tuple, Optional
 from math import isclose, hypot
+from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor
 
 import openmc
@@ -163,22 +164,6 @@ class PinMesh(ABC):
             assert self.num_procs > 0, f"num_procs = {self.num_procs}"
             self.mix_policy = Material.MixPolicy() if self.mix_policy is None else self.mix_policy
 
-        def get_mpact_specs(self, mat: openmc.Material) -> Material.MPACTSpecs:
-            """ Method for retrieving the Material.MPACTSpecs associated with an openmc.Material
-
-            Parameters
-            ----------
-            material : openmc.Material
-                The OpenMC material for which MPACT specifications are being requested.
-
-            Returns
-            -------
-            Material.MPACTSpecs
-                The MPACT specifications associated with the given material, or a default
-                `Material.MPACTSpecs()` if no explicit entry is provided.
-            """
-            return self.mat_specs.get(mat, Material.MPACTSpecs())
-
 
     @abstractmethod
     def overlay(self,
@@ -335,14 +320,14 @@ class RectangularPinMesh(PinMesh):
                 overlay_policy: PinMesh.OverlayPolicy = PinMesh.OverlayPolicy(),
     ) -> List[Optional[Material]]:
 
+        # Need to ensure the OpenMC model has intermediate temperature treatment specified
+        model = deepcopy(model)
+        model.settings.temperature['method'] = 'interpolation'
+
         mesh = openmc.RectilinearMesh()
         mesh.x_grid = np.array([0.0] + self.xvals) + offset[0]
         mesh.y_grid = np.array([0.0] + self.yvals) + offset[1]
         mesh.z_grid = np.array([0.0] + self.zvals) + offset[2]
-
-        nx = len(self.xvals)
-        ny = len(self.yvals)
-        nz = len(self.zvals)
 
         materials = []
         if overlay_policy.method == "centroid":
@@ -351,10 +336,7 @@ class RectangularPinMesh(PinMesh):
                 materials = list(executor.map(
                     lambda pt: Material.from_openmc_model_point(pt, model, overlay_policy.mat_specs),
                     centroids))
-
-            # Convert OpenMC's FORTRAN ordering to MPACT expectation
-            arr = np.array(materials).reshape((nx, ny, nz), order='F')
-            materials = arr.flatten(order='C').tolist()
+            materials = np.array(materials).reshape((len(self.xvals), len(self.yvals), len(self.zvals)), order='F')
         else:
             with temporary_environment("OMP_NUM_THREADS", str(overlay_policy.num_procs)):
                 material_volumes = mesh.material_volumes(model, overlay_policy.n_samples)
@@ -367,7 +349,11 @@ class RectangularPinMesh(PinMesh):
                                                                        overlay_policy.mat_specs,
                                                                        overlay_policy.mix_policy),
                     elements))
+            materials = np.array(materials).reshape((len(self.xvals), len(self.yvals), len(self.zvals)), order='C')
 
+        # Convert OpenMC's ordering to correct ordering for MPACT
+        materials = materials[::-1, :, :]
+        materials = materials.flatten(order='C').tolist()
         return materials
 
 class GeneralCylindricalPinMesh(PinMesh):
@@ -538,12 +524,12 @@ class GeneralCylindricalPinMesh(PinMesh):
         def circle_encloses_box(r):
             return all(corner < r for corner in corners)
 
-        def box_encloses_circle(r):
-            return ((self.xMin < -r or isclose(self.xMin, -r)) and (r < self.xMax or isclose(self.xMax, r)) and
-                    (self.yMin < -r or isclose(self.yMin, -r)) and (r < self.yMax or isclose(self.yMax, r)))
-
         def box_overlaps_circle(r):
-            return not all(r < corner or isclose(r, corner) for corner in corners) or box_encloses_circle(r)
+            return  not(all(r < corner or isclose(r, corner) for corner in corners) and
+                       (self.xMin > 0.0 and self.yMin > 0.0 or
+                        self.xMin > 0.0 and self.yMax < 0.0 or
+                        self.xMax < 0.0 and self.yMin > 0.0 or
+                        self.xMin > 0.0 and self.yMax < 0.0))
 
         radii_inside_bounds = [i for i,r in enumerate(self.r)
                                if box_overlaps_circle(r) and not circle_encloses_box(r)]
