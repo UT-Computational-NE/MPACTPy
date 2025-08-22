@@ -155,7 +155,8 @@ def _materials_at_centroids(centroids: np.ndarray,
         A list of Material objects corresponding to each centroid.
     """
     chunk_size = max(1, len(centroids) // overlay_policy.num_procs)
-    chunks     = [centroids[i:i+chunk_size] for i in range(0, len(centroids), chunk_size)]
+    # Use numpy.array_split to distribute centroids as evenly as possible among processes
+    chunks = np.array_split(centroids, overlay_policy.num_procs)
 
     # Model serialization required for multiprocessing
     model_data = _serialize_openmc_model(model)
