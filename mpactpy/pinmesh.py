@@ -93,18 +93,7 @@ def _process_centroid_batch(args) -> List[Material]:
 
 
 def _process_homogenized_batch(args) -> List[Material]:
-    """ Processes a batch of centroid points to determine material assignments in parallel.
-
-    Parameters
-    ----------
-    args : tuple
-        A tuple containing:
-            points_batch : list of tuple
-                A list of points (e.g., coordinates) to be processed.
-            model_data : any
-                Serialized data required to reconstruct the OpenMC model.
-            mat_specs : any
-    """Processes a batch of elements to determine material assignments in parallel.
+    """ Processes a batch of elements to determine material assignments in parallel.
 
     Parameters
     ----------
@@ -154,8 +143,7 @@ def _materials_at_centroids(centroids: np.ndarray,
     List[Material]
         A list of Material objects corresponding to each centroid.
     """
-    chunk_size = max(1, len(centroids) // overlay_policy.num_procs)
-    # Use numpy.array_split to distribute centroids as evenly as possible among processes
+
     chunks = np.array_split(centroids, overlay_policy.num_procs)
 
     # Model serialization required for multiprocessing
