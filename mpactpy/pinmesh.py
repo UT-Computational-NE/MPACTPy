@@ -156,7 +156,7 @@ def _materials_at_centroids(centroids: np.ndarray,
         batch_results = list(executor.map(_process_centroid_batch, args_list))
 
     # Flatten results back to original order
-materials = [item for sublist in batch_results for item in sublist]
+    materials = [item for sublist in batch_results for item in sublist]
 
     return materials
 
