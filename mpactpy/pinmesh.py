@@ -19,7 +19,7 @@ from mpactpy.utils import relative_round, allclose, list_to_str, ROUNDING_RELATI
 # =======================================
 
 def _serialize_openmc_model(model: openmc.Model) -> Dict[str, Any]:
-    """ Serialize an OpenMC model for multiprocessing transfer.
+    """ Serialize an OpenMC model for multiprocessing transfer
 
     Parameters
     ----------
