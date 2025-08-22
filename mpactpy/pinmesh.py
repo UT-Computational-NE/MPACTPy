@@ -104,7 +104,20 @@ def _process_homogenized_batch(args) -> List[Material]:
             model_data : any
                 Serialized data required to reconstruct the OpenMC model.
             mat_specs : any
+    """Processes a batch of elements to determine material assignments in parallel.
+
+    Parameters
+    ----------
+    args : tuple
+        A tuple containing:
+            elements_batch : list
+                A list of elements to be processed for homogenized material assignment.
+            model_data : any
+                Serialized data required to reconstruct the OpenMC model.
+            mat_specs : any
                 Material specifications or mapping information needed for material assignment.
+            mix_policy : any
+                Mixing policy or additional information for homogenization.
 
     Returns
     -------
