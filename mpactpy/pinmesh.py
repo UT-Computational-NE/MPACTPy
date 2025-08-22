@@ -99,7 +99,7 @@ def _process_homogenized_batch(args) -> List[Material]:
     ----------
     args : tuple
         A tuple containing:
-            elements_batch : list
+            elements_batch : List[tuple[int | None, float]]
                 A list of elements to be processed for homogenized material assignment.
             model_data : any
                 Serialized data required to reconstruct the OpenMC model.
@@ -161,14 +161,14 @@ materials = [item for sublist in batch_results for item in sublist]
     return materials
 
 
-def _materials_in_elements(elements: list,
+def _materials_in_elements(elements: List[tuple[int | None, float]],
                            model: openmc.Model,
                            overlay_policy: PinMesh.OverlayPolicy) -> List[Material]:
     """ Determines material assignments in specified homogenized elements
 
     Parameters
     ----------
-    elements : list
+    elements : List[tuple[int | None, float]]
         List of material volume elements to process.
     model : openmc.Model
         The OpenMC model used to determine material assignments.
