@@ -62,12 +62,12 @@ def _reconstruct_openmc_model(model_data: Dict[str, Any]) -> openmc.Model:
     )
 
 
-def _process_centroid_batch(args) -> List[Material]:
+def _process_centroid_batch(args: Tuple) -> List[Material]:
     """ Processes a batch of centroid points to determine material assignments in parallel.
 
     Parameters
     ----------
-    args : tuple
+    args : Tuple
         A tuple containing:
             points_batch : list of tuple
                 A list of points (e.g., coordinates) to be processed.
@@ -92,12 +92,12 @@ def _process_centroid_batch(args) -> List[Material]:
     return results
 
 
-def _process_homogenized_batch(args) -> List[Material]:
+def _process_homogenized_batch(args: Tuple) -> List[Material]:
     """ Processes a batch of elements to determine material assignments in parallel.
 
     Parameters
     ----------
-    args : tuple
+    args : Tuple
         A tuple containing:
             elements_batch : List[tuple[int | None, float]]
                 A list of elements to be processed for homogenized material assignment.
