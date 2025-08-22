@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Any, Tuple, Optional
 from math import isclose, hypot
 from copy import deepcopy
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 
 import openmc
 import numpy as np
@@ -14,6 +14,195 @@ from mpactpy.utils import relative_round, allclose, list_to_str, ROUNDING_RELATI
                           temporary_environment
 
 
+# =======================================
+# Helper functions for overlay processing
+# =======================================
+
+def _serialize_openmc_model(model: openmc.Model) -> Dict[str, Any]:
+    """ Serialize an OpenMC model for multiprocessing transfer.
+
+    Parameters
+    ----------
+    model : openmc.Model
+        The OpenMC model to serialize.
+
+    Returns
+    -------
+    dict of str to Any
+        A dictionary containing the 'materials', 'geometry', and 'settings'
+        from the copied OpenMC model, suitable for multiprocessing transfer.
+    """
+    model_copy = deepcopy(model)
+    return {
+        'materials': model_copy.materials,
+        'geometry': model_copy.geometry,
+        'settings': model_copy.settings
+    }
+
+
+def _reconstruct_openmc_model(model_data: Dict[str, Any]) -> openmc.Model:
+    """ Reconstructs an OpenMC model from serialized data.
+
+    Parameters
+    ----------
+    model_data : Dict[str, Any]
+        A dictionary containing the serialized OpenMC model data. It must include
+        the keys 'geometry', 'materials', and 'settings', each corresponding to
+        their respective OpenMC objects.
+
+    Returns
+    -------
+    openmc.Model
+        An OpenMC Model instance reconstructed from the provided data.
+    """
+    return openmc.Model(
+        geometry=model_data['geometry'],
+        materials=model_data['materials'],
+        settings=model_data['settings']
+    )
+
+
+def _process_centroid_batch(args) -> List[Material]:
+    """ Processes a batch of centroid points to determine material assignments in parallel.
+
+    Parameters
+    ----------
+    args : tuple
+        A tuple containing:
+            points_batch : list of tuple
+                A list of points (e.g., coordinates) to be processed.
+            model_data : any
+                Serialized data required to reconstruct the OpenMC model.
+            mat_specs : any
+                Material specifications or mapping information needed for material assignment.
+
+    Returns
+    -------
+    List[Material]
+        A list of Material objects corresponding to each centroid in the batch.
+    """
+    points_batch, model_data, mat_specs = args
+
+    model = _reconstruct_openmc_model(model_data)
+
+    results = []
+    for point in points_batch:
+        mat = Material.from_openmc_model_point(point, model, mat_specs)
+        results.append(mat)
+    return results
+
+
+def _process_homogenized_batch(args) -> List[Material]:
+    """ Processes a batch of centroid points to determine material assignments in parallel.
+
+    Parameters
+    ----------
+    args : tuple
+        A tuple containing:
+            points_batch : list of tuple
+                A list of points (e.g., coordinates) to be processed.
+            model_data : any
+                Serialized data required to reconstruct the OpenMC model.
+            mat_specs : any
+                Material specifications or mapping information needed for material assignment.
+
+    Returns
+    -------
+    List[Material]
+        A list of Material objects corresponding to each element in the batch.
+    """
+    elements_batch, model_data, mat_specs, mix_policy = args
+
+    model = _reconstruct_openmc_model(model_data)
+
+    results = []
+    for element in elements_batch:
+        mat = Material.from_openmc_model_element(element, model, mat_specs, mix_policy)
+        results.append(mat)
+    return results
+
+
+def _materials_at_centroids(centroids: np.ndarray,
+                            model: openmc.Model,
+                            overlay_policy: PinMesh.OverlayPolicy) -> List[Material]:
+    """ Determines material assignments at specified centroids
+
+    Parameters
+    ----------
+    centroids : numpy.ndarray
+        Array of centroid coordinates to process.
+    model : openmc.Model
+        The OpenMC model used to determine material assignments.
+    overlay_policy : PinMesh.OverlayPolicy
+        Policy object specifying overlay options.
+
+    Returns
+    -------
+    List[Material]
+        A list of Material objects corresponding to each centroid.
+    """
+    chunk_size = max(1, len(centroids) // overlay_policy.num_procs)
+    chunks     = [centroids[i:i+chunk_size] for i in range(0, len(centroids), chunk_size)]
+
+    # Model serialization required for multiprocessing
+    model_data = _serialize_openmc_model(model)
+
+    # Prepare arguments for multiprocessing
+    args_list = [(chunk, model_data, overlay_policy.mat_specs) for chunk in chunks]
+
+    with ProcessPoolExecutor(max_workers=overlay_policy.num_procs) as executor:
+        batch_results = list(executor.map(_process_centroid_batch, args_list))
+
+    # Flatten results back to original order
+    materials = []
+    for batch_result in batch_results:
+        materials.extend(batch_result)
+
+    return materials
+
+
+def _materials_in_elements(elements: list,
+                           model: openmc.Model,
+                           overlay_policy: PinMesh.OverlayPolicy) -> List[Material]:
+    """ Determines material assignments in specified homogenized elements
+
+    Parameters
+    ----------
+    elements : list
+        List of material volume elements to process.
+    model : openmc.Model
+        The OpenMC model used to determine material assignments.
+    overlay_policy : PinMesh.OverlayPolicy
+        Policy object specifying overlay options.
+
+    Returns
+    -------
+    List[Material]
+        A list of Material objects corresponding to each element.
+    """
+    chunk_size = max(1, len(elements) // overlay_policy.num_procs)
+    chunks = [elements[i:i+chunk_size] for i in range(0, len(elements), chunk_size)]
+
+    # Model serialization required for multiprocessing
+    model_data = _serialize_openmc_model(model)
+
+    # Prepare arguments for multiprocessing
+    args_list = [(chunk, model_data, overlay_policy.mat_specs, overlay_policy.mix_policy) for chunk in chunks]
+
+    with ProcessPoolExecutor(max_workers=overlay_policy.num_procs) as executor:
+        batch_results = list(executor.map(_process_homogenized_batch, args_list))
+
+    # Flatten results back to original order
+    materials = []
+    for batch_result in batch_results:
+        materials.extend(batch_result)
+
+    return materials
+
+
+# =============================================================================
+# Class definitions
+# =============================================================================
 class PinMesh(ABC):
     """  An abstract class for MPACT model pinmeshes
 
@@ -314,6 +503,7 @@ class RectangularPinMesh(PinMesh):
     def _set_regions_inside_bounds(self) -> None:
         self._regions_inside_bounds = list(range(len(self.xvals)*len(self.yvals)*len(self.zvals)))
 
+
     def overlay(self,
                 model:          openmc.Model,
                 offset:         Tuple[float, float, float] = (0.0, 0.0, 0.0),
@@ -324,37 +514,35 @@ class RectangularPinMesh(PinMesh):
         model = deepcopy(model)
         model.settings.temperature['method'] = 'interpolation'
 
+        # Create mesh for overlay operations
         mesh = openmc.RectilinearMesh()
         mesh.x_grid = np.array([0.0] + self.xvals) + offset[0]
         mesh.y_grid = np.array([0.0] + self.yvals) + offset[1]
         mesh.z_grid = np.array([0.0] + self.zvals) + offset[2]
 
-        materials = []
+        mesh_shape = (len(self.xvals), len(self.yvals), len(self.zvals))
+
+        # Perform overlay based on the selected method
         if overlay_policy.method == "centroid":
+            # Centroid-based overlay using ProcessPoolExecutor
             centroids = mesh.centroids.reshape((-1, 3))
-            with ThreadPoolExecutor(max_workers=overlay_policy.num_procs) as executor:
-                materials = list(executor.map(
-                    lambda pt: Material.from_openmc_model_point(pt, model, overlay_policy.mat_specs),
-                    centroids))
-            materials = np.array(materials).reshape((len(self.xvals), len(self.yvals), len(self.zvals)), order='F')
+            materials = _materials_at_centroids(centroids, model, overlay_policy)
+            materials = np.array(materials).reshape(mesh_shape, order='F')
         else:
+            # Homogenized overlay using ProcessPoolExecutor
             with temporary_environment("OMP_NUM_THREADS", str(overlay_policy.num_procs)):
                 material_volumes = mesh.material_volumes(model, overlay_policy.n_samples)
 
-            elements = [material_volumes.by_element(i) for i in range(material_volumes.num_elements)]
-            with ThreadPoolExecutor(max_workers=overlay_policy.num_procs) as executor:
-                materials = list(executor.map(
-                    lambda element: Material.from_openmc_model_element(element,
-                                                                       model,
-                                                                       overlay_policy.mat_specs,
-                                                                       overlay_policy.mix_policy),
-                    elements))
-            materials = np.array(materials).reshape((len(self.xvals), len(self.yvals), len(self.zvals)), order='C')
+            elements  = [material_volumes.by_element(i) for i in range(material_volumes.num_elements)]
+            materials = _materials_in_elements(elements, model, overlay_policy)
+            materials = np.array(materials).reshape(mesh_shape, order='C')
 
-        # Convert OpenMC's ordering to correct ordering for MPACT
+        # Convert to MPACT-compatible format
         materials = materials[::-1, :, :]
         materials = materials.flatten(order='C').tolist()
         return materials
+
+
 
 class GeneralCylindricalPinMesh(PinMesh):
     """  An MPACT model pin mesh made up of a concentric cylinders centered at (0,0) with arbitrary pin boundaries
