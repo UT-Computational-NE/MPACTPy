@@ -6,6 +6,9 @@ from concurrent.futures import ProcessPoolExecutor
 import openmc
 
 from mpactpy.lattice import PinMesh, Lattice
+from mpactpy.module import Module
+from mpactpy.pin import Pin
+from mpactpy.material import Material
 from mpactpy.utils import list_to_str, unique
 
 
@@ -29,6 +32,16 @@ class Assembly():
         The x,y,z dimensions of the ray-tracing module
     lattice_map : List[Lattice]
         1-D array of lattice names
+    lattices : List[Lattice]
+        The unique lattices contained in this assembly
+    modules : List[Module]
+        The unique modules contained in this assembly
+    pins : List[Pin]
+        The unique pins contained in this assembly
+    pinmeshes : List[PinMesh]
+        The unique pinmeshes contained in this assembly
+    materials : List[Material]
+        The unique materials contained in this assembly
     """
 
     class Pitch(TypedDict):
@@ -64,6 +77,26 @@ class Assembly():
     def lattice_map(self) -> List[Lattice]:
         return self._lattice_map
 
+    @property
+    def lattices(self) -> List[Lattice]:
+        return self._lattices
+
+    @property
+    def modules(self) -> List[Module]:
+        return self._modules
+
+    @property
+    def pins(self) -> List[Pin]:
+        return self._pins
+
+    @property
+    def pinmeshes(self) -> List[PinMesh]:
+        return self._pinmeshes
+
+    @property
+    def materials(self) -> List[Material]:
+        return self._materials
+
 
     def __init__(self, lattice_map: List[Lattice]):
         assert len(lattice_map) > 0
@@ -89,6 +122,12 @@ class Assembly():
         self._mod_dim = {'X': self.lattice_map[0].mod_dim['X'],
                          'Y': self.lattice_map[0].mod_dim['Y'],
                          'Z': unique_lattice_heights}
+
+        self._lattices  = unique(self.lattice_map)
+        self._modules   = unique([module for lattice in self.lattices for module in lattice.modules])
+        self._pins      = unique([pin for module in self.modules for pin in module.pins])
+        self._pinmeshes = unique([pin.pinmesh for pin in self.pins])
+        self._materials = unique([material for pin in self.pins for material in pin.materials])
 
     def __eq__(self, other: Any) -> bool:
         if self is other:
@@ -190,6 +229,31 @@ class Assembly():
 
     OverlayMask = Dict[Lattice, Optional[Lattice.OverlayMask]]
 
+    def has_overlay_work(self, include_only: Optional[OverlayMask] = None) -> bool:
+        """Check if this assembly has actual overlay work to do based on the include mask.
+
+        Parameters
+        ----------
+        include_only : Optional[OverlayMask]
+            The dictionary of lattices and their masks to include for this assembly
+
+        Returns
+        -------
+        bool
+            True if assembly has overlay work to do, False otherwise
+        """
+        if include_only is None:
+            # No mask means include all lattices in this assembly
+            return True
+
+        # Check if assembly contains any lattices that have overlay work to do
+        for lattice in self.lattices:
+            if lattice in include_only:
+                if lattice.has_overlay_work(include_only[lattice]):
+                    return True
+
+        return False
+
     def overlay(self,
                 geometry:       openmc.Geometry,
                 offset:         Tuple[float, float, float] = (0.0, 0.0, 0.0),
@@ -227,7 +291,8 @@ class Assembly():
         z = z0
         for i, lattice in enumerate(self.lattice_map):
             if lattice in include_only:
-                lattice_work.append((lattice, (x0, y0, z), include_only[lattice], i))
+                if lattice.has_overlay_work(include_only[lattice]):
+                    lattice_work.append((lattice, (x0, y0, z), include_only[lattice], i))
             z += lattice.pitch['Z']
 
         # Determine parallelization strategy

@@ -210,6 +210,26 @@ class Pin():
 
     OverlayMask = Set[Material]
 
+    def has_overlay_work(self, include_only: Optional[OverlayMask] = None) -> bool:
+        """Check if this pin has actual overlay work to do based on the include mask.
+
+        Parameters
+        ----------
+        include_only : Optional[OverlayMask]
+            The set of materials to include for this pin
+
+        Returns
+        -------
+        bool
+            True if pin has overlay work to do, False otherwise
+        """
+        if include_only is None:
+            # No mask means include all materials in this pin
+            return True
+
+        # Check if pin contains any of the specified materials
+        return any(material in include_only for material in self.materials)
+
     def overlay(self,
                 geometry:       openmc.Geometry,
                 offset:         Tuple[float, float, float] = (0.0, 0.0, 0.0),

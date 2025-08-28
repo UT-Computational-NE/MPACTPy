@@ -6,6 +6,7 @@ from concurrent.futures import ProcessPoolExecutor
 import openmc
 
 from mpactpy.pin import Pin, PinMesh
+from mpactpy.material import Material
 from mpactpy.utils import list_to_str, is_rectangular, unique
 
 
@@ -33,6 +34,12 @@ class Module():
     pin_map : List[List[Pin]]
         The 2-D array of pin.  This array is extruded
         nz times in the z-direction
+    pins : List[Pin]
+        The unique pins contained in this module
+    pinmeshes : List[PinMesh]
+        The unique pinmeshes contained in this module
+    materials : List[Material]
+        The unique materials contained in this module
     """
 
     class Pitch(TypedDict):
@@ -62,6 +69,18 @@ class Module():
     def pin_map(self) -> List[List[Pin]]:
         return self._pin_map
 
+    @property
+    def pins(self) -> List[Pin]:
+        return self._pins
+
+    @property
+    def pinmeshes(self) -> List[PinMesh]:
+        return self._pinmeshes
+
+    @property
+    def materials(self) -> List[Material]:
+        return self._materials
+
     def __init__(self, nz: int, pin_map: List[List[Pin]]):
 
         assert nz > 0
@@ -83,6 +102,10 @@ class Module():
         y_pitch     = sum(self.pin_map[i][0].pitch['Y'] for i in range(self.nx))
         z_pitch     = self.pin_map[0][0].pitch['Z'] * self.nz
         self._pitch = {'X': x_pitch, 'Y': y_pitch, 'Z': z_pitch}
+
+        self._pins      = unique([pin for row in self.pin_map for pin in row])
+        self._pinmeshes = unique([pin.pinmesh for pin in self.pins])
+        self._materials = unique([material for pin in self.pins for material in pin.materials])
 
 
     def __eq__(self, other: Any) -> bool:
@@ -195,6 +218,31 @@ class Module():
 
     OverlayMask = Dict[Pin, Optional[Pin.OverlayMask]]
 
+    def has_overlay_work(self, include_only: Optional[OverlayMask] = None) -> bool:
+        """Check if this module has actual overlay work to do based on the include mask.
+
+        Parameters
+        ----------
+        include_only : Optional[OverlayMask]
+            The dictionary of pins and their masks to include for this module
+
+        Returns
+        -------
+        bool
+            True if module has overlay work to do, False otherwise
+        """
+        if include_only is None:
+            # No mask means include all pins in this module
+            return True
+
+        # Check if module contains any pins that have overlay work to do
+        for pin in self.pins:
+            if pin in include_only:
+                if pin.has_overlay_work(include_only[pin]):
+                    return True
+
+        return False
+
     def overlay(self,
                 geometry:       openmc.Geometry,
                 offset:         Tuple[float, float, float] = (0.0, 0.0, 0.0),
@@ -235,7 +283,8 @@ class Module():
             y -= row[0].pitch['Y']
             for j, pin in enumerate(row):
                 if pin in include_only:
-                    pin_work.append((pin, (x, y, z0), include_only[pin], i, j))
+                    if pin.has_overlay_work(include_only[pin]):
+                        pin_work.append((pin, (x, y, z0), include_only[pin], i, j))
                 x += pin.pitch['X']
 
         # Determine parallelization

@@ -403,8 +403,7 @@ class Core():
                       for assembly in row] for row in self.assembly_map])
 
 
-
-    OverlayMask = Dict[Module, Optional[Module.OverlayMask]]
+    OverlayMask = Dict[Assembly, Optional[Assembly.OverlayMask]]
 
     def overlay(self,
                 geometry:       openmc.Geometry,
@@ -446,7 +445,8 @@ class Core():
             y -= self.pitch['row'][i]
             for j, assembly in enumerate(row):
                 if assembly and assembly in include_only:
-                    assembly_work.append((assembly, (x, y, z0), include_only[assembly], i, j))
+                    if assembly.has_overlay_work(include_only[assembly]):
+                        assembly_work.append((assembly, (x, y, z0), include_only[assembly], i, j))
                 x += self.pitch['column'][j]
 
         # Determine parallelization strategy
