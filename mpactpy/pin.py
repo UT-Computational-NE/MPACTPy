@@ -228,7 +228,7 @@ class Pin():
             return True
 
         # Check if pin contains any of the specified materials
-        return any(material in include_only for material in self.materials)
+        return any(material in include_only for material in {self.materials})
 
     def overlay(self,
                 geometry:       openmc.Geometry,
