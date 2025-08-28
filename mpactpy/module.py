@@ -196,16 +196,16 @@ class Module():
     OverlayMask = Dict[Pin, Optional[Pin.OverlayMask]]
 
     def overlay(self,
-                model:          openmc.Model,
+                geometry:       openmc.Geometry,
                 offset:         Tuple[float, float, float] = (0.0, 0.0, 0.0),
                 include_only:   Optional[OverlayMask] = None,
                 overlay_policy: PinMesh.OverlayPolicy = PinMesh.OverlayPolicy()) -> Module:
-        """ A method for overlaying an OpenMC model over top an MPACTPy Module
+        """ A method for overlaying an OpenMC geometry over top an MPACTPy Module
 
         Parameters
         ----------
-        model : openmc.Model
-            The OpenMC Model to be mapped onto the MPACTPy Module
+        geometry : openmc.Geometry
+            The OpenMC Geometry to be mapped onto the MPACTPy Module
         offset : Tuple(float, float, float)
             Offset of the OpenMC geometry's lower-left corner relative to the
             MPACT Module lower-left. Default is (0.0, 0.0, 0.0)
@@ -219,7 +219,7 @@ class Module():
         -------
         Module
             A new MPACTPy Module which is a copy of the original,
-            but with the OpenMC Model overlaid on top.
+            but with the OpenMC Geometry overlaid on top.
         """
 
         include_only: Module.OverlayMask = include_only if include_only else \
@@ -246,7 +246,7 @@ class Module():
         # Process pins in parallel
         with ProcessPoolExecutor(max_workers=num_module_procs) as executor:
             futures = [
-                executor.submit(self._overlay_pin_worker, pin, offset_pos, include_mask, model, child_policy)
+                executor.submit(self._overlay_pin_worker, pin, offset_pos, include_mask, geometry, child_policy)
                 for pin, offset_pos, include_mask, _, _ in pin_work
             ]
             overlaid_pins = [future.result() for future in futures]
@@ -262,22 +262,22 @@ class Module():
     def _overlay_pin_worker(pin:            Pin,
                             offset:         Tuple[float, float, float],
                             include_mask:   Optional[Pin.OverlayMask],
-                            model:          openmc.Model,
+                            geometry:       openmc.Geometry,
                             overlay_policy: PinMesh.OverlayPolicy) -> Pin:
         """Worker function for parallel pin overlay processing.
 
         Parameters
         ----------
         pin : Pin
-            The MPACTPy Pin to overlay with the OpenMC model.
+            The MPACTPy Pin to overlay with the OpenMC geometry.
         offset : Tuple[float, float, float]
             The (x, y, z) offset coordinates for the OpenMC geometry relative to
             the pin's lower-left corner.
         include_mask : Optional[Pin.OverlayMask]
             Optional mask specifying which elements within the pin should be
             included in the overlay operation. If None, all pin elements are included.
-        model : openmc.Model
-            The OpenMC Model to be overlaid onto the pin.
+        geometry : openmc.Geometry
+            The OpenMC Geometry to be overlaid onto the pin.
         overlay_policy : PinMesh.OverlayPolicy
             Configuration object specifying overlay method, sampling parameters,
             and process allocation for cascading parallelization.
@@ -285,6 +285,6 @@ class Module():
         Returns
         -------
         Pin
-            A new Pin instance with the OpenMC model overlaid.
+            A new Pin instance with the OpenMC geometry overlaid.
         """
-        return pin.overlay(model, offset, include_mask, overlay_policy)
+        return pin.overlay(geometry, offset, include_mask, overlay_policy)

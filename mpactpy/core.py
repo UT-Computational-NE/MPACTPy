@@ -407,16 +407,16 @@ class Core():
     OverlayMask = Dict[Module, Optional[Module.OverlayMask]]
 
     def overlay(self,
-                model:          openmc.Model,
+                geometry:       openmc.Geometry,
                 offset:         Tuple[float, float, float] = (0.0, 0.0, 0.0),
                 include_only:   Optional[OverlayMask] = None,
                 overlay_policy: PinMesh.OverlayPolicy = PinMesh.OverlayPolicy()) -> Core:
-        """ A method for overlaying an OpenMC model over top an MPACTPy Core
+        """ A method for overlaying an OpenMC geometry over top an MPACTPy Core
 
         Parameters
         ----------
-        model : openmc.Model
-            The OpenMC Model to be mapped onto the MPACTPy Core
+        geometry : openmc.Geometry
+            The OpenMC Geometry to be mapped onto the MPACTPy Core
         offset : Tuple(float, float, float)
             Offset of the OpenMC geometry's lower-left corner relative to the
             MPACT Core lower-left. Default is (0.0, 0.0, 0.0)
@@ -430,7 +430,7 @@ class Core():
         -------
         Core
             A new MPACTPy Core which is a copy of the original,
-            but with the OpenMC Model overlaid on top.
+            but with the OpenMC Geometry overlaid on top.
         """
 
         include_only: Core.OverlayMask = include_only if include_only else \
@@ -457,7 +457,7 @@ class Core():
         # Process assemblies in parallel
         with ProcessPoolExecutor(max_workers=num_core_procs) as executor:
             futures = [
-                executor.submit(self._overlay_assembly_worker, assembly, offset_pos, include_mask, model, child_policy)
+                executor.submit(self._overlay_assembly_worker, assembly, offset_pos, include_mask, geometry, child_policy)
                 for assembly, offset_pos, include_mask, _, _ in assembly_work
             ]
             overlaid_assemblies = [future.result() for future in futures]
