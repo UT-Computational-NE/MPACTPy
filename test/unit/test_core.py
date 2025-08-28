@@ -59,8 +59,7 @@ def overlay_core(overlay_assembly):
 
 @pytest.fixture
 def openmc_core(openmc_assembly):
-    model    = openmc_assembly
-    assembly = model.geometry.root_universe
+    assembly = openmc_assembly.root_universe
 
     lattice            = openmc.RectLattice(name='2x2 module lattice')
     lattice.pitch      = (12.0, 12.0)
@@ -74,9 +73,8 @@ def openmc_core(openmc_assembly):
 
     universe  = openmc.Universe(cells=[lattice_cell])
     geometry  = openmc.Geometry(universe)
-    materials = model.materials
 
-    return openmc.Model(geometry=geometry, materials=materials)
+    return geometry
 
 def test_core_initialization(core, assembly):
     assert isclose(core.height, 12.0)
@@ -161,7 +159,7 @@ def test_core_with_height(core, core_2D):
         new_core = core.with_height(3.0)
 
 def test_module_overlay(openmc_core, template_core, template_assembly, template_lattice, template_module, template_pin, template_material, overlay_core):
-    model                               = openmc_core
+    geometry                            = openmc_core
     offset                              = (-18.0, -18.0, -6.0)
     overlay_policy                      = PinMesh.OverlayPolicy(method="centroid")
     pin_mask: Pin.OverlayMask           = {template_material}
@@ -170,6 +168,6 @@ def test_module_overlay(openmc_core, template_core, template_assembly, template_
     assembly_mask: Assembly.OverlayMask = {template_lattice : lattice_mask}
     include_only: Core.OverlayMask      = {template_assembly : assembly_mask}
 
-    core          = template_core.overlay(model, offset, include_only, overlay_policy)
+    core          = template_core.overlay(geometry, offset, include_only, overlay_policy)
     expected_core = overlay_core
     assert core == expected_core

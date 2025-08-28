@@ -1,6 +1,7 @@
 from __future__ import annotations
-from typing import Dict, List, Any, TypedDict, Tuple, Optional
+from typing import List, Any, Tuple, Optional, Dict, TypedDict
 from math import isclose
+from concurrent.futures import ProcessPoolExecutor
 
 import openmc
 
@@ -190,16 +191,16 @@ class Assembly():
     OverlayMask = Dict[Lattice, Optional[Lattice.OverlayMask]]
 
     def overlay(self,
-                model:          openmc.Model,
+                geometry:       openmc.Geometry,
                 offset:         Tuple[float, float, float] = (0.0, 0.0, 0.0),
                 include_only:   Optional[OverlayMask] = None,
                 overlay_policy: PinMesh.OverlayPolicy = PinMesh.OverlayPolicy()) -> Assembly:
-        """ A method for overlaying an OpenMC model over top an MPACTPy Assembly
+        """ A method for overlaying an OpenMC geometry over top an MPACTPy Assembly
 
         Parameters
         ----------
-        model : openmc.Model
-            The OpenMC Model to be mapped onto the MPACTPy Assembly
+        geometry : openmc.Geometry
+            The OpenMC Geometry to be mapped onto the MPACTPy Assembly
         offset : Tuple(float, float, float)
             Offset of the OpenMC geometry's lower-left corner relative to the
             MPACT Assembly lower-left. Default is (0.0, 0.0, 0.0)
@@ -213,7 +214,7 @@ class Assembly():
         -------
         Assembly
             A new MPACTPy Assembly which is a copy of the original,
-            but with the OpenMC Model overlaid on top.
+            but with the OpenMC Geometry overlaid on top.
         """
 
         include_only: Assembly.OverlayMask = include_only if include_only else \
@@ -221,14 +222,61 @@ class Assembly():
 
         x0, y0, z0 = offset
 
-        lattices = []
+        # Collect all lattice work to be done
+        lattice_work = []
         z = z0
-        for lattice in self.lattice_map:
+        for i, lattice in enumerate(self.lattice_map):
             if lattice in include_only:
-                overlaid = lattice.overlay(model, (x0, y0, z), include_only[lattice], overlay_policy)
-                if overlaid:
-                    lattice = overlaid
-            lattices.append(lattice)
+                lattice_work.append((lattice, (x0, y0, z), include_only[lattice], i))
             z += lattice.pitch['Z']
 
-        return Assembly(lattices)
+        # Determine parallelization strategy
+        num_lattices       = len(lattice_work)
+        num_assembly_procs = min(num_lattices, overlay_policy.num_procs)
+        child_policy       = overlay_policy.allocate_processes(num_lattices)
+
+        # Process lattices in parallel
+        with ProcessPoolExecutor(max_workers=num_assembly_procs) as executor:
+            futures = [
+                executor.submit(self._overlay_lattice_worker, lattice, offset_pos, include_mask, geometry, child_policy)
+                for lattice, offset_pos, include_mask, _ in lattice_work
+            ]
+            overlaid_lattices = [future.result() for future in futures]
+
+        # Reconstruct the lattice map with overlaid lattices
+        new_lattice_map = self.lattice_map[:]
+        for (_, _, _, i), overlaid in zip(lattice_work, overlaid_lattices):
+            new_lattice_map[i] = overlaid
+
+        return Assembly(new_lattice_map)
+
+    @staticmethod
+    def _overlay_lattice_worker(lattice:        Lattice,
+                                offset:         Tuple[float, float, float],
+                                include_mask:   Optional[Lattice.OverlayMask],
+                                geometry:       openmc.Geometry,
+                                overlay_policy: PinMesh.OverlayPolicy) -> Lattice:
+        """Worker function for parallel lattice overlay processing.
+
+        Parameters
+        ----------
+        lattice : Lattice
+            The MPACTPy Lattice to overlay with the OpenMC geometry.
+        offset : Tuple[float, float, float]
+            The (x, y, z) offset coordinates for the OpenMC geometry relative to
+            the lattice's lower-left corner.
+        include_mask : Optional[Lattice.OverlayMask]
+            Optional mask specifying which modules within the lattice should be
+            included in the overlay operation. If None, all modules are included.
+        geometry : openmc.Geometry
+            The OpenMC Geometry to be overlaid onto the lattice.
+        overlay_policy : PinMesh.OverlayPolicy
+            Configuration object specifying overlay method, sampling parameters,
+            and process allocation for cascading parallelization.
+
+        Returns
+        -------
+        Lattice
+            A new Lattice instance with the OpenMC geometry overlaid.
+        """
+        return lattice.overlay(geometry, offset, include_mask, overlay_policy)

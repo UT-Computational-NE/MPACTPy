@@ -50,8 +50,7 @@ def overlay_assembly(overlay_lattice):
 
 @pytest.fixture
 def openmc_assembly(openmc_lattice):
-    model  = openmc_lattice
-    lattice = model.geometry.root_universe
+    lattice = openmc_lattice.root_universe
 
     z = [openmc.ZPlane(-3.0),
          openmc.ZPlane(0.0),
@@ -64,9 +63,8 @@ def openmc_assembly(openmc_lattice):
 
     universe  = openmc.Universe(cells=cells)
     geometry  = openmc.Geometry(universe)
-    materials = model.materials
 
-    return openmc.Model(geometry=geometry, materials=materials)
+    return geometry
 
 def test_assembly_initialization(assembly, lattice):
     assert isclose(assembly.height, 12.0)
@@ -113,7 +111,7 @@ def test_assembly_with_height(assembly, assembly_2D):
         new_assembly = assembly.with_height(3.0)
 
 def test_module_overlay(openmc_assembly, template_assembly, template_lattice, template_module, template_pin, template_material, overlay_assembly):
-    model                              = openmc_assembly
+    geometry                           = openmc_assembly
     offset                             = (-6.0, -6.0, -6.0)
     overlay_policy                     = PinMesh.OverlayPolicy(method="centroid")
     pin_mask: Pin.OverlayMask          = {template_material}
@@ -121,6 +119,6 @@ def test_module_overlay(openmc_assembly, template_assembly, template_lattice, te
     lattice_mask: Lattice.OverlayMask  = {template_module : module_mask}
     include_only: Assembly.OverlayMask = {template_lattice : lattice_mask}
 
-    assembly          = template_assembly.overlay(model, offset, include_only, overlay_policy)
+    assembly          = template_assembly.overlay(geometry, offset, include_only, overlay_policy)
     expected_assembly = overlay_assembly
     assert assembly == expected_assembly

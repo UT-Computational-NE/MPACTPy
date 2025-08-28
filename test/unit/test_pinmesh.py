@@ -43,9 +43,8 @@ def openmc_pin(openmc_fuel_material, openmc_moderator_material):
 
     universe  = openmc.Universe(cells=[fuel_cell, moderator_cell])
     geometry  = openmc.Geometry(universe)
-    materials = openmc.Materials([fuel, moderator])
 
-    return openmc.Model(geometry=geometry, materials=materials)
+    return geometry
 
 
 @pytest.fixture
@@ -157,7 +156,7 @@ def test_rectangular_pinmesh_overlay(rectangular_pinmesh, openmc_fuel_material, 
     H       = Material.mix_materials([F, M], [fuel_frac, mod_frac], Material.MixPolicy(percent_type='vo'))
 
     overlay_policy = PinMesh.OverlayPolicy(method="centroid", num_procs=2)
-    materials = pinmesh.overlay(model=openmc_pin, offset=offset, overlay_policy=overlay_policy)
+    materials = pinmesh.overlay(geometry=openmc_pin, offset=offset, overlay_policy=overlay_policy)
     assert len(materials) == pinmesh.number_of_material_regions
     expected_materials = [M, M, M,
                           M, F, M,
@@ -167,7 +166,7 @@ def test_rectangular_pinmesh_overlay(rectangular_pinmesh, openmc_fuel_material, 
                for material, expected_material in zip(materials, expected_materials))
 
     overlay_policy = PinMesh.OverlayPolicy(method="homogenized", n_samples=100000, num_procs=2)
-    materials = pinmesh.overlay(model=openmc_pin, offset=offset, overlay_policy=overlay_policy)
+    materials = pinmesh.overlay(geometry=openmc_pin, offset=offset, overlay_policy=overlay_policy)
     expected_materials = [M, M, M,
                           M, H, M,
                           M, M, M] * 3

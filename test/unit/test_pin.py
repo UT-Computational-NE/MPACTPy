@@ -100,12 +100,12 @@ def test_pin_with_height(pin, pin_2D):
         new_pin = pin.with_height(3.0)
 
 def test_pin_overlay(openmc_pin, template_pin, template_material, overlay_pin):
-    model                         = openmc_pin
+    geometry                      = openmc_pin
     offset                        = (-1.5, -1.5, 0.0)
     overlay_policy                = PinMesh.OverlayPolicy(method="centroid")
     include_only: Pin.OverlayMask = {template_material}
 
-    pin          = template_pin.overlay(model, offset, include_only, overlay_policy)
+    pin          = template_pin.overlay(geometry, offset, include_only, overlay_policy)
     expected_pin = overlay_pin
     assert pin == expected_pin
 
