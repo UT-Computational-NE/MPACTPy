@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Dict, List, Any, TypedDict, Tuple, Optional
 from math import isclose
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import openmc
 
@@ -298,7 +298,11 @@ class Module():
                 executor.submit(self._overlay_pin_worker, pin, offset_pos, include_mask, geometry, child_policy)
                 for pin, offset_pos, include_mask, _, _ in pin_work
             ]
-            overlaid_pins = [future.result() for future in futures]
+
+            overlaid_pins = [None] * len(pin_work)
+            for future in as_completed(futures):
+                future_index = futures.index(future)
+                overlaid_pins[future_index] = future.result()
 
         # Reconstruct the pin map with overlaid pins
         new_pin_map = [row[:] for row in self.pin_map]

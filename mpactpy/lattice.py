@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Dict, List, Any, TypedDict, Tuple, Optional
 from math import isclose
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import openmc
 
@@ -292,7 +292,11 @@ class Lattice():
                 executor.submit(self._overlay_module_worker, module, offset_pos, include_mask, geometry, child_policy)
                 for module, offset_pos, include_mask, _, _ in module_work
             ]
-            overlaid_modules = [future.result() for future in futures]
+
+            overlaid_modules = [None] * len(module_work)
+            for future in as_completed(futures):
+                future_index = futures.index(future)
+                overlaid_modules[future_index] = future.result()
 
         # Reconstruct the module map with overlaid modules
         new_module_map = [row[:] for row in self.module_map]

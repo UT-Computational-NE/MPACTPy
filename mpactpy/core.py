@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import List, Any, Literal, Dict, Tuple, Optional, TypedDict
 from math import isclose
 from itertools import accumulate
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import openmc
 
@@ -186,11 +186,11 @@ class Core():
 
         self._width = {'X': sum(self.pitch["column"]), 'Y': sum(self.pitch["row"])}
 
-        self._lattices   = unique(lattice for assembly in self.assemblies for lattice in assembly.lattices)
-        self._modules    = unique(module for lattice in self.lattices for module in lattice.modules)
-        self._pins       = unique(pin for module in self.modules for pin in module.pins)
+        self._lattices   = unique(lattice for assembly in self.assemblies for lattice in assembly.lattice_map)
+        self._modules    = unique(module for lattice in self.lattices for row in lattice.module_map for module in row)
+        self._pins       = unique(pin for module in self.modules for row in module.pin_map for pin in row)
         self._pinmeshes  = unique(pin.pinmesh for pin in self.pins)
-        self._materials  = unique(material for pin in self.pins for material in pin.unique_materials)
+        self._materials  = unique(material for pin in self.pins for material in pin.materials)
 
     def __eq__(self, other: Any) -> bool:
         if self is other:
@@ -460,7 +460,11 @@ class Core():
                 executor.submit(self._overlay_assembly_worker, assembly, offset_pos, include_mask, geometry, child_policy)
                 for assembly, offset_pos, include_mask, _, _ in assembly_work
             ]
-            overlaid_assemblies = [future.result() for future in futures]
+
+            overlaid_assemblies = [None] * len(assembly_work)
+            for future in as_completed(futures):
+                future_index = futures.index(future)
+                overlaid_assemblies[future_index] = future.result()
 
         # Reconstruct the assembly map with overlaid assemblies
         new_assembly_map = [row[:] for row in self.assembly_map]
