@@ -105,7 +105,7 @@ class Module():
 
         self._pins      = unique([pin for row in self.pin_map for pin in row])
         self._pinmeshes = unique([pin.pinmesh for pin in self.pins])
-        self._materials = unique([material for pin in self.pins for material in pin.materials])
+        self._materials = unique([material for pin in self.pins for material in pin.unique_materials])
 
 
     def __eq__(self, other: Any) -> bool:

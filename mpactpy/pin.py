@@ -31,6 +31,8 @@ class Pin():
         The materials used in each pin XSR. The number of
         entries must be equal to the number of uniform
         material regions defined in the pin mesh
+    unique_materials : Set[Material]
+        The unique materials used in this pin
     pitch : Pitch
         The pitch of the pin in each axis direction (keys: 'X', 'Y', 'Z') (cm)
     """
@@ -51,6 +53,10 @@ class Pin():
         return self._materials
 
     @property
+    def unique_materials(self) -> Set[Material]:
+        return self._unique_materials
+
+    @property
     def pitch(self) -> Pitch:
         return self._pinmesh.pitch
 
@@ -59,8 +65,9 @@ class Pin():
             f"len(materials) = {len(materials)}, " + \
             f"pinmesh.number_of_material_regions = {pinmesh.number_of_material_regions}"
 
-        self._pinmesh   = pinmesh
-        self._materials = materials
+        self._pinmesh          = pinmesh
+        self._materials        = materials
+        self._unique_materials = set(materials)
 
     def __eq__(self, other: Any) -> bool:
         if self is other:
@@ -228,7 +235,7 @@ class Pin():
             return True
 
         # Check if pin contains any of the specified materials
-        return any(material in include_only for material in {self.materials})
+        return any(material in include_only for material in self.unique_materials)
 
     def overlay(self,
                 geometry:       openmc.Geometry,

@@ -186,11 +186,11 @@ class Core():
 
         self._width = {'X': sum(self.pitch["column"]), 'Y': sum(self.pitch["row"])}
 
-        self._lattices   = unique(lattice for assembly in self.assemblies for lattice in assembly.lattice_map)
-        self._modules    = unique(module for lattice in self.lattices for row in lattice.module_map for module in row)
-        self._pins       = unique(pin for module in self.modules for row in module.pin_map for pin in row)
+        self._lattices   = unique(lattice for assembly in self.assemblies for lattice in assembly.lattices)
+        self._modules    = unique(module for lattice in self.lattices for module in lattice.modules)
+        self._pins       = unique(pin for module in self.modules for pin in module.pins)
         self._pinmeshes  = unique(pin.pinmesh for pin in self.pins)
-        self._materials  = unique(material for pin in self.pins for material in pin.materials)
+        self._materials  = unique(material for pin in self.pins for material in pin.unique_materials)
 
     def __eq__(self, other: Any) -> bool:
         if self is other:
