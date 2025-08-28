@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import Dict, List, Any, TypedDict, Tuple, Optional
 from math import isclose
+from concurrent.futures import ProcessPoolExecutor
 
 import openmc
 
@@ -226,19 +227,64 @@ class Module():
 
         x0, y0, z0 = offset
 
-        pins = []
+        # Collect all pin work to be done
+        pin_work = []
         y = y0 + self.pitch['Y']
-        for row in self.pin_map:
-            row_pins = []
-            x  = x0
+        for i, row in enumerate(self.pin_map):
+            x = x0
             y -= row[0].pitch['Y']
-            for pin in row:
+            for j, pin in enumerate(row):
                 if pin in include_only:
-                    overlaid = pin.overlay(model, (x, y, z0), include_only[pin], overlay_policy)
-                    if overlaid:
-                        pin = overlaid
-                row_pins.append(pin)
+                    pin_work.append((pin, (x, y, z0), include_only[pin], i, j))
                 x += pin.pitch['X']
-            pins.append(row_pins)
 
-        return Module(1, pins)
+        # Determine parallelization
+        num_pins         = len(pin_work)
+        num_module_procs = min(num_pins, overlay_policy.num_procs)
+        child_policy     = overlay_policy.allocate_processes(num_pins)
+
+        # Process pins in parallel
+        with ProcessPoolExecutor(max_workers=num_module_procs) as executor:
+            futures = [
+                executor.submit(self._overlay_pin_worker, pin, offset_pos, include_mask, model, child_policy)
+                for pin, offset_pos, include_mask, _, _ in pin_work
+            ]
+            overlaid_pins = [future.result() for future in futures]
+
+        # Reconstruct the pin map with overlaid pins
+        new_pin_map = [row[:] for row in self.pin_map]
+        for (_, _, _, i, j), overlaid in zip(pin_work, overlaid_pins):
+            new_pin_map[i][j] = overlaid
+
+        return Module(1, new_pin_map)
+
+    @staticmethod
+    def _overlay_pin_worker(pin:            Pin,
+                            offset:         Tuple[float, float, float],
+                            include_mask:   Optional[Pin.OverlayMask],
+                            model:          openmc.Model,
+                            overlay_policy: PinMesh.OverlayPolicy) -> Pin:
+        """Worker function for parallel pin overlay processing.
+
+        Parameters
+        ----------
+        pin : Pin
+            The MPACTPy Pin to overlay with the OpenMC model.
+        offset : Tuple[float, float, float]
+            The (x, y, z) offset coordinates for the OpenMC geometry relative to
+            the pin's lower-left corner.
+        include_mask : Optional[Pin.OverlayMask]
+            Optional mask specifying which elements within the pin should be
+            included in the overlay operation. If None, all pin elements are included.
+        model : openmc.Model
+            The OpenMC Model to be overlaid onto the pin.
+        overlay_policy : PinMesh.OverlayPolicy
+            Configuration object specifying overlay method, sampling parameters,
+            and process allocation for cascading parallelization.
+
+        Returns
+        -------
+        Pin
+            A new Pin instance with the OpenMC model overlaid.
+        """
+        return pin.overlay(model, offset, include_mask, overlay_policy)

@@ -346,19 +346,19 @@ class Material():
         return mpact_material
 
     @staticmethod
-    def from_openmc_model_point(point:       Tuple[float, float, float],
-                                model:       openmc.Model,
-                                mpact_specs: Optional[Dict[openmc.Material, Material.MPACTSpecs]]
-                               ) -> Optional[Material]:
+    def from_openmc_geometry_point(point:       Tuple[float, float, float],
+                                   geometry:    openmc.Geometry,
+                                   mpact_specs: Optional[Dict[openmc.Material, Material.MPACTSpecs]]
+                                  ) -> Optional[Material]:
         """ Factory method for creating an MPACT material based on the OpenMC material
-            found at a given point within an OpenMC model.
+            found at a given point within an OpenMC geometry.
 
         Parameters
         ----------
         point : Tuple[float, float, float]
-            The spatial coordinates at which to query the OpenMC model.
-        model : openmc.Model
-            The OpenMC model to search for material assignments at the given point.
+            The spatial coordinates at which to query the OpenMC geometry.
+        geometry : openmc.Geometry
+            The OpenMC geometry to search for material assignments at the given point.
         mpact_specs : Optional[Dict[openmc.Material, Material.MPACTSpecs]]
             Specifications for how the material should be handled in MPACT.
             If none is provided, `Material.MPACTSpecs()` is used as the default
@@ -372,7 +372,7 @@ class Material():
 
         mpact_specs = {mat.id: spec for mat, spec in mpact_specs.items()} if mpact_specs else {}
         try:
-            elements = model.geometry.find(tuple(point))
+            elements = geometry.find(tuple(point))
             mat = None
             for item in reversed(elements):
                 if isinstance(item, openmc.Cell) and item.fill_type == 'material':
@@ -384,19 +384,19 @@ class Material():
 
 
     @staticmethod
-    def from_openmc_model_element(element:     List[Tuple[Union[int, None], float]],
-                                  model:       openmc.Model,
-                                  mpact_specs: Optional[Dict[openmc.Material, Material.MPACTSpecs]],
-                                  mix_policy:  Optional[Material.MixPolicy] = None
-                                 ) -> Optional[Material]:
-        """ Factory method for creating an MPACT material based on an MeshMaterialVolume element from an OpenMC model.
+    def from_openmc_geometry_element(element:     List[Tuple[Union[int, None], float]],
+                                     geometry:    openmc.Geometry,
+                                     mpact_specs: Optional[Dict[openmc.Material, Material.MPACTSpecs]],
+                                     mix_policy:  Optional[Material.MixPolicy] = None
+                                    ) -> Optional[Material]:
+        """ Factory method for creating an MPACT material based on an MeshMaterialVolume element from an OpenMC geometry.
 
         Parameters
         ----------
         element : List[Tuple[Union[int, None], float]]
             The OpenMC MeshMaterialVolume element from which to construct the material
-        model : openmc.Model
-            The OpenMC model corresponding to the MeshMaterialVolume element.
+        geometry : openmc.Geometry
+            The OpenMC geometry corresponding to the MeshMaterialVolume element.
         mpact_specs : Optional[Dict[openmc.Material, Material.MPACTSpecs]]
             Specifications for how the material should be handled in MPACT.
             If none is provided, `Material.MPACTSpecs()` is used as the default
@@ -414,7 +414,7 @@ class Material():
 
         mpact_specs = {mat.id: spec for mat, spec in mpact_specs.items()} if mpact_specs else {}
         mix_policy = mix_policy or Material.MixPolicy()
-        openmc_materials = model.geometry.get_all_materials()
+        openmc_materials = geometry.get_all_materials()
         if not element:
             return None
 

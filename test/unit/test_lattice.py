@@ -49,8 +49,7 @@ def overlay_lattice(overlay_module):
 
 @pytest.fixture
 def openmc_lattice(openmc_module):
-    model  = openmc_module
-    module = model.geometry.root_universe
+    module = openmc_module.root_universe
 
     lattice            = openmc.RectLattice(name='2x2 module lattice')
     lattice.pitch      = (6.0, 6.0)
@@ -63,9 +62,8 @@ def openmc_lattice(openmc_module):
 
     universe  = openmc.Universe(cells=[lattice_cell])
     geometry  = openmc.Geometry(universe)
-    materials = model.materials
 
-    return openmc.Model(geometry=geometry, materials=materials)
+    return geometry
 
 def test_lattice_initialization(lattice, module):
     assert lattice.nx == 2
@@ -106,13 +104,13 @@ def test_lattice_with_height(lattice_2D):
     assert isclose(lattice.pitch['Z'], 3.0)
 
 def test_module_overlay(openmc_lattice, template_lattice, template_module, template_pin, template_material, overlay_lattice):
-    model                             = openmc_lattice
+    geometry                          = openmc_lattice
     offset                            = (-6.0, -6.0, 0.0)
     overlay_policy                    = PinMesh.OverlayPolicy(method="centroid")
     pin_mask: Pin.OverlayMask         = {template_material}
     module_mask: Module.OverlayMask   = {template_pin : pin_mask}
     include_only: Lattice.OverlayMask = {template_module : module_mask}
 
-    lattice          = template_lattice.overlay(model, offset, include_only, overlay_policy)
+    lattice          = template_lattice.overlay(geometry, offset, include_only, overlay_policy)
     expected_lattice = overlay_lattice
     assert lattice == expected_lattice

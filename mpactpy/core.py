@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import List, Any, Literal, Dict, Tuple, Optional, TypedDict
 from math import isclose
 from itertools import accumulate
+from concurrent.futures import ProcessPoolExecutor
 
 import openmc
 
@@ -437,19 +438,64 @@ class Core():
 
         x0, y0, z0 = offset
 
-        assemblies = []
+        # Collect all assembly work to be done
+        assembly_work = []
         y = y0 + self.width['Y']
         for i, row in enumerate(self.assembly_map):
-            row_assemblies = []
-            x  = x0
+            x = x0
             y -= self.pitch['row'][i]
             for j, assembly in enumerate(row):
                 if assembly and assembly in include_only:
-                    overlaid = assembly.overlay(model, (x, y, z0), include_only[assembly], overlay_policy)
-                    if overlaid:
-                        assembly = overlaid
-                row_assemblies.append(assembly)
+                    assembly_work.append((assembly, (x, y, z0), include_only[assembly], i, j))
                 x += self.pitch['column'][j]
-            assemblies.append(row_assemblies)
 
-        return Core(assemblies)
+        # Determine parallelization strategy
+        num_assemblies = len(assembly_work)
+        num_core_procs = min(num_assemblies, overlay_policy.num_procs)
+        child_policy   = overlay_policy.allocate_processes(num_assemblies)
+
+        # Process assemblies in parallel
+        with ProcessPoolExecutor(max_workers=num_core_procs) as executor:
+            futures = [
+                executor.submit(self._overlay_assembly_worker, assembly, offset_pos, include_mask, model, child_policy)
+                for assembly, offset_pos, include_mask, _, _ in assembly_work
+            ]
+            overlaid_assemblies = [future.result() for future in futures]
+
+        # Reconstruct the assembly map with overlaid assemblies
+        new_assembly_map = [row[:] for row in self.assembly_map]
+        for (_, _, _, i, j), overlaid in zip(assembly_work, overlaid_assemblies):
+            new_assembly_map[i][j] = overlaid
+
+        return Core(new_assembly_map)
+
+    @staticmethod
+    def _overlay_assembly_worker(assembly:       Assembly,
+                                 offset:         Tuple[float, float, float],
+                                 include_mask:   Optional[Assembly.OverlayMask],
+                                 geometry:       openmc.Geometry,
+                                 overlay_policy: PinMesh.OverlayPolicy) -> Assembly:
+        """Worker function for parallel assembly overlay processing.
+
+        Parameters
+        ----------
+        assembly : Assembly
+            The MPACTPy Assembly to overlay with the OpenMC geometry.
+        offset : Tuple[float, float, float]
+            The (x, y, z) offset coordinates for the OpenMC geometry relative to
+            the assembly's lower-left corner.
+        include_mask : Optional[Assembly.OverlayMask]
+            Optional mask specifying which lattices within the assembly should be
+            included in the overlay operation. If None, all lattices are included.
+        geometry : openmc.Geometry
+            The OpenMC Geometry to be overlaid onto the assembly.
+        overlay_policy : PinMesh.OverlayPolicy
+            Configuration object specifying overlay method, sampling parameters,
+            and process allocation for cascading parallelization.
+
+        Returns
+        -------
+        Assembly
+            A new Assembly instance with the OpenMC geometry overlaid.
+        """
+        return assembly.overlay(geometry, offset, include_mask, overlay_policy)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import Dict, List, Any, TypedDict, Tuple, Optional
 from math import isclose
+from concurrent.futures import ProcessPoolExecutor
 
 import openmc
 
@@ -212,19 +213,64 @@ class Lattice():
 
         x0, y0, z0 = offset
 
-        modules = []
+        # Collect all module work to be done
+        module_work = []
         y = y0 + self.pitch['Y']
-        for row in self.module_map:
-            row_modules = []
-            x  = x0
+        for i, row in enumerate(self.module_map):
+            x = x0
             y -= row[0].pitch['Y']
-            for module in row:
+            for j, module in enumerate(row):
                 if module in include_only:
-                    overlaid = module.overlay(model, (x, y, z0), include_only[module], overlay_policy)
-                    if overlaid:
-                        module = overlaid
-                row_modules.append(module)
+                    module_work.append((module, (x, y, z0), include_only[module], i, j))
                 x += module.pitch['X']
-            modules.append(row_modules)
 
-        return Lattice(modules)
+        # Determine parallelization strategy
+        num_modules       = len(module_work)
+        num_lattice_procs = min(num_modules, overlay_policy.num_procs)
+        child_policy      = overlay_policy.allocate_processes(num_modules)
+
+        # Process modules in parallel
+        with ProcessPoolExecutor(max_workers=num_lattice_procs) as executor:
+            futures = [
+                executor.submit(self._overlay_module_worker, module, offset_pos, include_mask, model, child_policy)
+                for module, offset_pos, include_mask, _, _ in module_work
+            ]
+            overlaid_modules = [future.result() for future in futures]
+
+        # Reconstruct the module map with overlaid modules
+        new_module_map = [row[:] for row in self.module_map]
+        for (_, _, _, i, j), overlaid in zip(module_work, overlaid_modules):
+            new_module_map[i][j] = overlaid
+
+        return Lattice(new_module_map)
+
+    @staticmethod
+    def _overlay_module_worker(module:         Module,
+                               offset:         Tuple[float, float, float],
+                               include_mask:   Optional[Module.OverlayMask],
+                               model:          openmc.Model,
+                               overlay_policy: PinMesh.OverlayPolicy) -> Module:
+        """Worker function for parallel module overlay processing.
+
+        Parameters
+        ----------
+        module : Module
+            The MPACTPy Module to overlay with the OpenMC model.
+        offset : Tuple[float, float, float]
+            The (x, y, z) offset coordinates for the OpenMC geometry relative to
+            the module's lower-left corner.
+        include_mask : Optional[Module.OverlayMask]
+            Optional mask specifying which pins within the module should be
+            included in the overlay operation. If None, all pins are included.
+        model : openmc.Model
+            The OpenMC Model to be overlaid onto the module.
+        overlay_policy : PinMesh.OverlayPolicy
+            Configuration object specifying overlay method, sampling parameters,
+            and process allocation for cascading parallelization.
+
+        Returns
+        -------
+        Module
+            A new Module instance with the OpenMC model overlaid.
+        """
+        return module.overlay(model, offset, include_mask, overlay_policy)

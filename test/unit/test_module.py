@@ -47,8 +47,7 @@ def overlay_module(overlay_pin):
 
 @pytest.fixture
 def openmc_module(openmc_pin):
-    model = openmc_pin
-    pin   = model.geometry.root_universe
+    pin   = openmc_pin.root_universe
 
     lattice            = openmc.RectLattice(name='2x2 pin lattice')
     lattice.pitch      = (3.0, 3.0)
@@ -61,9 +60,8 @@ def openmc_module(openmc_pin):
 
     universe  = openmc.Universe(cells=[lattice_cell])
     geometry  = openmc.Geometry(universe)
-    materials = model.materials
 
-    return openmc.Model(geometry=geometry, materials=materials)
+    return geometry
 
 def test_module_initialization(module, pin):
     assert module.nx == 2
@@ -109,12 +107,12 @@ def test_module_with_height(module_2D, pin):
         new_module = module.with_height(3.0)
 
 def test_module_overlay(openmc_module, template_module, template_pin, template_material, overlay_module):
-    model                            = openmc_module
+    geometry                         = openmc_module
     offset                           = (-3.0, -3.0, 0.0)
     overlay_policy                   = PinMesh.OverlayPolicy(method="centroid")
     pin_mask: Pin.OverlayMask        = {template_material}
     include_only: Module.OverlayMask = {template_pin : pin_mask}
 
-    module          = template_module.overlay(model, offset, include_only, overlay_policy)
+    module          = template_module.overlay(geometry, offset, include_only, overlay_policy)
     expected_module = overlay_module
     assert module == expected_module
