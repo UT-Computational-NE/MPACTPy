@@ -300,17 +300,25 @@ class Assembly():
         num_assembly_procs = min(num_lattices, overlay_policy.num_procs)
         child_policy       = overlay_policy.allocate_processes(num_lattices)
 
-        # Process lattices in parallel
-        with ProcessPoolExecutor(max_workers=num_assembly_procs) as executor:
-            futures = [
-                executor.submit(self._overlay_lattice_worker, lattice, offset_pos, include_mask, geometry, child_policy)
-                for lattice, offset_pos, include_mask, _ in lattice_work
-            ]
+        # Process lattices
+        if num_assembly_procs <= 1:
+            # Process lattices in serial
+            overlaid_lattices = []
+            for lattice, offset_pos, include_mask, _ in lattice_work:
+                overlaid = self._overlay_lattice_worker(lattice, offset_pos, include_mask, geometry, child_policy)
+                overlaid_lattices.append(overlaid)
+        else:
+            # Process lattices in parallel
+            with ProcessPoolExecutor(max_workers=num_assembly_procs) as executor:
+                futures = [
+                    executor.submit(self._overlay_lattice_worker, lattice, offset_pos, include_mask, geometry, child_policy)
+                    for lattice, offset_pos, include_mask, _ in lattice_work
+                ]
 
-            overlaid_lattices = [None] * len(lattice_work)
-            for future in as_completed(futures):
-                future_index = futures.index(future)
-                overlaid_lattices[future_index] = future.result()
+                overlaid_lattices = [None] * len(lattice_work)
+                for future in as_completed(futures):
+                    future_index = futures.index(future)
+                    overlaid_lattices[future_index] = future.result()
 
         # Reconstruct the lattice map with overlaid lattices
         new_lattice_map = self.lattice_map[:]

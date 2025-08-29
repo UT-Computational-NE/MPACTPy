@@ -286,17 +286,25 @@ class Lattice():
         num_lattice_procs = min(num_modules, overlay_policy.num_procs)
         child_policy      = overlay_policy.allocate_processes(num_modules)
 
-        # Process modules in parallel
-        with ProcessPoolExecutor(max_workers=num_lattice_procs) as executor:
-            futures = [
-                executor.submit(self._overlay_module_worker, module, offset_pos, include_mask, geometry, child_policy)
-                for module, offset_pos, include_mask, _, _ in module_work
-            ]
+        # Process modules
+        if num_lattice_procs <= 1:
+            # Process modules in serial
+            overlaid_modules = []
+            for module, offset_pos, include_mask, _, _ in module_work:
+                overlaid = self._overlay_module_worker(module, offset_pos, include_mask, geometry, child_policy)
+                overlaid_modules.append(overlaid)
+        else:
+            # Process modules in parallel
+            with ProcessPoolExecutor(max_workers=num_lattice_procs) as executor:
+                futures = [
+                    executor.submit(self._overlay_module_worker, module, offset_pos, include_mask, geometry, child_policy)
+                    for module, offset_pos, include_mask, _, _ in module_work
+                ]
 
-            overlaid_modules = [None] * len(module_work)
-            for future in as_completed(futures):
-                future_index = futures.index(future)
-                overlaid_modules[future_index] = future.result()
+                overlaid_modules = [None] * len(module_work)
+                for future in as_completed(futures):
+                    future_index = futures.index(future)
+                    overlaid_modules[future_index] = future.result()
 
         # Reconstruct the module map with overlaid modules
         new_module_map = [row[:] for row in self.module_map]

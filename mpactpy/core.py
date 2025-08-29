@@ -454,17 +454,25 @@ class Core():
         num_core_procs = min(num_assemblies, overlay_policy.num_procs)
         child_policy   = overlay_policy.allocate_processes(num_assemblies)
 
-        # Process assemblies in parallel
-        with ProcessPoolExecutor(max_workers=num_core_procs) as executor:
-            futures = [
-                executor.submit(self._overlay_assembly_worker, assembly, offset_pos, include_mask, geometry, child_policy)
-                for assembly, offset_pos, include_mask, _, _ in assembly_work
-            ]
+        # Process assemblies
+        if num_core_procs <= 1:
+            # Process assemblies in serial
+            overlaid_assemblies = []
+            for assembly, offset_pos, include_mask, _, _ in assembly_work:
+                overlaid = self._overlay_assembly_worker(assembly, offset_pos, include_mask, geometry, child_policy)
+                overlaid_assemblies.append(overlaid)
+        else:
+            # Process assemblies in parallel
+            with ProcessPoolExecutor(max_workers=num_core_procs) as executor:
+                futures = [
+                    executor.submit(self._overlay_assembly_worker, assembly, offset_pos, include_mask, geometry, child_policy)
+                    for assembly, offset_pos, include_mask, _, _ in assembly_work
+                ]
 
-            overlaid_assemblies = [None] * len(assembly_work)
-            for future in as_completed(futures):
-                future_index = futures.index(future)
-                overlaid_assemblies[future_index] = future.result()
+                overlaid_assemblies = [None] * len(assembly_work)
+                for future in as_completed(futures):
+                    future_index = futures.index(future)
+                    overlaid_assemblies[future_index] = future.result()
 
         # Reconstruct the assembly map with overlaid assemblies
         new_assembly_map = [row[:] for row in self.assembly_map]

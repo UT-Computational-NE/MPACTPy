@@ -292,17 +292,25 @@ class Module():
         num_module_procs = min(num_pins, overlay_policy.num_procs)
         child_policy     = overlay_policy.allocate_processes(num_pins)
 
-        # Process pins in parallel
-        with ProcessPoolExecutor(max_workers=num_module_procs) as executor:
-            futures = [
-                executor.submit(self._overlay_pin_worker, pin, offset_pos, include_mask, geometry, child_policy)
-                for pin, offset_pos, include_mask, _, _ in pin_work
-            ]
+        # Process pins
+        if num_module_procs <= 1:
+            # Process pins in serial
+            overlaid_pins = []
+            for pin, offset_pos, include_mask, _, _ in pin_work:
+                overlaid = self._overlay_pin_worker(pin, offset_pos, include_mask, geometry, child_policy)
+                overlaid_pins.append(overlaid)
+        else:
+            # Process pins in parallel
+            with ProcessPoolExecutor(max_workers=num_module_procs) as executor:
+                futures = [
+                    executor.submit(self._overlay_pin_worker, pin, offset_pos, include_mask, geometry, child_policy)
+                    for pin, offset_pos, include_mask, _, _ in pin_work
+                ]
 
-            overlaid_pins = [None] * len(pin_work)
-            for future in as_completed(futures):
-                future_index = futures.index(future)
-                overlaid_pins[future_index] = future.result()
+                overlaid_pins = [None] * len(pin_work)
+                for future in as_completed(futures):
+                    future_index = futures.index(future)
+                    overlaid_pins[future_index] = future.result()
 
         # Reconstruct the pin map with overlaid pins
         new_pin_map = [row[:] for row in self.pin_map]

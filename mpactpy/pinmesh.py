@@ -99,17 +99,22 @@ def _materials_at_centroids(centroids: np.ndarray,
         A list of Material objects corresponding to each centroid.
     """
 
-    chunks = np.array_split(centroids, overlay_policy.num_procs)
+    # Run overlay in serial
+    if overlay_policy.num_procs <= 1:
+        materials = []
+        for point in centroids:
+            mat = Material.from_openmc_geometry_point(point, geometry, overlay_policy.mat_specs)
+            materials.append(mat)
+        return materials
 
-    # Prepare arguments for multiprocessing
+    # Run overlay in parallel
+    chunks    = np.array_split(centroids, overlay_policy.num_procs)
     args_list = [(chunk, geometry, overlay_policy.mat_specs) for chunk in chunks]
 
     with ProcessPoolExecutor(max_workers=overlay_policy.num_procs) as executor:
         batch_results = list(executor.map(_process_centroid_batch, args_list))
 
-    # Flatten results back to original order
     materials = [item for sublist in batch_results for item in sublist]
-
     return materials
 
 
@@ -132,16 +137,23 @@ def _materials_in_elements(elements: List[tuple[int | None, float]],
     List[Material]
         A list of Material objects corresponding to each element.
     """
-    chunk_size = max(1, len(elements) // overlay_policy.num_procs)
-    chunks = [elements[i:i+chunk_size] for i in range(0, len(elements), chunk_size)]
 
-    # Prepare arguments for multiprocessing
-    args_list = [(chunk, geometry, overlay_policy.mat_specs, overlay_policy.mix_policy) for chunk in chunks]
+    # Run overlay in serial
+    if overlay_policy.num_procs <= 1:
+        materials = []
+        for element in elements:
+            mat = Material.from_openmc_geometry_element(element, geometry, overlay_policy.mat_specs, overlay_policy.mix_policy)
+            materials.append(mat)
+        return materials
+
+    # Run overlay in parallel
+    chunk_size = max(1, len(elements) // overlay_policy.num_procs)
+    chunks     = [elements[i:i+chunk_size] for i in range(0, len(elements), chunk_size)]
+    args_list  = [(chunk, geometry, overlay_policy.mat_specs, overlay_policy.mix_policy) for chunk in chunks]
 
     with ProcessPoolExecutor(max_workers=overlay_policy.num_procs) as executor:
         batch_results = list(executor.map(_process_homogenized_batch, args_list))
 
-    # Flatten results back to original order
     materials = []
     for batch_result in batch_results:
         materials.extend(batch_result)
