@@ -1,11 +1,15 @@
 from __future__ import annotations
 from typing import List, Any, Tuple, Optional, Dict, TypedDict
 from math import isclose
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import openmc
+import numpy as np
 
 from mpactpy.lattice import PinMesh, Lattice
+from mpactpy.module import Module
+from mpactpy.pin import Pin
+from mpactpy.material import Material
 from mpactpy.utils import list_to_str, unique
 
 
@@ -29,6 +33,16 @@ class Assembly():
         The x,y,z dimensions of the ray-tracing module
     lattice_map : List[Lattice]
         1-D array of lattice names
+    lattices : List[Lattice]
+        The unique lattices contained in this assembly
+    modules : List[Module]
+        The unique modules contained in this assembly
+    pins : List[Pin]
+        The unique pins contained in this assembly
+    pinmeshes : List[PinMesh]
+        The unique pinmeshes contained in this assembly
+    materials : List[Material]
+        The unique materials contained in this assembly
     """
 
     class Pitch(TypedDict):
@@ -64,6 +78,26 @@ class Assembly():
     def lattice_map(self) -> List[Lattice]:
         return self._lattice_map
 
+    @property
+    def lattices(self) -> List[Lattice]:
+        return self._lattices
+
+    @property
+    def modules(self) -> List[Module]:
+        return self._modules
+
+    @property
+    def pins(self) -> List[Pin]:
+        return self._pins
+
+    @property
+    def pinmeshes(self) -> List[PinMesh]:
+        return self._pinmeshes
+
+    @property
+    def materials(self) -> List[Material]:
+        return self._materials
+
 
     def __init__(self, lattice_map: List[Lattice]):
         assert len(lattice_map) > 0
@@ -89,6 +123,12 @@ class Assembly():
         self._mod_dim = {'X': self.lattice_map[0].mod_dim['X'],
                          'Y': self.lattice_map[0].mod_dim['Y'],
                          'Z': unique_lattice_heights}
+
+        self._lattices  = unique(self.lattice_map)
+        self._modules   = unique([module for lattice in self.lattices for module in lattice.modules])
+        self._pins      = unique([pin for module in self.modules for pin in module.pins])
+        self._pinmeshes = unique([pin.pinmesh for pin in self.pins])
+        self._materials = unique([material for pin in self.pins for material in pin.unique_materials])
 
     def __eq__(self, other: Any) -> bool:
         if self is other:
@@ -190,6 +230,31 @@ class Assembly():
 
     OverlayMask = Dict[Lattice, Optional[Lattice.OverlayMask]]
 
+    def has_overlay_work(self, include_only: Optional[OverlayMask] = None) -> bool:
+        """Check if this assembly has actual overlay work to do based on the include mask.
+
+        Parameters
+        ----------
+        include_only : Optional[OverlayMask]
+            The dictionary of lattices and their masks to include for this assembly
+
+        Returns
+        -------
+        bool
+            True if assembly has overlay work to do, False otherwise
+        """
+        if include_only is None:
+            # No mask means include all lattices in this assembly
+            return True
+
+        # Check if assembly contains any lattices that have overlay work to do
+        for lattice in self.lattices:
+            if lattice in include_only:
+                if lattice.has_overlay_work(include_only[lattice]):
+                    return True
+
+        return False
+
     def overlay(self,
                 geometry:       openmc.Geometry,
                 offset:         Tuple[float, float, float] = (0.0, 0.0, 0.0),
@@ -227,7 +292,8 @@ class Assembly():
         z = z0
         for i, lattice in enumerate(self.lattice_map):
             if lattice in include_only:
-                lattice_work.append((lattice, (x0, y0, z), include_only[lattice], i))
+                if lattice.has_overlay_work(include_only[lattice]):
+                    lattice_work.append((lattice, (x0, y0, z), include_only[lattice], i))
             z += lattice.pitch['Z']
 
         # Determine parallelization strategy
@@ -235,13 +301,32 @@ class Assembly():
         num_assembly_procs = min(num_lattices, overlay_policy.num_procs)
         child_policy       = overlay_policy.allocate_processes(num_lattices)
 
-        # Process lattices in parallel
-        with ProcessPoolExecutor(max_workers=num_assembly_procs) as executor:
-            futures = [
-                executor.submit(self._overlay_lattice_worker, lattice, offset_pos, include_mask, geometry, child_policy)
-                for lattice, offset_pos, include_mask, _ in lattice_work
-            ]
-            overlaid_lattices = [future.result() for future in futures]
+        # Process lattices
+        if num_assembly_procs <= 1:
+            # Process lattices in serial
+            overlaid_lattices = []
+            for lattice, offset_pos, include_mask, _ in lattice_work:
+                overlaid = self._overlay_lattice_worker(lattice, offset_pos, include_mask, geometry, child_policy)
+                overlaid_lattices.append(overlaid)
+        else:
+            # Process lattices in parallel
+            chunk_indices = np.array_split(range(len(lattice_work)), num_assembly_procs)
+            work_chunks = [[lattice_work[i] for i in indices] for indices in chunk_indices if len(indices) > 0]
+
+            with ProcessPoolExecutor(max_workers=num_assembly_procs) as executor:
+                future_to_chunk_index = {
+                    executor.submit(self._process_lattice_chunk, chunk, geometry, child_policy): i
+                    for i, chunk in enumerate(work_chunks)
+                }
+
+                chunk_results = [None] * len(work_chunks)
+                for future in as_completed(future_to_chunk_index):
+                    chunk_index = future_to_chunk_index[future]
+                    chunk_results[chunk_index] = future.result()
+
+                overlaid_lattices = []
+                for chunk_result in chunk_results:
+                    overlaid_lattices.extend(chunk_result)
 
         # Reconstruct the lattice map with overlaid lattices
         new_lattice_map = self.lattice_map[:]
@@ -249,6 +334,36 @@ class Assembly():
             new_lattice_map[i] = overlaid
 
         return Assembly(new_lattice_map)
+
+    @staticmethod
+    def _process_lattice_chunk(lattice_chunk, geometry, child_policy):
+        """Process a chunk of lattices in a single worker process.
+
+        Parameters
+        ----------
+        lattice_chunk : List[Tuple[Lattice, Tuple[float, float, float], Optional[Lattice.OverlayMask], int]]
+            A list of lattice work items to process, where each item contains:
+            - lattice: The MPACTPy Lattice to overlay
+            - offset_pos: (x, y, z) offset coordinates for the lattice
+            - include_mask: Optional mask specifying which elements to include
+            - i: Lattice position index in the assembly map
+        geometry : openmc.Geometry
+            The OpenMC Geometry to be overlaid onto the lattices
+        child_policy : PinMesh.OverlayPolicy
+            Policy object specifying overlay method and process allocation for
+            child operations within each lattice
+
+        Returns
+        -------
+        List[Lattice]
+            A list of overlaid Lattice objects corresponding to the input chunk,
+            maintaining the same order as the input chunk
+        """
+        overlaid_lattices = []
+        for lattice, offset_pos, include_mask, _ in lattice_chunk:
+            overlaid = Assembly._overlay_lattice_worker(lattice, offset_pos, include_mask, geometry, child_policy)
+            overlaid_lattices.append(overlaid)
+        return overlaid_lattices
 
     @staticmethod
     def _overlay_lattice_worker(lattice:        Lattice,

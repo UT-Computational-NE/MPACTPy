@@ -1,11 +1,14 @@
 from __future__ import annotations
 from typing import Dict, List, Any, TypedDict, Tuple, Optional
 from math import isclose
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import openmc
+import numpy as np
 
 from mpactpy.module import PinMesh, Module
+from mpactpy.pin import Pin
+from mpactpy.material import Material
 from mpactpy.utils import list_to_str, is_rectangular, unique
 
 
@@ -29,6 +32,14 @@ class Lattice():
         The x,y dimensions of the ray-tracing module
     module_map : List[List[Module]]
         a 2-D array of modules
+    modules : List[Module]
+        The unique modules contained in this lattice
+    pins : List[Pin]
+        The unique pins contained in this lattice
+    pinmeshes : List[PinMesh]
+        The unique pinmeshes contained in this lattice
+    materials : List[Material]
+        The unique materials contained in this lattice
     """
 
     class Pitch(TypedDict):
@@ -65,6 +76,22 @@ class Lattice():
     def module_map(self) -> List[List[Module]]:
         return self._module_map
 
+    @property
+    def modules(self) -> List[Module]:
+        return self._modules
+
+    @property
+    def pins(self) -> List[Pin]:
+        return self._pins
+
+    @property
+    def pinmeshes(self) -> List[PinMesh]:
+        return self._pinmeshes
+
+    @property
+    def materials(self) -> List[Material]:
+        return self._materials
+
 
     def __init__(self, module_map: List[List[Module]]):
         assert is_rectangular(module_map)
@@ -85,6 +112,11 @@ class Lattice():
         self._pitch   = {'X': self.mod_dim['X'] * self.nx,
                          'Y': self.mod_dim['Y'] * self.ny,
                          'Z': self.module_map[0][0].pitch['Z']}
+
+        self._modules   = unique([module for row in self.module_map for module in row])
+        self._pins      = unique([pin for module in self.modules for pin in module.pins])
+        self._pinmeshes = unique([pin.pinmesh for pin in self.pins])
+        self._materials = unique([material for pin in self.pins for material in pin.unique_materials])
 
     def __eq__(self, other: Any) -> bool:
         if self is other:
@@ -181,6 +213,31 @@ class Lattice():
 
     OverlayMask = Dict[Module, Optional[Module.OverlayMask]]
 
+    def has_overlay_work(self, include_only: Optional[OverlayMask] = None) -> bool:
+        """Check if this lattice has actual overlay work to do based on the include mask.
+
+        Parameters
+        ----------
+        include_only : Optional[OverlayMask]
+            The dictionary of modules and their masks to include for this lattice
+
+        Returns
+        -------
+        bool
+            True if lattice has overlay work to do, False otherwise
+        """
+        if include_only is None:
+            # No mask means include all modules in this lattice
+            return True
+
+        # Check if lattice contains any modules that have overlay work to do
+        for module in self.modules:
+            if module in include_only:
+                if module.has_overlay_work(include_only[module]):
+                    return True
+
+        return False
+
     def overlay(self,
                 geometry:       openmc.Geometry,
                 offset:         Tuple[float, float, float] = (0.0, 0.0, 0.0),
@@ -221,7 +278,8 @@ class Lattice():
             y -= row[0].pitch['Y']
             for j, module in enumerate(row):
                 if module in include_only:
-                    module_work.append((module, (x, y, z0), include_only[module], i, j))
+                    if module.has_overlay_work(include_only[module]):
+                        module_work.append((module, (x, y, z0), include_only[module], i, j))
                 x += module.pitch['X']
 
         # Determine parallelization strategy
@@ -229,13 +287,32 @@ class Lattice():
         num_lattice_procs = min(num_modules, overlay_policy.num_procs)
         child_policy      = overlay_policy.allocate_processes(num_modules)
 
-        # Process modules in parallel
-        with ProcessPoolExecutor(max_workers=num_lattice_procs) as executor:
-            futures = [
-                executor.submit(self._overlay_module_worker, module, offset_pos, include_mask, geometry, child_policy)
-                for module, offset_pos, include_mask, _, _ in module_work
-            ]
-            overlaid_modules = [future.result() for future in futures]
+        # Process modules
+        if num_lattice_procs <= 1:
+            # Process modules in serial
+            overlaid_modules = []
+            for module, offset_pos, include_mask, _, _ in module_work:
+                overlaid = self._overlay_module_worker(module, offset_pos, include_mask, geometry, child_policy)
+                overlaid_modules.append(overlaid)
+        else:
+            # Process modules in parallel
+            chunk_indices = np.array_split(range(len(module_work)), num_lattice_procs)
+            work_chunks = [[module_work[i] for i in indices] for indices in chunk_indices if len(indices) > 0]
+
+            with ProcessPoolExecutor(max_workers=num_lattice_procs) as executor:
+                future_to_chunk_index = {
+                    executor.submit(self._process_module_chunk, chunk, geometry, child_policy): i
+                    for i, chunk in enumerate(work_chunks)
+                }
+
+                chunk_results = [None] * len(work_chunks)
+                for future in as_completed(future_to_chunk_index):
+                    chunk_index = future_to_chunk_index[future]
+                    chunk_results[chunk_index] = future.result()
+
+                overlaid_modules = []
+                for chunk_result in chunk_results:
+                    overlaid_modules.extend(chunk_result)
 
         # Reconstruct the module map with overlaid modules
         new_module_map = [row[:] for row in self.module_map]
@@ -243,6 +320,36 @@ class Lattice():
             new_module_map[i][j] = overlaid
 
         return Lattice(new_module_map)
+
+    @staticmethod
+    def _process_module_chunk(module_chunk, geometry, child_policy):
+        """Process a chunk of modules in a single worker process.
+
+        Parameters
+        ----------
+        module_chunk : List[Tuple[Module, Tuple[float, float, float], Optional[Module.OverlayMask], int, int]]
+            A list of module work items to process, where each item contains:
+            - module: The MPACTPy Module to overlay
+            - offset_pos: (x, y, z) offset coordinates for the module
+            - include_mask: Optional mask specifying which elements to include
+            - i, j: Module position indices in the lattice map
+        geometry : openmc.Geometry
+            The OpenMC Geometry to be overlaid onto the modules
+        child_policy : PinMesh.OverlayPolicy
+            Policy object specifying overlay method and process allocation for
+            child operations within each module
+
+        Returns
+        -------
+        List[Module]
+            A list of overlaid Module objects corresponding to the input chunk,
+            maintaining the same order as the input chunk
+        """
+        overlaid_modules = []
+        for module, offset_pos, include_mask, _, _ in module_chunk:
+            overlaid = Lattice._overlay_module_worker(module, offset_pos, include_mask, geometry, child_policy)
+            overlaid_modules.append(overlaid)
+        return overlaid_modules
 
     @staticmethod
     def _overlay_module_worker(module:         Module,
