@@ -4,6 +4,7 @@ from math import isclose
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import openmc
+import numpy as np
 
 from mpactpy.module import PinMesh, Module
 from mpactpy.pin import Pin
@@ -295,16 +296,23 @@ class Lattice():
                 overlaid_modules.append(overlaid)
         else:
             # Process modules in parallel
-            with ProcessPoolExecutor(max_workers=num_lattice_procs) as executor:
-                futures = [
-                    executor.submit(self._overlay_module_worker, module, offset_pos, include_mask, geometry, child_policy)
-                    for module, offset_pos, include_mask, _, _ in module_work
-                ]
+            chunk_indices = np.array_split(range(len(module_work)), num_lattice_procs)
+            work_chunks = [[module_work[i] for i in indices] for indices in chunk_indices if len(indices) > 0]
 
-                overlaid_modules = [None] * len(module_work)
-                for future in as_completed(futures):
-                    future_index = futures.index(future)
-                    overlaid_modules[future_index] = future.result()
+            with ProcessPoolExecutor(max_workers=num_lattice_procs) as executor:
+                future_to_chunk_index = {
+                    executor.submit(self._process_module_chunk, chunk, geometry, child_policy): i
+                    for i, chunk in enumerate(work_chunks)
+                }
+
+                chunk_results = [None] * len(work_chunks)
+                for future in as_completed(future_to_chunk_index):
+                    chunk_index = future_to_chunk_index[future]
+                    chunk_results[chunk_index] = future.result()
+
+                overlaid_modules = []
+                for chunk_result in chunk_results:
+                    overlaid_modules.extend(chunk_result)
 
         # Reconstruct the module map with overlaid modules
         new_module_map = [row[:] for row in self.module_map]
@@ -312,6 +320,36 @@ class Lattice():
             new_module_map[i][j] = overlaid
 
         return Lattice(new_module_map)
+
+    @staticmethod
+    def _process_module_chunk(module_chunk, geometry, child_policy):
+        """Process a chunk of modules in a single worker process.
+
+        Parameters
+        ----------
+        module_chunk : List[Tuple[Module, Tuple[float, float, float], Optional[Module.OverlayMask], int, int]]
+            A list of module work items to process, where each item contains:
+            - module: The MPACTPy Module to overlay
+            - offset_pos: (x, y, z) offset coordinates for the module
+            - include_mask: Optional mask specifying which elements to include
+            - i, j: Module position indices in the lattice map
+        geometry : openmc.Geometry
+            The OpenMC Geometry to be overlaid onto the modules
+        child_policy : PinMesh.OverlayPolicy
+            Policy object specifying overlay method and process allocation for
+            child operations within each module
+
+        Returns
+        -------
+        List[Module]
+            A list of overlaid Module objects corresponding to the input chunk,
+            maintaining the same order as the input chunk
+        """
+        overlaid_modules = []
+        for module, offset_pos, include_mask, _, _ in module_chunk:
+            overlaid = Lattice._overlay_module_worker(module, offset_pos, include_mask, geometry, child_policy)
+            overlaid_modules.append(overlaid)
+        return overlaid_modules
 
     @staticmethod
     def _overlay_module_worker(module:         Module,

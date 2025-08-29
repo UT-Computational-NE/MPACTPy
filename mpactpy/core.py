@@ -5,6 +5,7 @@ from itertools import accumulate
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import openmc
+import numpy as np
 
 from mpactpy.material import Material
 from mpactpy.pinmesh import PinMesh
@@ -463,16 +464,23 @@ class Core():
                 overlaid_assemblies.append(overlaid)
         else:
             # Process assemblies in parallel
-            with ProcessPoolExecutor(max_workers=num_core_procs) as executor:
-                futures = [
-                    executor.submit(self._overlay_assembly_worker, assembly, offset_pos, include_mask, geometry, child_policy)
-                    for assembly, offset_pos, include_mask, _, _ in assembly_work
-                ]
+            chunk_indices = np.array_split(range(len(assembly_work)), num_core_procs)
+            work_chunks = [[assembly_work[i] for i in indices] for indices in chunk_indices if len(indices) > 0]
 
-                overlaid_assemblies = [None] * len(assembly_work)
-                for future in as_completed(futures):
-                    future_index = futures.index(future)
-                    overlaid_assemblies[future_index] = future.result()
+            with ProcessPoolExecutor(max_workers=num_core_procs) as executor:
+                future_to_chunk_index = {
+                    executor.submit(self._process_assembly_chunk, chunk, geometry, child_policy): i
+                    for i, chunk in enumerate(work_chunks)
+                }
+
+                chunk_results = [None] * len(work_chunks)
+                for future in as_completed(future_to_chunk_index):
+                    chunk_index = future_to_chunk_index[future]
+                    chunk_results[chunk_index] = future.result()
+
+                overlaid_assemblies = []
+                for chunk_result in chunk_results:
+                    overlaid_assemblies.extend(chunk_result)
 
         # Reconstruct the assembly map with overlaid assemblies
         new_assembly_map = [row[:] for row in self.assembly_map]
@@ -480,6 +488,36 @@ class Core():
             new_assembly_map[i][j] = overlaid
 
         return Core(new_assembly_map)
+
+    @staticmethod
+    def _process_assembly_chunk(assembly_chunk, geometry, child_policy):
+        """Process a chunk of assemblies in a single worker process.
+
+        Parameters
+        ----------
+        assembly_chunk : List[Tuple[Assembly, Tuple[float, float, float], Optional[Assembly.OverlayMask], int, int]]
+            A list of assembly work items to process, where each item contains:
+            - assembly: The MPACTPy Assembly to overlay
+            - offset_pos: (x, y, z) offset coordinates for the assembly
+            - include_mask: Optional mask specifying which elements to include
+            - i, j: Assembly position indices in the core map
+        geometry : openmc.Geometry
+            The OpenMC Geometry to be overlaid onto the assemblies
+        child_policy : PinMesh.OverlayPolicy
+            Policy object specifying overlay method and process allocation for
+            child operations within each assembly
+
+        Returns
+        -------
+        List[Assembly]
+            A list of overlaid Assembly objects corresponding to the input chunk,
+            maintaining the same order as the input chunk
+        """
+        overlaid_assemblies = []
+        for assembly, offset_pos, include_mask, _, _ in assembly_chunk:
+            overlaid = Core._overlay_assembly_worker(assembly, offset_pos, include_mask, geometry, child_policy)
+            overlaid_assemblies.append(overlaid)
+        return overlaid_assemblies
 
     @staticmethod
     def _overlay_assembly_worker(assembly:       Assembly,

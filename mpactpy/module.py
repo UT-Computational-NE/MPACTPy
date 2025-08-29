@@ -4,6 +4,7 @@ from math import isclose
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import openmc
+import numpy as np
 
 from mpactpy.pin import Pin, PinMesh
 from mpactpy.material import Material
@@ -301,16 +302,23 @@ class Module():
                 overlaid_pins.append(overlaid)
         else:
             # Process pins in parallel
-            with ProcessPoolExecutor(max_workers=num_module_procs) as executor:
-                futures = [
-                    executor.submit(self._overlay_pin_worker, pin, offset_pos, include_mask, geometry, child_policy)
-                    for pin, offset_pos, include_mask, _, _ in pin_work
-                ]
+            chunk_indices = np.array_split(range(len(pin_work)), num_module_procs)
+            work_chunks = [[pin_work[i] for i in indices] for indices in chunk_indices if len(indices) > 0]
 
-                overlaid_pins = [None] * len(pin_work)
-                for future in as_completed(futures):
-                    future_index = futures.index(future)
-                    overlaid_pins[future_index] = future.result()
+            with ProcessPoolExecutor(max_workers=num_module_procs) as executor:
+                future_to_chunk_index = {
+                    executor.submit(self._process_pin_chunk, chunk, geometry, child_policy): i
+                    for i, chunk in enumerate(work_chunks)
+                }
+
+                chunk_results = [None] * len(work_chunks)
+                for future in as_completed(future_to_chunk_index):
+                    chunk_index = future_to_chunk_index[future]
+                    chunk_results[chunk_index] = future.result()
+
+                overlaid_pins = []
+                for chunk_result in chunk_results:
+                    overlaid_pins.extend(chunk_result)
 
         # Reconstruct the pin map with overlaid pins
         new_pin_map = [row[:] for row in self.pin_map]
@@ -318,6 +326,36 @@ class Module():
             new_pin_map[i][j] = overlaid
 
         return Module(1, new_pin_map)
+
+    @staticmethod
+    def _process_pin_chunk(pin_chunk, geometry, child_policy):
+        """Process a chunk of pins in a single worker process.
+
+        Parameters
+        ----------
+        pin_chunk : List[Tuple[Pin, Tuple[float, float, float], Optional[Pin.OverlayMask], int, int]]
+            A list of pin work items to process, where each item contains:
+            - pin: The MPACTPy Pin to overlay
+            - offset_pos: (x, y, z) offset coordinates for the pin
+            - include_mask: Optional mask specifying which elements to include
+            - i, j: Pin position indices in the module map
+        geometry : openmc.Geometry
+            The OpenMC Geometry to be overlaid onto the pins
+        child_policy : PinMesh.OverlayPolicy
+            Policy object specifying overlay method and process allocation for
+            child operations within each pin
+
+        Returns
+        -------
+        List[Pin]
+            A list of overlaid Pin objects corresponding to the input chunk,
+            maintaining the same order as the input chunk
+        """
+        overlaid_pins = []
+        for pin, offset_pos, include_mask, _, _ in pin_chunk:
+            overlaid = Module._overlay_pin_worker(pin, offset_pos, include_mask, geometry, child_policy)
+            overlaid_pins.append(overlaid)
+        return overlaid_pins
 
     @staticmethod
     def _overlay_pin_worker(pin:            Pin,
