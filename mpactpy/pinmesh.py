@@ -147,9 +147,9 @@ def _materials_in_elements(elements: List[tuple[int | None, float]],
         return materials
 
     # Run overlay in parallel
-    chunk_size = max(1, len(elements) // overlay_policy.num_procs)
-    chunks     = [elements[i:i+chunk_size] for i in range(0, len(elements), chunk_size)]
-    args_list  = [(chunk, geometry, overlay_policy.mat_specs, overlay_policy.mix_policy) for chunk in chunks]
+    chunk_indices = np.array_split(range(len(elements)), overlay_policy.num_procs)
+    chunks        = [[elements[i] for i in indices] for indices in chunk_indices if len(indices) > 0]
+    args_list     = [(chunk, geometry, overlay_policy.mat_specs, overlay_policy.mix_policy) for chunk in chunks]
 
     with ProcessPoolExecutor(max_workers=overlay_policy.num_procs) as executor:
         batch_results = list(executor.map(_process_homogenized_batch, args_list))
