@@ -194,6 +194,7 @@ class PinMesh(ABC):
     _ndivz: List[int]
     _pitch: Dict[str, float]
     _regions_inside_bounds: List[int]
+    _cached_hash: Optional[int]
 
     @property
     def number_of_material_regions(self) -> int:
@@ -258,8 +259,6 @@ class PinMesh(ABC):
         self._set_pitch()
         self._set_number_of_material_regions()
         self._set_regions_inside_bounds()
-
-        # Clear cached hashes because this modifies the object
         self._cached_hash = None
 
 
@@ -424,9 +423,6 @@ class RectangularPinMesh(PinMesh):
                  ndivy:    List[int],
                  ndivz:    List[int],
     ):
-
-        self._cached_hash = None
-
         assert len(xvals) > 0, f"len(xvals) = {len(xvals)}"
         assert len(yvals) > 0, f"len(yvals) = {len(yvals)}"
         assert all(val > 0. for val in xvals), f"xvals = {xvals}"
@@ -622,9 +618,6 @@ class GeneralCylindricalPinMesh(PinMesh):
         ndiva   : List[int],
         ndivz   : List[int],
     ):
-
-        self._cached_hash = None
-
         assert len(r) > 0, f"len(r) = {len(r)}"
         assert all(val > 0. for val in r), f"r = {r}"
         assert xMin < xMax, f"xMin = {xMin}, xMax = {xMax}"
