@@ -18,9 +18,6 @@ from mpactpy.utils import relative_round, allclose, list_to_str, ROUNDING_RELATI
 # Helper functions for overlay processing
 # =======================================
 
-
-
-
 def _process_centroid_batch(args: Tuple) -> List[Material]:
     """ Processes a batch of centroid points to determine material assignments in parallel.
 
@@ -262,6 +259,10 @@ class PinMesh(ABC):
         self._set_number_of_material_regions()
         self._set_regions_inside_bounds()
 
+        # Clear cached hashes because this modifies the object
+        if hasattr(self, '_cached_hash'):
+            delattr(self, '_cached_hash')
+
 
     @abstractmethod
     def _set_pitch(self) -> None:
@@ -458,15 +459,17 @@ class RectangularPinMesh(PinMesh):
 
 
     def __hash__(self) -> int:
-        pitches = {key : relative_round(val, TOL) for key, val in self.pitch.items()}
-        return hash((tuple(relative_round(val, TOL) for val in self.xvals),
-                     tuple(relative_round(val, TOL) for val in self.yvals),
-                     tuple(relative_round(val, TOL) for val in self.zvals),
-                     tuple(relative_round(val, TOL) for val in self.ndivx),
-                     tuple(relative_round(val, TOL) for val in self.ndivy),
-                     tuple(relative_round(val, TOL) for val in self.ndivz),
-                     tuple(sorted(pitches)),
-                     self.number_of_material_regions))
+        if not hasattr(self, '_cached_hash'):
+            pitches = {key : relative_round(val, TOL) for key, val in self.pitch.items()}
+            self._cached_hash = hash((tuple(relative_round(val, TOL) for val in self.xvals),
+                                     tuple(relative_round(val, TOL) for val in self.yvals),
+                                     tuple(relative_round(val, TOL) for val in self.zvals),
+                                     tuple(relative_round(val, TOL) for val in self.ndivx),
+                                     tuple(relative_round(val, TOL) for val in self.ndivy),
+                                     tuple(relative_round(val, TOL) for val in self.ndivz),
+                                     tuple(sorted(pitches)),
+                                     self.number_of_material_regions))
+        return self._cached_hash
 
     def write_to_string(self, prefix: str = "", mpact_ids: Dict[PinMesh, int] = None) -> str:
 
@@ -654,18 +657,21 @@ class GeneralCylindricalPinMesh(PinMesh):
 
 
     def __hash__(self) -> int:
-        pitches = {key : relative_round(val, TOL) for key, val in self.pitch.items()}
-        return hash((relative_round(self.xMin, TOL),
-                     relative_round(self.xMax, TOL),
-                     relative_round(self.yMin, TOL),
-                     relative_round(self.yMax, TOL),
-                     tuple(relative_round(val, TOL) for val in self.r),
-                     tuple(relative_round(val, TOL) for val in self.zvals),
-                     tuple(relative_round(val, TOL) for val in self.ndivr),
-                     tuple(relative_round(val, TOL) for val in self.ndiva),
-                     tuple(relative_round(val, TOL) for val in self.ndivz),
-                     tuple(sorted(pitches)),
-                     self.number_of_material_regions))
+        if not hasattr(self, '_cached_hash'):
+            pitches = {key : relative_round(val, TOL) for key, val in self.pitch.items()}
+            self._cached_hash = hash((relative_round(self.xMin, TOL),
+                                      relative_round(self.xMax, TOL),
+                                      relative_round(self.yMin, TOL),
+                                      relative_round(self.yMax, TOL),
+                                      tuple(relative_round(val, TOL) for val in self.r),
+                                      tuple(relative_round(val, TOL) for val in self.zvals),
+                                      tuple(relative_round(val, TOL) for val in self.ndivr),
+                                      tuple(relative_round(val, TOL) for val in self.ndiva),
+                                      tuple(relative_round(val, TOL) for val in self.ndivz),
+                                      tuple(sorted(pitches)),
+                                      self.number_of_material_regions))
+        return self._cached_hash
+
 
     def write_to_string(self, prefix: str = "", mpact_ids: Dict[PinMesh, int] = None) -> str:
 

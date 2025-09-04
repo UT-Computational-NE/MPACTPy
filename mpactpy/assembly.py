@@ -138,7 +138,9 @@ class Assembly():
                )
 
     def __hash__(self) -> int:
-        return hash(tuple(self.lattice_map))
+        if not hasattr(self, '_cached_hash'):
+            self._cached_hash = hash(tuple(self.lattice_map))
+        return self._cached_hash
 
     def write_to_string(self, prefix: str = "",
                         lattice_mpact_ids: Dict[Lattice, int] = None,

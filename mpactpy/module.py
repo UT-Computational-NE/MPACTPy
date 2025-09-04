@@ -118,8 +118,9 @@ class Module():
                )
 
     def __hash__(self) -> int:
-        return hash((self.nz,
-                     tuple(tuple(row) for row in self.pin_map)))
+        if not hasattr(self, '_cached_hash'):
+            self._cached_hash = hash((self.nz, tuple(tuple(row) for row in self.pin_map)))
+        return self._cached_hash
 
     def write_to_string(self,
                         prefix: str = "",

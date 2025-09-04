@@ -203,9 +203,11 @@ class Core():
                )
 
     def __hash__(self) -> int:
-        return hash((self.symmetry_opt,
-                    self.quarter_sym_opt,
-                    tuple(tuple(row) for row in self.assembly_map)))
+        if not hasattr(self, '_cached_hash'):
+            self._cached_hash = hash((self.symmetry_opt,
+                                      self.quarter_sym_opt,
+                                      tuple(tuple(row) for row in self.assembly_map)))
+        return self._cached_hash
 
     def write_to_string(self,
                         prefix: str = "",

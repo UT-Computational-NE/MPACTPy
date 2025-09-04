@@ -78,8 +78,9 @@ class Pin():
                )
 
     def __hash__(self) -> int:
-        return hash((self.pinmesh,
-                     tuple(self.materials)))
+        if not hasattr(self, '_cached_hash'):
+            self._cached_hash = hash((self.pinmesh, tuple(self.materials)))
+        return self._cached_hash
 
     def write_to_string(self,
                         prefix: str = "",

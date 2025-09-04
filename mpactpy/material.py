@@ -162,12 +162,15 @@ class Material():
                 )
 
     def __hash__(self) -> int:
-        number_densities = sorted({iso: relative_round(numd, TOL)
-                                   for iso, numd in self.number_densities.items()})
-        return hash((self._mpact_specs.material_type,
-                     relative_round(self.temperature, TOL),
-                     tuple(number_densities),
-                     tuple(self.thermal_scattering_isotopes)))
+        # Cache the hash value to avoid expensive recomputation
+        if not hasattr(self, '_cached_hash'):
+            number_densities = sorted({iso: relative_round(numd, TOL)
+                                       for iso, numd in self.number_densities.items()})
+            self._cached_hash = hash((self._mpact_specs.material_type,
+                                     relative_round(self.temperature, TOL),
+                                     tuple(number_densities),
+                                     tuple(self.thermal_scattering_isotopes)))
+        return self._cached_hash
 
     @dataclass
     class MixPolicy():

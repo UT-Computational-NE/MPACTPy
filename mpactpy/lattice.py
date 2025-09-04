@@ -126,7 +126,9 @@ class Lattice():
                )
 
     def __hash__(self) -> int:
-        return hash(tuple(tuple(row) for row in self.module_map))
+        if not hasattr(self, '_cached_hash'):
+            self._cached_hash = hash(tuple(tuple(row) for row in self.module_map))
+        return self._cached_hash
 
     def write_to_string(self,
                         prefix: str = "",
