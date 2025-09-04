@@ -2,10 +2,8 @@ from __future__ import annotations
 from typing import List, Any, Literal, Dict, Tuple, Optional, TypedDict
 from math import isclose
 from itertools import accumulate
-from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import openmc
-import numpy as np
 
 from mpactpy.material import Material
 from mpactpy.pinmesh import PinMesh
@@ -13,7 +11,7 @@ from mpactpy.pin import Pin
 from mpactpy.module import Module
 from mpactpy.lattice import Lattice
 from mpactpy.assembly import Assembly
-from mpactpy.utils import list_to_str, is_rectangular, unique
+from mpactpy.utils import list_to_str, is_rectangular, unique, process_parallel_work
 
 
 class Core():
@@ -460,31 +458,11 @@ class Core():
         child_policy   = overlay_policy.allocate_processes(num_assemblies)
 
         # Process assemblies
-        if num_core_procs <= 1:
-            # Process assemblies in serial
-            overlaid_assemblies = []
-            for assembly, offset_pos, include_mask, _, _ in assembly_work:
-                overlaid = self._overlay_assembly_worker(assembly, offset_pos, include_mask, geometry, child_policy)
-                overlaid_assemblies.append(overlaid)
-        else:
-            # Process assemblies in parallel
-            chunk_indices = np.array_split(range(len(assembly_work)), num_core_procs)
-            work_chunks = [[assembly_work[i] for i in indices] for indices in chunk_indices if len(indices) > 0]
-
-            with ProcessPoolExecutor(max_workers=num_core_procs) as executor:
-                future_to_chunk_index = {
-                    executor.submit(self._process_assembly_chunk, chunk, geometry, child_policy): i
-                    for i, chunk in enumerate(work_chunks)
-                }
-
-                chunk_results = [None] * len(work_chunks)
-                for future in as_completed(future_to_chunk_index):
-                    chunk_index = future_to_chunk_index[future]
-                    chunk_results[chunk_index] = future.result()
-
-                overlaid_assemblies = []
-                for chunk_result in chunk_results:
-                    overlaid_assemblies.extend(chunk_result)
+        overlaid_assemblies = process_parallel_work(assembly_work,
+                                                    self._process_assembly_chunk,
+                                                    num_core_procs,
+                                                    geometry,
+                                                    child_policy)
 
         # Reconstruct the assembly map with overlaid assemblies
         new_assembly_map = [row[:] for row in self.assembly_map]

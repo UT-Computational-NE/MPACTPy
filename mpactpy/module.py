@@ -1,14 +1,12 @@
 from __future__ import annotations
 from typing import Dict, List, Any, TypedDict, Tuple, Optional
 from math import isclose
-from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import openmc
-import numpy as np
 
 from mpactpy.pin import Pin, PinMesh
 from mpactpy.material import Material
-from mpactpy.utils import list_to_str, is_rectangular, unique
+from mpactpy.utils import list_to_str, is_rectangular, unique, process_parallel_work
 
 
 class Module():
@@ -297,31 +295,11 @@ class Module():
         child_policy     = overlay_policy.allocate_processes(num_pins)
 
         # Process pins
-        if num_module_procs <= 1:
-            # Process pins in serial
-            overlaid_pins = []
-            for pin, offset_pos, include_mask, _, _ in pin_work:
-                overlaid = self._overlay_pin_worker(pin, offset_pos, include_mask, geometry, child_policy)
-                overlaid_pins.append(overlaid)
-        else:
-            # Process pins in parallel
-            chunk_indices = np.array_split(range(len(pin_work)), num_module_procs)
-            work_chunks = [[pin_work[i] for i in indices] for indices in chunk_indices if len(indices) > 0]
-
-            with ProcessPoolExecutor(max_workers=num_module_procs) as executor:
-                future_to_chunk_index = {
-                    executor.submit(self._process_pin_chunk, chunk, geometry, child_policy): i
-                    for i, chunk in enumerate(work_chunks)
-                }
-
-                chunk_results = [None] * len(work_chunks)
-                for future in as_completed(future_to_chunk_index):
-                    chunk_index = future_to_chunk_index[future]
-                    chunk_results[chunk_index] = future.result()
-
-                overlaid_pins = []
-                for chunk_result in chunk_results:
-                    overlaid_pins.extend(chunk_result)
+        overlaid_pins = process_parallel_work(pin_work,
+                                              self._process_pin_chunk,
+                                              num_module_procs,
+                                              geometry,
+                                              child_policy)
 
         # Reconstruct the pin map with overlaid pins
         new_pin_map = [row[:] for row in self.pin_map]

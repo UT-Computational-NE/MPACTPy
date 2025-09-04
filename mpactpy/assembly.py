@@ -1,16 +1,14 @@
 from __future__ import annotations
 from typing import List, Any, Tuple, Optional, Dict, TypedDict
 from math import isclose
-from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import openmc
-import numpy as np
 
 from mpactpy.lattice import PinMesh, Lattice
 from mpactpy.module import Module
 from mpactpy.pin import Pin
 from mpactpy.material import Material
-from mpactpy.utils import list_to_str, unique
+from mpactpy.utils import list_to_str, unique, process_parallel_work
 
 
 class Assembly():
@@ -307,31 +305,11 @@ class Assembly():
         child_policy       = overlay_policy.allocate_processes(num_lattices)
 
         # Process lattices
-        if num_assembly_procs <= 1:
-            # Process lattices in serial
-            overlaid_lattices = []
-            for lattice, offset_pos, include_mask, _ in lattice_work:
-                overlaid = self._overlay_lattice_worker(lattice, offset_pos, include_mask, geometry, child_policy)
-                overlaid_lattices.append(overlaid)
-        else:
-            # Process lattices in parallel
-            chunk_indices = np.array_split(range(len(lattice_work)), num_assembly_procs)
-            work_chunks = [[lattice_work[i] for i in indices] for indices in chunk_indices if len(indices) > 0]
-
-            with ProcessPoolExecutor(max_workers=num_assembly_procs) as executor:
-                future_to_chunk_index = {
-                    executor.submit(self._process_lattice_chunk, chunk, geometry, child_policy): i
-                    for i, chunk in enumerate(work_chunks)
-                }
-
-                chunk_results = [None] * len(work_chunks)
-                for future in as_completed(future_to_chunk_index):
-                    chunk_index = future_to_chunk_index[future]
-                    chunk_results[chunk_index] = future.result()
-
-                overlaid_lattices = []
-                for chunk_result in chunk_results:
-                    overlaid_lattices.extend(chunk_result)
+        overlaid_lattices = process_parallel_work(lattice_work,
+                                                  self._process_lattice_chunk,
+                                                  num_assembly_procs,
+                                                  geometry,
+                                                  child_policy)
 
         # Reconstruct the lattice map with overlaid lattices
         new_lattice_map = self.lattice_map[:]

@@ -1,8 +1,9 @@
-from typing import List, Union, TypeVar
+from typing import List, Union, TypeVar, Callable, Any
 from collections.abc import Hashable
 from decimal import Decimal, ROUND_HALF_UP
 import math
 from contextlib import contextmanager
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import os
 
 import numpy as np
@@ -193,3 +194,57 @@ def temporary_environment(var: str, value: str):
             os.environ[var] = original
         else:
             del os.environ[var]
+
+S = TypeVar('S')
+R = TypeVar('R')
+def process_parallel_work(work_items:      List[S],
+                          worker_function: Callable[..., R],
+                          num_processes:   int,
+                          *worker_args:    Any) -> List[R]:
+    """Process work items in parallel using chunked distribution.
+
+    Parameters
+    ----------
+    work_items : List[T]
+        List of work items to process
+    worker_function : Callable
+        Function to process each chunk. Should accept (chunk, *worker_args)
+        and return a list of results
+    num_processes : int
+        Maximum number of processes to use
+    *worker_args : Any
+        Additional arguments to pass to the worker function
+
+    Returns
+    -------
+    List[R]
+        Results in the same order as input work_items
+    """
+    if not work_items:
+        return []
+
+    if num_processes <= 1:
+        # Process in serial
+        return worker_function(work_items, *worker_args)
+
+    # Process in parallel with chunking
+    chunk_indices = np.array_split(range(len(work_items)), num_processes)
+    work_chunks = [[work_items[i] for i in indices] for indices in chunk_indices if len(indices) > 0]
+
+    with ProcessPoolExecutor(max_workers=min(num_processes, len(work_chunks))) as executor:
+        future_to_chunk_index = {
+            executor.submit(worker_function, chunk, *worker_args): i
+            for i, chunk in enumerate(work_chunks)
+        }
+
+        chunk_results = [None] * len(work_chunks)
+        for future in as_completed(future_to_chunk_index):
+            chunk_index = future_to_chunk_index[future]
+            chunk_results[chunk_index] = future.result()
+
+    # Flatten results maintaining order
+    results = []
+    for chunk_result in chunk_results:
+        results.extend(chunk_result)
+
+    return results
