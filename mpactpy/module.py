@@ -84,6 +84,8 @@ class Module():
 
     def __init__(self, nz: int, pin_map: List[List[Pin]]):
 
+        self._cached_hash = None
+
         assert nz > 0
         assert is_rectangular(pin_map)
 
@@ -118,7 +120,7 @@ class Module():
                )
 
     def __hash__(self) -> int:
-        if not hasattr(self, '_cached_hash'):
+        if self._cached_hash is None:
             self._cached_hash = hash((self.nz, tuple(tuple(row) for row in self.pin_map)))
         return self._cached_hash
 

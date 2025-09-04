@@ -94,6 +94,9 @@ class Lattice():
 
 
     def __init__(self, module_map: List[List[Module]]):
+
+        self._cached_hash = None
+
         assert is_rectangular(module_map)
 
         self._module_map = module_map
@@ -126,7 +129,7 @@ class Lattice():
                )
 
     def __hash__(self) -> int:
-        if not hasattr(self, '_cached_hash'):
+        if self._cached_hash is None:
             self._cached_hash = hash(tuple(tuple(row) for row in self.module_map))
         return self._cached_hash
 

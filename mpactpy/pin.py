@@ -61,6 +61,9 @@ class Pin():
         return self._pinmesh.pitch
 
     def __init__(self, pinmesh: PinMesh, materials: List[Material]):
+
+        self._cached_hash = None
+
         assert(len(materials) == pinmesh.number_of_material_regions), \
             f"len(materials) = {len(materials)}, " + \
             f"pinmesh.number_of_material_regions = {pinmesh.number_of_material_regions}"
@@ -78,7 +81,7 @@ class Pin():
                )
 
     def __hash__(self) -> int:
-        if not hasattr(self, '_cached_hash'):
+        if self._cached_hash is None:
             self._cached_hash = hash((self.pinmesh, tuple(self.materials)))
         return self._cached_hash
 

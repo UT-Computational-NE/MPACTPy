@@ -161,6 +161,8 @@ class Core():
                  quarter_sym_opt: QuarterSymmetryOption = "",
                  min_thickness: float = 0.):
 
+        self._cached_hash = None
+
         assert is_rectangular(assembly_map)
 
         self._symmetry_opt    = symmetry_opt
@@ -203,7 +205,7 @@ class Core():
                )
 
     def __hash__(self) -> int:
-        if not hasattr(self, '_cached_hash'):
+        if self._cached_hash is None:
             self._cached_hash = hash((self.symmetry_opt,
                                       self.quarter_sym_opt,
                                       tuple(tuple(row) for row in self.assembly_map)))

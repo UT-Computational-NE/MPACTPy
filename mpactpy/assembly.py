@@ -100,6 +100,9 @@ class Assembly():
 
 
     def __init__(self, lattice_map: List[Lattice]):
+
+        self._cached_hash = None
+
         assert len(lattice_map) > 0
 
         self._lattice_map = lattice_map
@@ -138,7 +141,7 @@ class Assembly():
                )
 
     def __hash__(self) -> int:
-        if not hasattr(self, '_cached_hash'):
+        if self._cached_hash is None:
             self._cached_hash = hash(tuple(self.lattice_map))
         return self._cached_hash
 

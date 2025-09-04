@@ -260,8 +260,7 @@ class PinMesh(ABC):
         self._set_regions_inside_bounds()
 
         # Clear cached hashes because this modifies the object
-        if hasattr(self, '_cached_hash'):
-            delattr(self, '_cached_hash')
+        self._cached_hash = None
 
 
     @abstractmethod
@@ -425,6 +424,9 @@ class RectangularPinMesh(PinMesh):
                  ndivy:    List[int],
                  ndivz:    List[int],
     ):
+
+        self._cached_hash = None
+
         assert len(xvals) > 0, f"len(xvals) = {len(xvals)}"
         assert len(yvals) > 0, f"len(yvals) = {len(yvals)}"
         assert all(val > 0. for val in xvals), f"xvals = {xvals}"
@@ -459,7 +461,7 @@ class RectangularPinMesh(PinMesh):
 
 
     def __hash__(self) -> int:
-        if not hasattr(self, '_cached_hash'):
+        if self._cached_hash is None:
             pitches = {key : relative_round(val, TOL) for key, val in self.pitch.items()}
             self._cached_hash = hash((tuple(relative_round(val, TOL) for val in self.xvals),
                                      tuple(relative_round(val, TOL) for val in self.yvals),
@@ -620,6 +622,9 @@ class GeneralCylindricalPinMesh(PinMesh):
         ndiva   : List[int],
         ndivz   : List[int],
     ):
+
+        self._cached_hash = None
+
         assert len(r) > 0, f"len(r) = {len(r)}"
         assert all(val > 0. for val in r), f"r = {r}"
         assert xMin < xMax, f"xMin = {xMin}, xMax = {xMax}"
@@ -657,7 +662,7 @@ class GeneralCylindricalPinMesh(PinMesh):
 
 
     def __hash__(self) -> int:
-        if not hasattr(self, '_cached_hash'):
+        if self._cached_hash is None:
             pitches = {key : relative_round(val, TOL) for key, val in self.pitch.items()}
             self._cached_hash = hash((relative_round(self.xMin, TOL),
                                       relative_round(self.xMax, TOL),

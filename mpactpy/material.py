@@ -138,6 +138,8 @@ class Material():
                  mpact_specs:                 MPACTSpecs = None,
     ):
 
+        self._cached_hash = None
+
         assert all(number_dens >= 0. for number_dens in number_densities.values()), \
             f"number_densities = {number_densities}"
         assert all(iso in number_densities for iso in mpact_specs.thermal_scattering_isotopes), \
@@ -162,8 +164,7 @@ class Material():
                 )
 
     def __hash__(self) -> int:
-        # Cache the hash value to avoid expensive recomputation
-        if not hasattr(self, '_cached_hash'):
+        if self._cached_hash is None:
             number_densities = sorted({iso: relative_round(numd, TOL)
                                        for iso, numd in self.number_densities.items()})
             self._cached_hash = hash((self._mpact_specs.material_type,
