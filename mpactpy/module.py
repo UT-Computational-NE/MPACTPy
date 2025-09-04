@@ -1,12 +1,12 @@
 from __future__ import annotations
 from typing import Dict, List, Any, TypedDict, Tuple, Optional
 from math import isclose
-from concurrent.futures import ProcessPoolExecutor
 
 import openmc
 
 from mpactpy.pin import Pin, PinMesh
-from mpactpy.utils import list_to_str, is_rectangular, unique
+from mpactpy.material import Material
+from mpactpy.utils import list_to_str, is_rectangular, unique, process_parallel_work
 
 
 class Module():
@@ -33,6 +33,12 @@ class Module():
     pin_map : List[List[Pin]]
         The 2-D array of pin.  This array is extruded
         nz times in the z-direction
+    pins : List[Pin]
+        The unique pins contained in this module
+    pinmeshes : List[PinMesh]
+        The unique pinmeshes contained in this module
+    materials : List[Material]
+        The unique materials contained in this module
     """
 
     class Pitch(TypedDict):
@@ -62,7 +68,21 @@ class Module():
     def pin_map(self) -> List[List[Pin]]:
         return self._pin_map
 
+    @property
+    def pins(self) -> List[Pin]:
+        return self._pins
+
+    @property
+    def pinmeshes(self) -> List[PinMesh]:
+        return self._pinmeshes
+
+    @property
+    def materials(self) -> List[Material]:
+        return self._materials
+
     def __init__(self, nz: int, pin_map: List[List[Pin]]):
+
+        self._cached_hash = None
 
         assert nz > 0
         assert is_rectangular(pin_map)
@@ -84,6 +104,10 @@ class Module():
         z_pitch     = self.pin_map[0][0].pitch['Z'] * self.nz
         self._pitch = {'X': x_pitch, 'Y': y_pitch, 'Z': z_pitch}
 
+        self._pins      = unique([pin for row in self.pin_map for pin in row])
+        self._pinmeshes = unique([pin.pinmesh for pin in self.pins])
+        self._materials = unique([material for pin in self.pins for material in pin.unique_materials])
+
 
     def __eq__(self, other: Any) -> bool:
         if self is other:
@@ -94,8 +118,9 @@ class Module():
                )
 
     def __hash__(self) -> int:
-        return hash((self.nz,
-                     tuple(tuple(row) for row in self.pin_map)))
+        if self._cached_hash is None:
+            self._cached_hash = hash((self.nz, tuple(tuple(row) for row in self.pin_map)))
+        return self._cached_hash
 
     def write_to_string(self,
                         prefix: str = "",
@@ -195,6 +220,31 @@ class Module():
 
     OverlayMask = Dict[Pin, Optional[Pin.OverlayMask]]
 
+    def has_overlay_work(self, include_only: Optional[OverlayMask] = None) -> bool:
+        """Check if this module has actual overlay work to do based on the include mask.
+
+        Parameters
+        ----------
+        include_only : Optional[OverlayMask]
+            The dictionary of pins and their masks to include for this module
+
+        Returns
+        -------
+        bool
+            True if module has overlay work to do, False otherwise
+        """
+        if include_only is None:
+            # No mask means include all pins in this module
+            return True
+
+        # Check if module contains any pins that have overlay work to do
+        for pin in self.pins:
+            if pin in include_only:
+                if pin.has_overlay_work(include_only[pin]):
+                    return True
+
+        return False
+
     def overlay(self,
                 geometry:       openmc.Geometry,
                 offset:         Tuple[float, float, float] = (0.0, 0.0, 0.0),
@@ -235,7 +285,8 @@ class Module():
             y -= row[0].pitch['Y']
             for j, pin in enumerate(row):
                 if pin in include_only:
-                    pin_work.append((pin, (x, y, z0), include_only[pin], i, j))
+                    if pin.has_overlay_work(include_only[pin]):
+                        pin_work.append((pin, (x, y, z0), include_only[pin], i, j))
                 x += pin.pitch['X']
 
         # Determine parallelization
@@ -243,13 +294,12 @@ class Module():
         num_module_procs = min(num_pins, overlay_policy.num_procs)
         child_policy     = overlay_policy.allocate_processes(num_pins)
 
-        # Process pins in parallel
-        with ProcessPoolExecutor(max_workers=num_module_procs) as executor:
-            futures = [
-                executor.submit(self._overlay_pin_worker, pin, offset_pos, include_mask, geometry, child_policy)
-                for pin, offset_pos, include_mask, _, _ in pin_work
-            ]
-            overlaid_pins = [future.result() for future in futures]
+        # Process pins
+        overlaid_pins = process_parallel_work(pin_work,
+                                              self._process_pin_chunk,
+                                              num_module_procs,
+                                              geometry,
+                                              child_policy)
 
         # Reconstruct the pin map with overlaid pins
         new_pin_map = [row[:] for row in self.pin_map]
@@ -257,6 +307,36 @@ class Module():
             new_pin_map[i][j] = overlaid
 
         return Module(1, new_pin_map)
+
+    @staticmethod
+    def _process_pin_chunk(pin_chunk, geometry, child_policy):
+        """Process a chunk of pins in a single worker process.
+
+        Parameters
+        ----------
+        pin_chunk : List[Tuple[Pin, Tuple[float, float, float], Optional[Pin.OverlayMask], int, int]]
+            A list of pin work items to process, where each item contains:
+            - pin: The MPACTPy Pin to overlay
+            - offset_pos: (x, y, z) offset coordinates for the pin
+            - include_mask: Optional mask specifying which elements to include
+            - i, j: Pin position indices in the module map
+        geometry : openmc.Geometry
+            The OpenMC Geometry to be overlaid onto the pins
+        child_policy : PinMesh.OverlayPolicy
+            Policy object specifying overlay method and process allocation for
+            child operations within each pin
+
+        Returns
+        -------
+        List[Pin]
+            A list of overlaid Pin objects corresponding to the input chunk,
+            maintaining the same order as the input chunk
+        """
+        overlaid_pins = []
+        for pin, offset_pos, include_mask, _, _ in pin_chunk:
+            overlaid = Module._overlay_pin_worker(pin, offset_pos, include_mask, geometry, child_policy)
+            overlaid_pins.append(overlaid)
+        return overlaid_pins
 
     @staticmethod
     def _overlay_pin_worker(pin:            Pin,

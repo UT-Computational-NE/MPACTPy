@@ -31,6 +31,8 @@ class Pin():
         The materials used in each pin XSR. The number of
         entries must be equal to the number of uniform
         material regions defined in the pin mesh
+    unique_materials : Set[Material]
+        The unique materials used in this pin
     pitch : Pitch
         The pitch of the pin in each axis direction (keys: 'X', 'Y', 'Z') (cm)
     """
@@ -51,16 +53,24 @@ class Pin():
         return self._materials
 
     @property
+    def unique_materials(self) -> Set[Material]:
+        return self._unique_materials
+
+    @property
     def pitch(self) -> Pitch:
         return self._pinmesh.pitch
 
     def __init__(self, pinmesh: PinMesh, materials: List[Material]):
+
+        self._cached_hash = None
+
         assert(len(materials) == pinmesh.number_of_material_regions), \
             f"len(materials) = {len(materials)}, " + \
             f"pinmesh.number_of_material_regions = {pinmesh.number_of_material_regions}"
 
-        self._pinmesh   = pinmesh
-        self._materials = materials
+        self._pinmesh          = pinmesh
+        self._materials        = materials
+        self._unique_materials = set(materials)
 
     def __eq__(self, other: Any) -> bool:
         if self is other:
@@ -71,8 +81,9 @@ class Pin():
                )
 
     def __hash__(self) -> int:
-        return hash((self.pinmesh,
-                     tuple(self.materials)))
+        if self._cached_hash is None:
+            self._cached_hash = hash((self.pinmesh, tuple(self.materials)))
+        return self._cached_hash
 
     def write_to_string(self,
                         prefix: str = "",
@@ -209,6 +220,26 @@ class Pin():
 
 
     OverlayMask = Set[Material]
+
+    def has_overlay_work(self, include_only: Optional[OverlayMask] = None) -> bool:
+        """Check if this pin has actual overlay work to do based on the include mask.
+
+        Parameters
+        ----------
+        include_only : Optional[OverlayMask]
+            The set of materials to include for this pin
+
+        Returns
+        -------
+        bool
+            True if pin has overlay work to do, False otherwise
+        """
+        if include_only is None:
+            # No mask means include all materials in this pin
+            return True
+
+        # Check if pin contains any of the specified materials
+        return any(material in include_only for material in self.unique_materials)
 
     def overlay(self,
                 geometry:       openmc.Geometry,

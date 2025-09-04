@@ -18,9 +18,6 @@ from mpactpy.utils import relative_round, allclose, list_to_str, ROUNDING_RELATI
 # Helper functions for overlay processing
 # =======================================
 
-
-
-
 def _process_centroid_batch(args: Tuple) -> List[Material]:
     """ Processes a batch of centroid points to determine material assignments in parallel.
 
@@ -99,17 +96,22 @@ def _materials_at_centroids(centroids: np.ndarray,
         A list of Material objects corresponding to each centroid.
     """
 
-    chunks = np.array_split(centroids, overlay_policy.num_procs)
+    # Run overlay in serial
+    if overlay_policy.num_procs <= 1:
+        materials = []
+        for point in centroids:
+            mat = Material.from_openmc_geometry_point(point, geometry, overlay_policy.mat_specs)
+            materials.append(mat)
+        return materials
 
-    # Prepare arguments for multiprocessing
+    # Run overlay in parallel
+    chunks    = np.array_split(centroids, overlay_policy.num_procs)
     args_list = [(chunk, geometry, overlay_policy.mat_specs) for chunk in chunks]
 
     with ProcessPoolExecutor(max_workers=overlay_policy.num_procs) as executor:
         batch_results = list(executor.map(_process_centroid_batch, args_list))
 
-    # Flatten results back to original order
     materials = [item for sublist in batch_results for item in sublist]
-
     return materials
 
 
@@ -132,16 +134,23 @@ def _materials_in_elements(elements: List[tuple[int | None, float]],
     List[Material]
         A list of Material objects corresponding to each element.
     """
-    chunk_size = max(1, len(elements) // overlay_policy.num_procs)
-    chunks = [elements[i:i+chunk_size] for i in range(0, len(elements), chunk_size)]
 
-    # Prepare arguments for multiprocessing
-    args_list = [(chunk, geometry, overlay_policy.mat_specs, overlay_policy.mix_policy) for chunk in chunks]
+    # Run overlay in serial
+    if overlay_policy.num_procs <= 1:
+        materials = []
+        for element in elements:
+            mat = Material.from_openmc_geometry_element(element, geometry, overlay_policy.mat_specs, overlay_policy.mix_policy)
+            materials.append(mat)
+        return materials
+
+    # Run overlay in parallel
+    chunk_indices = np.array_split(range(len(elements)), overlay_policy.num_procs)
+    chunks        = [[elements[i] for i in indices] for indices in chunk_indices if len(indices) > 0]
+    args_list     = [(chunk, geometry, overlay_policy.mat_specs, overlay_policy.mix_policy) for chunk in chunks]
 
     with ProcessPoolExecutor(max_workers=overlay_policy.num_procs) as executor:
         batch_results = list(executor.map(_process_homogenized_batch, args_list))
 
-    # Flatten results back to original order
     materials = []
     for batch_result in batch_results:
         materials.extend(batch_result)
@@ -185,6 +194,7 @@ class PinMesh(ABC):
     _ndivz: List[int]
     _pitch: Dict[str, float]
     _regions_inside_bounds: List[int]
+    _cached_hash: Optional[int]
 
     @property
     def number_of_material_regions(self) -> int:
@@ -249,6 +259,7 @@ class PinMesh(ABC):
         self._set_pitch()
         self._set_number_of_material_regions()
         self._set_regions_inside_bounds()
+        self._cached_hash = None
 
 
     @abstractmethod
@@ -446,15 +457,17 @@ class RectangularPinMesh(PinMesh):
 
 
     def __hash__(self) -> int:
-        pitches = {key : relative_round(val, TOL) for key, val in self.pitch.items()}
-        return hash((tuple(relative_round(val, TOL) for val in self.xvals),
-                     tuple(relative_round(val, TOL) for val in self.yvals),
-                     tuple(relative_round(val, TOL) for val in self.zvals),
-                     tuple(relative_round(val, TOL) for val in self.ndivx),
-                     tuple(relative_round(val, TOL) for val in self.ndivy),
-                     tuple(relative_round(val, TOL) for val in self.ndivz),
-                     tuple(sorted(pitches)),
-                     self.number_of_material_regions))
+        if self._cached_hash is None:
+            pitches = {key : relative_round(val, TOL) for key, val in self.pitch.items()}
+            self._cached_hash = hash((tuple(relative_round(val, TOL) for val in self.xvals),
+                                     tuple(relative_round(val, TOL) for val in self.yvals),
+                                     tuple(relative_round(val, TOL) for val in self.zvals),
+                                     tuple(relative_round(val, TOL) for val in self.ndivx),
+                                     tuple(relative_round(val, TOL) for val in self.ndivy),
+                                     tuple(relative_round(val, TOL) for val in self.ndivz),
+                                     tuple(sorted(pitches)),
+                                     self.number_of_material_regions))
+        return self._cached_hash
 
     def write_to_string(self, prefix: str = "", mpact_ids: Dict[PinMesh, int] = None) -> str:
 
@@ -642,18 +655,21 @@ class GeneralCylindricalPinMesh(PinMesh):
 
 
     def __hash__(self) -> int:
-        pitches = {key : relative_round(val, TOL) for key, val in self.pitch.items()}
-        return hash((relative_round(self.xMin, TOL),
-                     relative_round(self.xMax, TOL),
-                     relative_round(self.yMin, TOL),
-                     relative_round(self.yMax, TOL),
-                     tuple(relative_round(val, TOL) for val in self.r),
-                     tuple(relative_round(val, TOL) for val in self.zvals),
-                     tuple(relative_round(val, TOL) for val in self.ndivr),
-                     tuple(relative_round(val, TOL) for val in self.ndiva),
-                     tuple(relative_round(val, TOL) for val in self.ndivz),
-                     tuple(sorted(pitches)),
-                     self.number_of_material_regions))
+        if self._cached_hash is None:
+            pitches = {key : relative_round(val, TOL) for key, val in self.pitch.items()}
+            self._cached_hash = hash((relative_round(self.xMin, TOL),
+                                      relative_round(self.xMax, TOL),
+                                      relative_round(self.yMin, TOL),
+                                      relative_round(self.yMax, TOL),
+                                      tuple(relative_round(val, TOL) for val in self.r),
+                                      tuple(relative_round(val, TOL) for val in self.zvals),
+                                      tuple(relative_round(val, TOL) for val in self.ndivr),
+                                      tuple(relative_round(val, TOL) for val in self.ndiva),
+                                      tuple(relative_round(val, TOL) for val in self.ndivz),
+                                      tuple(sorted(pitches)),
+                                      self.number_of_material_regions))
+        return self._cached_hash
+
 
     def write_to_string(self, prefix: str = "", mpact_ids: Dict[PinMesh, int] = None) -> str:
 
