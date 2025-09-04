@@ -205,7 +205,7 @@ def process_parallel_work(work_items:      List[S],
 
     Parameters
     ----------
-    work_items : List[T]
+    work_items : List[S]
         List of work items to process
     worker_function : Callable
         Function to process each chunk. Should accept (chunk, *worker_args)
