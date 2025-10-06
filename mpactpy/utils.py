@@ -15,6 +15,9 @@ ROUNDING_RELATIVE_TOLERANCE = 1E-5
 # Avogadro's number
 AVOGADRO = openmc.data.AVOGADRO
 
+# Room Temperature in Kelvin
+ROOM_TEMPERATURE = 293.6
+
 def relative_round(value: float, rel_tol: float =1e-9) -> float:
     """ Rounds a floating-point number to a precision consistent with a given relative tolerance.
 
