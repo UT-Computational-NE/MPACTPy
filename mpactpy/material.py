@@ -7,7 +7,7 @@ from math import isclose
 import numpy as np
 import openmc
 
-from mpactpy.utils import atomic_mass, AVOGADRO, \
+from mpactpy.utils import atomic_mass, AVOGADRO, ROOM_TEMPERATURE, \
                           relative_round, ROUNDING_RELATIVE_TOLERANCE as TOL
 
 class Material():
@@ -311,6 +311,8 @@ class Material():
         that isotopes of said elements may be accurately represented with cross-section data
         corresponding to the elements with natural isotopic abundances.
 
+        Also, if no temperature is specified in the openmc.Material, ROOM_TEMPERATURE is used by default.
+
         Parameters
         ----------
         material : openmc.Material
@@ -344,7 +346,9 @@ class Material():
 
         number_densities = {iso: num_dens for iso, num_dens in number_densities.items() if not isclose(num_dens, 0.0)}
 
-        mpact_material = Material(temperature      = material.temperature,
+        temperature = material.temperature if material.temperature is not None else ROOM_TEMPERATURE
+
+        mpact_material = Material(temperature      = temperature,
                                   number_densities = number_densities,
                                   mpact_specs      = mpact_specs)
         return mpact_material
