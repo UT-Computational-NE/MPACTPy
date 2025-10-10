@@ -101,13 +101,13 @@ def materials_are_close(lhs:     Material,
     isotopes from using different openmc / xs-library versions and the test still pass.
     """
 
-    return (isclose(lhs.density, rhs.density, rel_tol=rel_tol)                 and
-            isclose(lhs.temperature, rhs.temperature, rel_tol=rel_tol)         and
-            lhs.thermal_scattering_isotopes == rhs.thermal_scattering_isotopes and
-            lhs.is_fluid                    == rhs.is_fluid                    and
-            lhs.is_depletable               == rhs.is_depletable               and
-            lhs.has_resonance               == rhs.has_resonance               and
-            lhs.is_fuel                     == rhs.is_fuel                     and
+    return (isclose(lhs.density, rhs.density, rel_tol=rel_tol)         and
+            isclose(lhs.temperature, rhs.temperature, rel_tol=rel_tol) and
+            lhs.replace_isotopes == rhs.replace_isotopes               and
+            lhs.is_fluid                    == rhs.is_fluid            and
+            lhs.is_depletable               == rhs.is_depletable       and
+            lhs.has_resonance               == rhs.has_resonance       and
+            lhs.is_fuel                     == rhs.is_fuel             and
             all(iso in lhs.number_densities.keys() for iso in rhs.number_densities.keys()) and
             all(isclose(lhs.number_densities[iso], rhs.number_densities[iso], rel_tol=rel_tol)
                 for iso in rhs.number_densities.keys()))

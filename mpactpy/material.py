@@ -32,8 +32,6 @@ class Material():
     number_densities : Dict[str, float]
         The isotopic number densities (atoms/b-cm)
         (key: isotope ID, value: number density)
-    thermal_scattering_isotopes : List[str]
-        List of isotopes that should use thermal scattering libraries
     is_fluid : bool
         Boolean flag indicating whether or not the material is a fluid
     is_depletable : bool
@@ -50,8 +48,9 @@ class Material():
 
         Attributes
         ----------
-        thermal_scattering_isotopes : List[str]
-            List of isotopes that should use thermal scattering libraries (Default: [])
+        replace_isotopes : Dict[str, str]
+            Dictionary of isotopes IDs to replace when writing the MPACT input
+            (key: original isotope ID, value: replacement isotope ID)
         is_fluid : bool
             Whether the material is a fluid (Default: False)
         is_depletable : bool
@@ -69,12 +68,12 @@ class Material():
             Section 4.5 pg 27
         """
 
-        thermal_scattering_isotopes: List[str] = field(default_factory=list)
-        is_fluid:                    bool = False
-        is_depletable:               bool = False
-        has_resonance:               bool = False
-        is_fuel:                     bool = False
-        material_type:               int  = 0
+        replace_isotopes: Dict[str, str] = field(default_factory=dict)
+        is_fluid:         bool = False
+        is_depletable:    bool = False
+        has_resonance:    bool = False
+        is_fuel:          bool = False
+        material_type:    int  = 0
 
         def __post_init__(self):
 
@@ -93,7 +92,8 @@ class Material():
             key = (self.is_fluid, self.is_depletable, self.has_resonance, self.is_fuel)
             assert key in material_type_mapping, f"Invalid material combination: {key}"
             self.material_type = material_type_mapping[key]
-
+            assert all(value in MPACT_SUPPORTED_ISOTOPE_IDS for value in self.replace_isotopes.values()), \
+                f"Invalid replacement isotope ID: {self.replace_isotopes.values()}"
 
     @property
     def density(self) -> float:
@@ -113,8 +113,8 @@ class Material():
         return self._number_densities
 
     @property
-    def thermal_scattering_isotopes(self) -> List[str]:
-        return self._mpact_specs.thermal_scattering_isotopes
+    def replace_isotopes(self) -> Dict[str, str]:
+        return self._mpact_specs.replace_isotopes
 
     @property
     def is_fluid(self) -> bool:
@@ -142,12 +142,10 @@ class Material():
 
         assert all(number_dens >= 0. for number_dens in number_densities.values()), \
             f"number_densities = {number_densities}"
-        assert all(iso in number_densities for iso in mpact_specs.thermal_scattering_isotopes), \
-            f"thermal_scattering_isotopes = {mpact_specs.thermal_scattering_isotopes}"
 
         self.temperature       = temperature
-        self._number_densities = number_densities
         self._mpact_specs      = mpact_specs if mpact_specs else Material.MPACTSpecs()
+        self._number_densities = number_densities
         self._density          = sum(num_dens * 1e24 * atomic_mass(iso) / AVOGADRO
                                      for iso, num_dens in number_densities.items())
 
@@ -158,7 +156,6 @@ class Material():
                 self._mpact_specs.material_type == other._mpact_specs.material_type   and
                 isclose(self.temperature, other.temperature, rel_tol=TOL)             and
                 self.number_densities.keys() == other.number_densities.keys()         and
-                self.thermal_scattering_isotopes == other.thermal_scattering_isotopes and
                 all(isclose(self.number_densities[iso], other.number_densities[iso], rel_tol=TOL)
                     for iso in self.number_densities.keys())
                 )
@@ -169,8 +166,7 @@ class Material():
                                        for iso, numd in self.number_densities.items()})
             self._cached_hash = hash((self._mpact_specs.material_type,
                                      relative_round(self.temperature, TOL),
-                                     tuple(number_densities),
-                                     tuple(self.thermal_scattering_isotopes)))
+                                     tuple(number_densities)))
         return self._cached_hash
 
     @dataclass
@@ -193,33 +189,33 @@ class Material():
             Whether the mixture is fuel
         temperature : Optional[float]
             The temperature of the resulting mixture material (K).
-        thermal_scattering_policy : str
-            Policy for how to handle thermal scattering isotopes in the mixture.
+        replace_isotope_policy : str
+            Policy for how to handle isotope replacements in the mixture.
             Options:
-            - 'none'        : Omit all thermal scattering isotopes in the mixture (default).
-            - 'union'       : Include any isotope that appears in any material .
-            - 'intersection': Include only isotopes common to all materials.
-            - 'manual'      : Use the provided `thermal_scattering_isotopes` list.
-        thermal_scattering_isotopes : Optional[List[str]]
-            Manual override of thermal scattering isotopes to use (only used if policy is 'manual').
+            - 'none'        : Omit all isotope replacements in the mixture (default).
+            - 'union'       : Include any isotope replacements that appears in any material.
+            - 'intersection': Include only isotopes replacements common to all materials.
+            - 'manual'      : Use the provided `replace_isotopes` list.
+        replace_isotopes : Dict[str, str]
+            Dictionary of isotopes IDs to replace when writing the MPACT input (only used if policy is 'manual')
         """
 
-        percent_type:                str = 'vo'
-        is_fluid:                    Optional[bool] = None
-        is_depletable:               Optional[bool] = None
-        has_resonance:               Optional[bool] = None
-        is_fuel:                     Optional[bool] = None
-        temperature:                 Optional[float] = None
-        thermal_scattering_policy:   str = 'none'
-        thermal_scattering_isotopes: Optional[List[str]] = None
+        percent_type:           str = 'vo'
+        is_fluid:               Optional[bool] = None
+        is_depletable:          Optional[bool] = None
+        has_resonance:          Optional[bool] = None
+        is_fuel:                Optional[bool] = None
+        temperature:            Optional[float] = None
+        replace_isotope_policy: str = 'none'
+        replace_isotopes:       Optional[Dict[str, str]] = None
 
         def __post_init__(self):
             assert self.percent_type in ('vo', 'wo'), f"Invalid percent_type: {self.percent_type}"
-            assert self.thermal_scattering_policy in ('none', 'manual', 'union', 'intersection'), \
-                f"Invalid thermal_scattering_policy: {self.thermal_scattering_policy}"
-            if self.thermal_scattering_policy == 'manual':
-                assert self.thermal_scattering_isotopes is not None, \
-                    "Must provide thermal_scattering_isotopes for 'manual' policy"
+            assert self.replace_isotope_policy in ('none', 'manual', 'union', 'intersection'), \
+                f"Invalid replace_isotope_policy: {self.replace_isotope_policy}"
+            if self.replace_isotope_policy == 'manual':
+                assert self.replace_isotopes is not None, \
+                    "Must provide replace_isotopes for 'manual' policy"
 
     @staticmethod
     def mix_materials(materials: List[Material],
@@ -272,26 +268,31 @@ class Material():
         is_fuel       = coalesce(policy.is_fuel,       any(m.is_fuel for m in materials))
         temperature   = coalesce(policy.temperature,   sum(m.temperature * w for m, w in zip(materials, weights)))
 
-        thermal_scattering_isotopes = []
-        if policy.thermal_scattering_policy == 'manual':
-            thermal_scattering_isotopes = policy.thermal_scattering_isotopes
-        elif policy.thermal_scattering_policy == 'union':
-            thermal_scattering_isotopes = sorted(set(iso for m in materials
-                                                     for iso in m.thermal_scattering_isotopes))
-        elif policy.thermal_scattering_policy == 'intersection':
-            thermal_scattering_isotopes = sorted(set.intersection(*[set(m.thermal_scattering_isotopes)
-                                                                    for m in materials])) if materials else []
+        replace_isotopes = {}
+        if policy.replace_isotope_policy == 'manual':
+            replace_isotopes = policy.replace_isotopes
+        elif policy.replace_isotope_policy == 'intersection':
+            replace_isotopes = dict(set.intersection(*(set(m.replace_isotopes.items()) for m in materials)))
+        elif policy.replace_isotope_policy == 'union':
+            for m in materials:
+                for original_iso, replacement_iso in m.replace_isotopes.items():
+                    if original_iso in replace_isotopes:
+                        if replace_isotopes[original_iso] != replacement_iso:
+                            raise ValueError(f"Conflicting isotope replacement rules for '{original_iso}': "
+                                           f"'{replace_isotopes[original_iso]}' vs '{replacement_iso}'")
+                    else:
+                        replace_isotopes[original_iso] = replacement_iso
 
         number_densities = defaultdict(float)
         for m, w in zip(materials, weights):
             for iso, num_dens in m.number_densities.items():
                 number_densities[iso] += w * num_dens
 
-        specs = Material.MPACTSpecs(thermal_scattering_isotopes = thermal_scattering_isotopes,
-                                    is_fluid                    = is_fluid,
-                                    is_depletable               = is_depletable,
-                                    has_resonance               = has_resonance,
-                                    is_fuel                     = is_fuel)
+        specs = Material.MPACTSpecs(replace_isotopes = replace_isotopes,
+                                    is_fluid         = is_fluid,
+                                    is_depletable    = is_depletable,
+                                    has_resonance    = has_resonance,
+                                    is_fuel          = is_fuel)
 
         mixture = Material(temperature      = temperature,
                            number_densities = number_densities,
@@ -330,7 +331,7 @@ class Material():
         mpact_specs = Material.MPACTSpecs() if mpact_specs is None else mpact_specs
 
         number_densities = {}
-        for iso in mpact_specs.thermal_scattering_isotopes:
+        for iso in mpact_specs.replace_isotopes.keys():
             number_densities[iso] = 0.
         for element in MPACT_NATURAL_ELEMENTS:
             number_densities[element] = 0.
@@ -344,7 +345,8 @@ class Material():
             else:
                 number_densities[iso] = number_density
 
-        number_densities = {iso: num_dens for iso, num_dens in number_densities.items() if not isclose(num_dens, 0.0)}
+        number_densities = {iso: num_dens for iso, num_dens in number_densities.items()
+                            if not isclose(num_dens, 0.0, abs_tol=1e-20)}
 
         temperature = material.temperature if material.temperature is not None else ROOM_TEMPERATURE
 
@@ -471,6 +473,9 @@ class Material():
         which are currently supported by MPACT (see: MPACT_SUPPORTED_ISOTOPE_IDS defined below).
         Those not supported by MPACT will not be written to the output string.
 
+        Isotopes which are replaced with a common isotope (as defined in `self.replace_isotopes`)
+        will have their number densities summed together and written as the replacement isotope.
+
         Parameters
         ----------
         prefix : str
@@ -484,15 +489,24 @@ class Material():
             The string representing the material definition
         """
 
+        number_densities = {}
+        for iso, num_dens in self.number_densities.items():
+            if iso in self.replace_isotopes:
+                replacement_iso = self.replace_isotopes[iso]
+                if replacement_iso in number_densities:
+                    number_densities[replacement_iso] += num_dens
+                else:
+                    number_densities[replacement_iso] = num_dens
+            else:
+                number_densities[iso] = num_dens
+
         mpact_id = 1 if mpact_ids is None else mpact_ids[self]
         string = prefix + f"mat {mpact_id} {self._mpact_specs.material_type} " + \
                           f"{self.density} g/cc {self.temperature} K \\\n"
 
-        for iso, number_density in sorted(self.number_densities.items()):
-            is_thermal_scattering = iso in self.thermal_scattering_isotopes
-            iso = Material.isotope_MPACT_ID(iso, is_thermal_scattering)
+        for iso, number_density in sorted(number_densities.items()):
             if iso in MPACT_SUPPORTED_ISOTOPE_IDS:
-                string += prefix + prefix + f"{iso} {number_density}\n"
+                string += prefix + prefix + f"{MPACT_SUPPORTED_ISOTOPE_IDS[iso]} {number_density}\n"
 
         return string
 
@@ -508,79 +522,307 @@ MPACT_NATURAL_ELEMENTS = [ 'C', 'Mg', 'Si', 'S', 'Cl', 'K', 'Ca', 'Ti', 'V']
 # Jabaay D., Graham A., "MPACT User’s Manual", ORNL,
 # ORNL/SPR-2021/2331, https://doi.org/10.2172/1887706 (2022)
 # Section 3.4 pg 8-14
-MPACT_SUPPORTED_ISOTOPE_IDS = [ 1001,  1002,  1003,  1006,  1040,
-                                2003,  2004,  3006,  3007,
-                                4009,
-                                5000,  5010,  5011,
-                                6000,  6001,
-                                7014,  7015,
-                                8001,  8016,
-                                9019,
-                               11023,
-                               12000,
-                               13027,
-                               14000,
-                               15031,
-                               16000,
-                               17000,
-                               19000,
-                               20000,
-                               22000,
-                               23000,
-                               24000, 24050, 24052, 24053, 24054,
-                               25055,
-                               26000, 26054, 26056, 26057, 26058,
-                               27059,
-                               28000,
-                               28058, 28060, 28061, 28062, 28064,
-                               29063, 29065,
-                               35581,
-                               36582, 36583, 36584, 36585, 36586,
-                               38589, 38590, 39589, 39590, 39591,
-                               40000, 40001, 40090, 40091, 40092, 40094, 40096, 40591, 40593, 40595, 40596,
-                               41093, 41595,
-                               42000, 42095, 42595, 42596, 42597, 42598, 42599, 42600,
-                               43599,
-                               44600, 44601, 44602, 44603, 44604, 44605, 44606,
-                               45001, 45002, 45103, 45603, 45605,
-                               46604, 46605, 46606, 46607, 46608,
-                               47107, 47109, 47609, 47611, 47710,
-                               48000, 48110, 48111, 48112, 48113, 48114,
-                               48610, 48611, 48613,
-                               49000, 49113, 49115, 49615,
-                               50000, 50112, 50114, 50115, 50116, 50117, 50118, 50119, 50120, 50122, 50124, 50125,
-                               51000, 51121, 51123, 51124, 51125, 51621, 51625, 51627,
-                               52632, 52727, 52729,
-                               53627, 53629, 53631, 53635,
-                               54628, 54630, 54631, 54632, 54633, 54634, 54635, 54636, 54735,
-                               55633, 55634, 55635, 55636, 55637,
-                               56634, 56637, 56640,
-                               57639, 57640,
-                               58640, 58641, 58642, 58643, 58644,
-                               59641, 59643,
-                               60642, 60643, 60644, 60645, 60646, 60647, 60648, 60650,
-                               61647, 61648, 61649, 61651, 61748,
-                               62152, 62153, 62647, 62648, 62649, 62650, 62651, 62652, 62653, 62654,
-                               63151, 63152, 63153, 63154, 63155, 63156, 63157, 63651, 63653, 63654, 63655, 63656, 63657,
-                               64152, 64154, 64155, 64156, 64157, 64158, 64160, 64654, 64655, 64656, 64657, 64658, 64660,
-                               65159, 65160, 65161, 65659, 65660, 65661,
-                               66160, 66161, 66162, 66163, 66164, 66660, 66661, 66662, 66663, 66664,
-                               67165, 67665,
-                               68162, 68164, 68166, 68167, 68168, 68170,
-                               71176,
-                               72174, 72176, 72177, 72178, 72179, 72180,
-                               73181, 73182,
-                               74000, 74182, 74183, 74184, 74186,
-                               77191, 77193,
-                               79197,
-                               82206, 82207, 82208,
-                               83209,
-                               90230, 90232,
-                               91231, 91232, 91233, 91234,
-                               92232, 92233, 92234, 92235, 92236, 92237, 92238,
-                               93237, 93238, 93239,
-                               94236, 94238, 94239, 94240, 94241, 94242,
-                               95241, 95242, 95243, 95342,
-                               96242, 96243, 96244, 96245, 96246, 96247, 96248,
-                               97249,
-                               98249, 98250, 98251, 98252]
+MPACT_SUPPORTED_ISOTOPE_IDS = {"H1": 1001,
+                               "H2": 1002,
+                               "H3": 1003,
+                               "H1_in_CH2": 1006,
+                               "H1_in_ZrH": 1040,
+                               "He3": 2003,
+                               "He4": 2004,
+                               "Li6": 3006,
+                               "Li7": 3007,
+                               "Be9": 4009,
+                               "B": 5000,
+                               "B10": 5010,
+                               "B11": 5011,
+                               "C": 6000,
+                               "C_in_Graphite": 6001,
+                               "N14": 7014,
+                               "N15": 7015,
+                               "O16_in_UO2": 8001,
+                               "O16": 8016,
+                               "F19": 9019,
+                               "Na23": 11023,
+                               "Mg": 12000,
+                               "Al27": 13027,
+                               "Si": 14000,
+                               "P31": 15031,
+                               "S": 16000,
+                               "Cl": 17000,
+                               "K": 19000,
+                               "Ca": 20000,
+                               "Ti": 22000,
+                               "V": 23000,
+                               "Cr": 24000,
+                               "Cr50": 24050,
+                               "Cr52": 24052,
+                               "Cr53": 24053,
+                               "Cr54": 24054,
+                               "Mn55": 25055,
+                               "Fe": 26000,
+                               "Fe54": 26054,
+                               "Fe56": 26056,
+                               "Fe57": 26057,
+                               "Fe58": 26058,
+                               "Co59": 27059,
+                               "Ni": 28000,
+                               "Ni58": 28058,
+                               "Ni60": 28060,
+                               "Ni61": 28061,
+                               "Ni62": 28062,
+                               "Ni64": 28064,
+                               "Cu63": 29063,
+                               "Cu65": 29065,
+                               "Br81": 35581,
+                               "Kr82": 36582,
+                               "Kr83": 36583,
+                               "Kr84": 36584,
+                               "Kr85": 36585,
+                               "Kr86": 36586,
+                               "Sr89": 38589,
+                               "Sr90": 38590,
+                               "Y89": 39589,
+                               "Y90": 39590,
+                               "Y91": 39591,
+                               "Zr": 40000,
+                               "Zr_in_ZrH2": 40001,
+                               "Zr90": 40090,
+                               "Zr91": 40091,
+                               "Zr92": 40092,
+                               "Zr94": 40094,
+                               "Zr96": 40096,
+                               "Zr91_FP": 40591,
+                               "Zr93_FP": 40593,
+                               "Zr95_FP": 40595,
+                               "Zr96_FP": 40596,
+                               "Nb93": 41093,
+                               "Nb95": 41595,
+                               "Mo": 42000,
+                               "Mo95": 42095,
+                               "Mo95_FP": 42595,
+                               "Mo96": 42596,
+                               "Mo97": 42597,
+                               "Mo98": 42598,
+                               "Mo99": 42599,
+                               "Mo100": 42600,
+                               "Tc99": 43599,
+                               "Ru100": 44600,
+                               "Ru101": 44601,
+                               "Ru102": 44602,
+                               "Ru103": 44603,
+                               "Ru104": 44604,
+                               "Ru105": 44605,
+                               "Ru106": 44606,
+                               "Rh_in_homogenized_detector": 45001,
+                               "Rh_in_virtual_detector": 45002,
+                               "Rh103": 45103,
+                               "Rh103_FP": 45603,
+                               "Rh105": 45605,
+                               "Pd104": 46604,
+                               "Pd105": 46605,
+                               "Pd106": 46606,
+                               "Pd107": 46607,
+                               "Pd108": 46608,
+                               "Ag107": 47107,
+                               "Ag109": 47109,
+                               "Ag109_FP": 47609,
+                               "Ag111": 47611,
+                               "Ag110m": 47710,
+                               "Cd": 48000,
+                               "Cd110": 48110,
+                               "Cd111": 48111,
+                               "Cd112": 48112,
+                               "Cd113": 48113,
+                               "Cd114": 48114,
+                               "Cd110_FP": 48610,
+                               "Cd111_FP": 48611,
+                               "Cd113_FP": 48613,
+                               "In": 49000,
+                               "In113": 49113,
+                               "In115": 49115,
+                               "In115_FP": 49615,
+                               "Sn": 50000,
+                               "Sn112": 50112,
+                               "Sn114": 50114,
+                               "Sn115": 50115,
+                               "Sn116": 50116,
+                               "Sn117": 50117,
+                               "Sn118": 50118,
+                               "Sn119": 50119,
+                               "Sn120": 50120,
+                               "Sn122": 50122,
+                               "Sn124": 50124,
+                               "Sn125": 50125,
+                               "Sb": 51000,
+                               "Sb121": 51121,
+                               "Sb123": 51123,
+                               "Sb124": 51124,
+                               "Sb125": 51125,
+                               "Sb121_FP": 51621,
+                               "Sb125_FP": 51625,
+                               "Sb127": 51627,
+                               "Te132": 52632,
+                               "Te127m": 52727,
+                               "Te129m": 52729,
+                               "I127": 53627,
+                               "I129": 53629,
+                               "I131": 53631,
+                               "I135": 53635,
+                               "Xe128": 54628,
+                               "Xe130": 54630,
+                               "Xe131": 54631,
+                               "Xe132": 54632,
+                               "Xe133": 54633,
+                               "Xe134": 54634,
+                               "Xe135": 54635,
+                               "Xe136": 54636,
+                               "Xe135m": 54735,
+                               "Cs133": 55633,
+                               "Cs134": 55634,
+                               "Cs135": 55635,
+                               "Cs136": 55636,
+                               "Cs137": 55637,
+                               "Ba134": 56634,
+                               "Ba137": 56637,
+                               "Ba140": 56640,
+                               "La139": 57639,
+                               "La140": 57640,
+                               "Ce140": 58640,
+                               "Ce141": 58641,
+                               "Ce142": 58642,
+                               "Ce143": 58643,
+                               "Ce144": 58644,
+                               "Pr141": 59641,
+                               "Pr143": 59643,
+                               "Nd142": 60642,
+                               "Nd143": 60643,
+                               "Nd144": 60644,
+                               "Nd145": 60645,
+                               "Nd146": 60646,
+                               "Nd147": 60647,
+                               "Nd148": 60648,
+                               "Nd150": 60650,
+                               "Pm147": 61647,
+                               "Pm148": 61648,
+                               "Pm149": 61649,
+                               "Pm151": 61651,
+                               "Pm148m": 61748,
+                               "Sm152": 62152,
+                               "Sm153": 62153,
+                               "Sm147": 62647,
+                               "Sm148": 62648,
+                               "Sm149": 62649,
+                               "Sm150": 62650,
+                               "Sm151": 62651,
+                               "Sm152_FP": 62652,
+                               "Sm153_FP": 62653,
+                               "Sm154": 62654,
+                               "Eu151": 63151,
+                               "Eu152": 63152,
+                               "Eu153": 63153,
+                               "Eu154": 63154,
+                               "Eu155": 63155,
+                               "Eu156": 63156,
+                               "Eu157": 63157,
+                               "Eu151_FP": 63651,
+                               "Eu153_FP": 63653,
+                               "Eu154_FP": 63654,
+                               "Eu155_FP": 63655,
+                               "Eu156_FP": 63656,
+                               "Eu157_FP": 63657,
+                               "Gd152": 64152,
+                               "Gd154": 64154,
+                               "Gd155": 64155,
+                               "Gd156": 64156,
+                               "Gd157": 64157,
+                               "Gd158": 64158,
+                               "Gd160": 64160,
+                               "Gd154_FP": 64654,
+                               "Gd155_FP": 64655,
+                               "Gd156_FP": 64656,
+                               "Gd157_FP": 64657,
+                               "Gd158_FP": 64658,
+                               "Gd160_FP": 64660,
+                               "Tb159": 65159,
+                               "Tb160": 65160,
+                               "Tb161": 65161,
+                               "Tb159_FP": 65659,
+                               "Tb160_FP": 65660,
+                               "Tb161_FP": 65661,
+                               "Dy160": 66160,
+                               "Dy161": 66161,
+                               "Dy162": 66162,
+                               "Dy163": 66163,
+                               "Dy164": 66164,
+                               "Dy160_FP": 66660,
+                               "Dy161_FP": 66661,
+                               "Dy162_FP": 66662,
+                               "Dy163_FP": 66663,
+                               "Dy164_FP": 66664,
+                               "Ho165": 67165,
+                               "Ho165_FP": 67665,
+                               "Er162": 68162,
+                               "Er164": 68164,
+                               "Er166": 68166,
+                               "Er167": 68167,
+                               "Er168": 68168,
+                               "Er170": 68170,
+                               "Lu176": 71176,
+                               "Hf174": 72174,
+                               "Hf176": 72176,
+                               "Hf177": 72177,
+                               "Hf178": 72178,
+                               "Hf179": 72179,
+                               "Hf180": 72180,
+                               "Ta181": 73181,
+                               "Ta182": 73182,
+                               "W": 74000,
+                               "W182": 74182,
+                               "W183": 74183,
+                               "W184": 74184,
+                               "W186": 74186,
+                               "Ir191": 77191,
+                               "Ir193": 77193,
+                               "Au197": 79197,
+                               "Pb206": 82206,
+                               "Pb207": 82207,
+                               "Pb208": 82208,
+                               "Bi209": 83209,
+                               "Th230": 90230,
+                               "Th232": 90232,
+                               "Pa231": 91231,
+                               "Pa232": 91232,
+                               "Pa233": 91233,
+                               "Pa234": 91234,
+                               "U232": 92232,
+                               "U233": 92233,
+                               "U234": 92234,
+                               "U235": 92235,
+                               "U236": 92236,
+                               "U237": 92237,
+                               "U238": 92238,
+                               "Np237": 93237,
+                               "Np238": 93238,
+                               "Np239": 93239,
+                               "Pu236": 94236,
+                               "Pu238": 94238,
+                               "Pu239": 94239,
+                               "Pu240": 94240,
+                               "Pu241": 94241,
+                               "Pu242": 94242,
+                               "Am241": 95241,
+                               "Am242": 95242,
+                               "Am243": 95243,
+                               "Am242m": 95342,
+                               "Cm242": 96242,
+                               "Cm243": 96243,
+                               "Cm244": 96244,
+                               "Cm245": 96245,
+                               "Cm246": 96246,
+                               "Cm247": 96247,
+                               "Cm248": 96248,
+                               "Bk249": 97249,
+                               "Cf249": 98249,
+                               "Cf250": 98250,
+                               "Cf251": 98251,
+                               "Cf252": 98252}
