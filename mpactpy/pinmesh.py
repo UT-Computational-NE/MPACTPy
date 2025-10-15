@@ -5,6 +5,10 @@ from typing import Dict, List, Any, Tuple, Optional
 from math import isclose, hypot
 from copy import deepcopy
 from concurrent.futures import ProcessPoolExecutor
+import tempfile
+import os
+import uuid
+import shutil
 
 import openmc
 import numpy as np
@@ -156,7 +160,6 @@ def _materials_in_elements(elements: List[tuple[int | None, float]],
         materials.extend(batch_result)
 
     return materials
-
 
 # =============================================================================
 # Class definitions
@@ -515,7 +518,17 @@ class RectangularPinMesh(PinMesh):
             model = openmc.Model(geometry=geometry)
             model.settings.temperature = {'method': 'interpolation'}
             with temporary_environment("OMP_NUM_THREADS", str(overlay_policy.num_procs)):
-                material_volumes = mesh.material_volumes(model, overlay_policy.n_samples)
+                # Create unique temporary workspace for OpenMC Volume calculations
+                # This is needed when multiple processes are running this code simultaneously
+                unique_id    = str(uuid.uuid4())[:8]
+                workspace    = tempfile.mkdtemp(prefix=f"openmc_workspace_{unique_id}_")
+                original_cwd = os.getcwd()
+                try:
+                    os.chdir(workspace)
+                    material_volumes = mesh.material_volumes(model, overlay_policy.n_samples)
+                finally:
+                    os.chdir(original_cwd)
+                    shutil.rmtree(workspace, ignore_errors=True)
 
             elements  = [material_volumes.by_element(i) for i in range(material_volumes.num_elements)]
             materials = _materials_in_elements(elements, geometry, overlay_policy)
