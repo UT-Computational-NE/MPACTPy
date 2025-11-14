@@ -275,23 +275,24 @@ class Core():
         """
 
         def is_continuous_line(line, axis):
-            prev_assemblies = []
-            pitch = None
+            # Find all indices where assemblies exist
+            assembly_indices = [i for i, assembly in enumerate(line) if assembly is not None]
 
-            for assembly in line:
-                if assembly is not None:
+            # If no assemblies found, line is valid (all None)
+            if not assembly_indices:
+                return True
 
-                    # Check for inconsistent pitch
-                    current_pitch = assembly.pitch[axis]
-                    if pitch is not None and not isclose(current_pitch, pitch):
-                        return False
-                    pitch = current_pitch
+            # Check for holes  in the line
+            if any(assembly is None and assembly_indices[0] < i < assembly_indices[-1]
+                   for i, assembly in enumerate(line)):
+                return False
 
-                    # Check for holes in the line
-                    if len(prev_assemblies) > 2 and prev_assemblies[-1] is None and prev_assemblies[-2] is not None:
-                        return False
+            # Check for consistent pitch
+            pitch = line[assembly_indices[0]].pitch[axis]
+            if any(not isclose(assembly.pitch[axis], pitch)
+                   for assembly in line if assembly is not None):
+                return False
 
-                prev_assemblies.append(assembly)
             return True
 
         # Check rows
