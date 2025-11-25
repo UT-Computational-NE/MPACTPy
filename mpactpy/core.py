@@ -182,8 +182,8 @@ class Core():
         self._pitch = {'row':    [next((assembly.pitch['Y'] for assembly in row if assembly), 0.0)
                                        for row in self.assembly_map],
                        'column': [next((self.assembly_map[i][j].pitch['X']
-                                        for i in range(self.ny) if self.assembly_map[i][j]), 0.0)
-                                        for j in range(self.nx)]}
+                                        for i in range(self.nx) if self.assembly_map[i][j]), 0.0)
+                                        for j in range(self.ny)]}
 
         self._width = {'X': sum(self.pitch["column"]), 'Y': sum(self.pitch["row"])}
 
