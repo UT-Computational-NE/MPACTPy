@@ -264,12 +264,6 @@ class Core():
         list of list of Assembly or None
             Rectangular assembly map with leading and trailing all-empty rows
             and columns removed.
-
-        Raises
-        ------
-        ValueError
-            If the trimmed map is empty or still contains an all-empty interior
-            row or column.
         """
 
         trimmed_map = [list(row) for row in assembly_map]
