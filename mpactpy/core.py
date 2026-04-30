@@ -270,12 +270,6 @@ class Core():
         ValueError
             If the trimmed map is empty or still contains an all-empty interior
             row or column.
-
-        Notes
-        -----
-        This method does not mutate ``assembly_map``. It is intended for MPACT
-        input serialization, where all-empty rows after the ``core`` keyword are
-        invalid.
         """
 
         trimmed_map = [list(row) for row in assembly_map]
