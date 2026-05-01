@@ -511,7 +511,7 @@ class RectangularPinMesh(PinMesh):
             # Centroid-based overlay using ProcessPoolExecutor
             centroids = mesh.centroids.reshape((-1, 3))
             materials = _materials_at_centroids(centroids, geometry, overlay_policy)
-            materials = np.array(materials).reshape(mesh_shape, order='F')
+            materials = np.array(materials).reshape(mesh_shape, order='C')
         else:
             # Homogenized overlay using ProcessPoolExecutor
             # Note: For homogenized method, we need a full model for material_volumes
@@ -535,7 +535,7 @@ class RectangularPinMesh(PinMesh):
             materials = np.array(materials).reshape(mesh_shape, order='C')
 
         # Convert to MPACT-compatible format
-        materials = materials[::-1, :, :]
+        materials = materials[:, ::-1, :].transpose(2, 1, 0)
         materials = materials.flatten(order='C').tolist()
         return materials
 
