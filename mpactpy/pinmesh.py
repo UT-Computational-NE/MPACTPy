@@ -532,7 +532,7 @@ class RectangularPinMesh(PinMesh):
 
             elements  = [material_volumes.by_element(i) for i in range(material_volumes.num_elements)]
             materials = _materials_in_elements(elements, geometry, overlay_policy)
-            materials = np.array(materials).reshape(mesh_shape, order='C')
+            materials = np.array(materials).reshape(mesh_shape, order='F')
 
         # Convert to MPACT-compatible format
         materials = materials[:, ::-1, :].transpose(2, 1, 0)
