@@ -111,6 +111,23 @@ def test_core_write_to_string(core, assembly):
                       "      3\n"
     assert output == expected_output
 
+    # Tests trimming of empty Rows and Columns
+    core = Core([[None, None,     None,     None,     None],
+                 [None, None,     assembly, None,     None],
+                 [None, assembly, assembly, assembly, None],
+                 [None, None,     assembly, None,     None],
+                 [None, None,     None,     None,     None]])
+
+    output = core.write_to_string(prefix="  ",
+                                  assembly_mpact_ids={assembly: 3})
+    expected_output = "  core\n" + \
+                      "      3\n" + \
+                      "    3 3 3\n" + \
+                      "      3\n"
+    assert output == expected_output
+    assert core.nx == 5
+    assert core.ny == 5
+
 def test_core_get_axial_slice(core):
     core_slice = core.get_axial_slice(0.5, 1.5)
     pin_slice  = core_slice.pins[-1]

@@ -227,12 +227,14 @@ class Core():
             The string that represents the
         """
 
+        assembly_map = self._trim_empty_boundary(self.assembly_map)
+
         if assembly_mpact_ids is None:
-            assemblies = unique(assembly for row in self.assembly_map for assembly in row if assembly)
+            assemblies = unique(assembly for row in assembly_map for assembly in row if assembly)
             assembly_mpact_ids = {assembly: i+1 for i, assembly in enumerate(assemblies)}
 
         id_length = max(len(str(assembly_mpact_ids[assembly])) if assembly is not None else 0
-                        for row in self.assembly_map for assembly in row)
+                        for row in assembly_map for assembly in row)
 
         string = prefix + "core"
         if len(self.symmetry_opt)    > 0:
@@ -240,10 +242,51 @@ class Core():
         if len(self.quarter_sym_opt) > 0:
             string += f" {self.quarter_sym_opt}"
         string += "\n"
-        for row in self.assembly_map:
+        for row in assembly_map:
             assemblies = [assembly_mpact_ids[assembly] if assembly is not None else "" for assembly in row]
             string += prefix + f"  {list_to_str(assemblies, id_length).rstrip()}\n"
         return string
+
+
+    def _trim_empty_boundary(self,
+                             assembly_map: List[List[Optional[Assembly]]]
+    ) -> List[List[Optional[Assembly]]]:
+        """Trim all-empty boundary rows and columns from an assembly map.
+
+        Parameters
+        ----------
+        assembly_map : list of list of Assembly or None
+            Rectangular assembly map to trim. Entries with ``None`` represent
+            empty core-map positions.
+
+        Returns
+        -------
+        list of list of Assembly or None
+            Rectangular assembly map with leading and trailing all-empty rows
+            and columns removed.
+        """
+
+        trimmed_map = [list(row) for row in assembly_map]
+
+        while trimmed_map and all(assembly is None for assembly in trimmed_map[0]):
+            trimmed_map = trimmed_map[1:]
+
+        while trimmed_map and all(assembly is None for assembly in trimmed_map[-1]):
+            trimmed_map = trimmed_map[:-1]
+
+        if not trimmed_map:
+            raise ValueError("MPACT core card cannot be empty.")
+
+        while trimmed_map[0] and all(row[0] is None for row in trimmed_map):
+            trimmed_map = [row[1:] for row in trimmed_map]
+
+        while trimmed_map[0] and all(row[-1] is None for row in trimmed_map):
+            trimmed_map = [row[:-1] for row in trimmed_map]
+
+        if not trimmed_map[0]:
+            raise ValueError("MPACT core card cannot be empty.")
+
+        return trimmed_map
 
     def _assemblies_have_same_axial_meshing(self)->bool:
         """ A helper method for checking if all assemblies have the same axial axial meshing along their lengths
