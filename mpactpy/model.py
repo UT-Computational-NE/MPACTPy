@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import List, Dict, Any
 
 from mpactpy.core import Core
-from mpactpy.utils import list_to_str
+from mpactpy.utils import list_to_str, num_to_str
 
 
 
@@ -123,8 +123,8 @@ class Model():
         string += "\n"
 
         string += "GEOM\n"
-        string += prefix + f"mod_dim {self.core.mod_dim['X']} " + \
-                                   f"{self.core.mod_dim['Y']} " + \
+        string += prefix + f"mod_dim {num_to_str(self.core.mod_dim['X'])} " + \
+                                   f"{num_to_str(self.core.mod_dim['Y'])} " + \
                                    f"{list_to_str(self.core.mod_dim['Z'])}\n\n"
 
         for pinmesh in self.core.pinmeshes:
