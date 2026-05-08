@@ -18,7 +18,7 @@ AVOGADRO = openmc.data.AVOGADRO
 # Room Temperature in Kelvin
 ROOM_TEMPERATURE = 293.6
 
-def relative_round(value: float, rel_tol: float =1e-9) -> float:
+def relative_round(value: float, rel_tol: float = ROUNDING_RELATIVE_TOLERANCE) -> float:
     """ Rounds a floating-point number to a precision consistent with a given relative tolerance.
 
     Parameters:
@@ -26,7 +26,7 @@ def relative_round(value: float, rel_tol: float =1e-9) -> float:
     value : float
         The number to round.
     rel_tol : float, optional
-        The relative tolerance for rounding. Default is 1e-9.
+        The relative tolerance for rounding.
 
     Returns:
     --------
@@ -53,7 +53,7 @@ def relative_round(value: float, rel_tol: float =1e-9) -> float:
 
 def allclose(rhs:  List[Union[float, int]],
              lhs:  List[Union[float, int]],
-             rtol: float = 1E-05,
+             rtol: float = ROUNDING_RELATIVE_TOLERANCE,
              atol: float = 1E-08) -> bool:
     """ Checks to see if the lists are approximately equal
 
@@ -82,7 +82,40 @@ def allclose(rhs:  List[Union[float, int]],
     return np.allclose(rhs, lhs, rtol, atol)
 
 
-def list_to_str(input_list: List[Union[float, int]], print_length: int = None) -> str:
+def num_to_str(num:          Union[float, int],
+               print_length: int = None,
+               rel_tol:      float = ROUNDING_RELATIVE_TOLERANCE) -> str:
+    """Convert a numerical value to a canonical MPACT input string.
+
+    Floating point values are rounded before writing so values that are equal
+    within the writer tolerance produce identical text in MPACT cards.
+
+    Parameters
+    ----------
+    num : float or int
+        The number to convert to a string.
+    print_length : int
+        The print spacing for the string.
+    rel_tol : float
+        The relative tolerance for rounding floating point values.
+
+    Returns
+    -------
+    str
+        The number as a string.
+    """
+
+    if isinstance(num, float):
+        num = relative_round(num, rel_tol)
+        if math.isclose(num, round(num)):
+            return f"{num:.1f}" if print_length is None else f"{num:{print_length}.1f}"
+        return f"{num:.15g}" if print_length is None else f"{num:{print_length}.15g}"
+    return f"{str(num)}" if print_length is None else f"{str(num):{print_length}}"
+
+
+def list_to_str(input_list:   List[Union[float, int]],
+                print_length: int = None,
+                rel_tol:      float = ROUNDING_RELATIVE_TOLERANCE) -> str:
     """ Converts a list of numerical values to an equally spaced string
 
     Parameters
@@ -91,6 +124,8 @@ def list_to_str(input_list: List[Union[float, int]], print_length: int = None) -
         The list to be converted to a string
     print_length : int
         The print spacing for the string
+    rel_tol : float
+        The relative tolerance for rounding floating point values.
 
     Returns
     -------
@@ -98,14 +133,7 @@ def list_to_str(input_list: List[Union[float, int]], print_length: int = None) -
         The list as a string
     """
 
-    def print_num(num: Union[float, int], print_length: int) -> str:
-        if isinstance(num, float):
-            if math.isclose(num, round(num)):
-                return f"{num:.1f}" if print_length is None else f"{num:{print_length}.1f}"
-            return f"{num:.15g}" if print_length is None else f"{num:{print_length}.15g}"
-        return f"{str(num)}" if print_length is None else f"{str(num):{print_length}}"
-
-    return ' '.join(print_num(x, print_length) for x in input_list)
+    return ' '.join(num_to_str(x, print_length, rel_tol) for x in input_list)
 
 T = TypeVar('T', bound=Hashable)
 

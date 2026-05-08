@@ -689,7 +689,7 @@ class GeneralCylindricalPinMesh(PinMesh):
         mpact_id = 1 if mpact_ids is None else mpact_ids[self]
         string = prefix
         string += f"pinmesh {mpact_id} gcyl {list_to_str(self._r_inside_bounds)} / " \
-               +  f"{self._xMin} {self._xMax} {self._yMin} {self._yMax} / " \
+               +  f"{list_to_str([self._xMin, self._xMax, self._yMin, self._yMax])} / " \
                +  f"{list_to_str(self._zvals)} / {list_to_str(self._ndivr_inside_bounds)} / " \
                +  f"{list_to_str(self._ndiva_inside_bounds)} / {list_to_str(self._ndivz)}\n"
 
