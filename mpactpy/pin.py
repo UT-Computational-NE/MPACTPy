@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Dict, List, Any, Union, TypedDict, Tuple, Set, Optional
-from math import isclose, inf, pi
+from math import isclose, inf, isinf
 from copy import deepcopy
 from itertools import accumulate
 
@@ -8,7 +8,7 @@ import openmc
 
 from mpactpy.material import Material
 from mpactpy.pinmesh import PinMesh, RectangularPinMesh, GeneralCylindricalPinMesh
-from mpactpy.utils import list_to_str, unique
+from mpactpy.utils import list_to_str, unique, equal_thickness_ndivs, equal_arc_length_ndivs
 
 
 class Pin():
@@ -218,6 +218,25 @@ class Pin():
 
         return Pin(pinmesh, self.materials)
 
+    def subdivide(self, subdivisions: PinMesh.Subdivisions) -> Pin:
+        """Return a pin with subdivided material regions.
+
+        Parameters
+        ----------
+        subdivisions : PinMesh.Subdivisions
+            Pinmesh-specific material-region subdivision specifications.
+
+        Returns
+        -------
+        Pin
+            A new pin whose mesh has been subdivided and whose new material
+            regions reference the corresponding original materials.
+        """
+
+        pinmesh, material_map = self.pinmesh.subdivide(subdivisions)
+        materials = [self.materials[material_index] for material_index in material_map]
+        return Pin(pinmesh, materials)
+
 
     OverlayMask = Set[Material]
 
@@ -285,7 +304,7 @@ class Pin():
 
 def build_rec_pin(thicknesses:             Dict[str, List[float]],
                   materials:               List[Material],
-                  target_cell_thicknesses: Dict[str, float] = {}) -> Pin:
+                  target_cell_thicknesses: Optional[Dict[str, float]] = None) -> Pin:
     """ Factory for building Rectangular Mesh Pins
 
     This factory, unlike construction via the "normal means" using
@@ -300,7 +319,7 @@ def build_rec_pin(thicknesses:             Dict[str, List[float]],
         (keys: "X", "Y", "Z")
     materials : List[Material]
         The list of materials ordered from top-to-bottom and left-to-right for the material divisions
-    target_cell_thicknesses : Dict[str, float]
+    target_cell_thicknesses : Optional[Dict[str, float]]
         The target side length of the cells (cm).  Defaults to infinity for dimensions where no targets provided.
         (keys: "X", "Y", "Z")
 
@@ -310,14 +329,15 @@ def build_rec_pin(thicknesses:             Dict[str, List[float]],
         The constructed Pin
     """
 
+    target_cell_thicknesses = {} if target_cell_thicknesses is None else dict(target_cell_thicknesses)
     for dim in ["X", "Y", "Z"]:
         target_cell_thicknesses.setdefault(dim, inf)
 
     assert all(thickness > 0. for axis in thicknesses.values() for thickness in axis)
     assert all(thickness > 0. for thickness in target_cell_thicknesses.values())
     assert len(materials) == len(thicknesses["X"]) * len(thicknesses["Y"]) * len(thicknesses["Z"])
-    ndiv = {axis: [max(1, int(thickness // target_cell_thicknesses[axis]))
-                   for thickness in thicknesses[axis]] for axis in ["X", "Y", "Z"]}
+
+    ndiv = {axis: equal_thickness_ndivs(thicknesses[axis], target_cell_thicknesses[axis]) for axis in ["X", "Y", "Z"]}
     vals = {axis: list(accumulate(thicknesses[axis])) for axis in ["X", "Y", "Z"]}
     mesh  = RectangularPinMesh(vals["X"], vals["Y"], vals["Z"], ndiv["X"], ndiv["Y"], ndiv["Z"])
     return Pin(mesh, materials)
@@ -327,7 +347,7 @@ def build_rec_pin(thicknesses:             Dict[str, List[float]],
 def build_gcyl_pin(bounds:                  Tuple[float, float, float, float],
                    thicknesses:             Dict[str, List[float]],
                    materials:               List[Material],
-                   target_cell_thicknesses: Dict[str, float] = {}) -> Pin:
+                   target_cell_thicknesses: Optional[Dict[str, float]] = None) -> Pin:
     """ Factory for building General Cylindrical Mesh Pins
 
     This factory, unlike construction via the "normal means" using
@@ -348,7 +368,7 @@ def build_gcyl_pin(bounds:                  Tuple[float, float, float, float],
         (keys: "R", "Z")
     materials : List[Material]
         The list of materials ordered from top-to-bottom and left-to-right for the material divisions
-    target_cell_thicknesses : Dict[str, float]
+    target_cell_thicknesses : Optional[Dict[str, float]]
         The target side length of the cells (cm). Defaults to infinity for dimensions where no targets provided.
         (keys: "R", "S", "Z")
 
@@ -363,6 +383,7 @@ def build_gcyl_pin(bounds:                  Tuple[float, float, float, float],
     ymin = bounds[2]
     ymax = bounds[3]
 
+    target_cell_thicknesses = {} if target_cell_thicknesses is None else dict(target_cell_thicknesses)
     for dim in ["R", "S", "Z"]:
         target_cell_thicknesses.setdefault(dim, inf)
 
@@ -372,31 +393,21 @@ def build_gcyl_pin(bounds:                  Tuple[float, float, float, float],
     assert all(thickness > 0. for thickness in target_cell_thicknesses.values())
     assert len(materials) == (len(thicknesses['R']) + 1) * len(thicknesses['Z'])
 
-    r_subds     = []
-    num_r_subds = []
-    for thickness in thicknesses["R"]:
-        num_subd = max(1, int(thickness // target_cell_thicknesses["R"]))
-        r_subds.extend([thickness / num_subd] * num_subd)
-        num_r_subds.append(num_subd)
+    r = list(accumulate(thicknesses["R"]))
+    ndivr = [1] * len(r)
 
-    r     = list(accumulate(r_subds))
-    ndivr = [1] * len(r) # Subdivision was already performed by the target_cell_thickness
+    if isinf(target_cell_thicknesses["S"]):
+        num_a_subd = 1
+    else:
+        num_a_subd = equal_arc_length_ndivs([r[-1]], target_cell_thicknesses["S"], multiple_of=4)[0]
+    ndiva = [num_a_subd] * (len(r) + 1)
 
-    # Special arithmetic here ensures azimuthal subdivisions are divisible by 4
-    num_a_subd = max(1, (int(2.*pi*r[-1] // target_cell_thicknesses["S"]) + 3) // 4 * 4)
-    ndiva      = [num_a_subd] * len(r) + [num_a_subd]
-
-    ndivz = [max(1, int(thickness // target_cell_thicknesses["Z"])) for thickness in thicknesses["Z"]]
+    ndivz = equal_thickness_ndivs(thicknesses["Z"], target_cell_thicknesses["Z"])
     zvals = list(accumulate(thicknesses["Z"]))
 
-    subdivided_materials = []
-    m = 0
-    for _ in zvals:
-        for num_subd in num_r_subds:
-            subdivided_materials.extend([materials[m]] * num_subd)
-            m += 1
-        subdivided_materials.append(materials[m])
-        m += 1
-
     mesh = GeneralCylindricalPinMesh(r, xmin, xmax, ymin, ymax, zvals, ndivr, ndiva, ndivz)
-    return Pin(mesh, subdivided_materials)
+    pin = Pin(mesh, materials)
+
+    subd_r = equal_thickness_ndivs(thicknesses["R"], target_cell_thicknesses["R"])
+    subdivisions = GeneralCylindricalPinMesh.Subdivisions(subd_r=subd_r + [1])
+    return pin.subdivide(subdivisions)
