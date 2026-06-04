@@ -778,10 +778,16 @@ class GeneralCylindricalPinMesh(PinMesh):
             interfaces uniformly in annular area. The list must have length
             ``len(r) + 1``. If ``None``, all radial material regions use
             ``"equal_thickness"``.
+        outer_ndivr : int
+            Number of radial FSR subdivisions to use for material-region
+            subdivisions created from the final implicit outer region. This is
+            used only when the outer region is subdivided into additional
+            explicit material regions.
         """
         subd_r:   Optional[List[int]] = None
         subd_z:   Optional[List[int]] = None
         div_type: Optional[List[RadialDivisionType]] = None
+        outer_ndivr: int = 1
 
     @property
     def r(self) -> List[float]:
@@ -925,6 +931,7 @@ class GeneralCylindricalPinMesh(PinMesh):
         assert len(subd_r) == n_radial_zones, f"len(subd_r) = {len(subd_r)}, expected {n_radial_zones}"
         assert len(subd_z) == n_axial_zones, f"len(subd_z) = {len(subd_z)}, expected {n_axial_zones}"
         assert len(div_type) == n_radial_zones, f"len(div_type) = {len(div_type)}, expected {n_radial_zones}"
+        assert subdivisions.outer_ndivr > 0, f"outer_ndivr = {subdivisions.outer_ndivr}"
 
         new_r, new_ndivr, new_ndiva = [], [], []
         radial_material_map = []
@@ -948,8 +955,8 @@ class GeneralCylindricalPinMesh(PinMesh):
         if bounding_radius > self.r[-1]:
             for radius in subdivide_ring(self.r[-1], bounding_radius, subd_r[-1], div_type[-1])[:-1]:
                 new_r.append(radius)
-                new_ndivr.append(1)
-                new_ndiva.append(outer_ndiva)
+                new_ndivr.append(subdivisions.outer_ndivr)
+                new_ndiva.extend([outer_ndiva] * subdivisions.outer_ndivr)
                 radial_material_map.append(outer_region_index)
 
         new_ndiva.append(outer_ndiva)
