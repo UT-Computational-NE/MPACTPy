@@ -256,6 +256,19 @@ class PinMesh(ABC):
             index to the source material-region index in the original mesh.
         """
 
+    @abstractmethod
+    def divide_into_quadrants(self) -> List[List[Tuple[PinMesh, List[int]]]]:
+        """Return quadrant pin meshes and their material-region mappings.
+
+        Returns
+        -------
+        List[List[Tuple[PinMesh, List[int]]]]
+            Quadrant meshes and material maps ordered as
+            ``[[NW, NE], [SW, SE]]``. Each material map maps a quadrant
+            material-region index to the source material-region index in the
+            original mesh.
+        """
+
     def set_axial_mesh(self, zvals: List[float] = None, ndivz: List[int] = None) -> None:
         """ A method for setting the axial meshing of a pinmesh
 
@@ -583,6 +596,61 @@ class RectangularPinMesh(PinMesh):
         pinmesh = RectangularPinMesh(xvals, yvals, zvals, ndivx, ndivy, ndivz)
         return pinmesh, material_map
 
+    def divide_into_quadrants(self) -> List[List[Tuple[PinMesh, List[int]]]]:
+        """Return rectangular quadrant meshes and material-region mappings.
+
+        The split is performed at the midpoint of the X and Y pin widths.
+        Returned meshes use local coordinates with their lower-left corner at
+        ``(0, 0)``. The quadrant ordering is ``[[NW, NE], [SW, SE]]``.
+
+        Returns
+        -------
+        List[List[Tuple[PinMesh, List[int]]]]
+            Quadrant meshes and material maps ordered as
+            ``[[NW, NE], [SW, SE]]``.
+        """
+
+        def slice_axis(vals: List[float],
+                       ndiv: List[int],
+                       lower_bound: float,
+                       upper_bound: float) -> Tuple[List[float], List[int], List[int]]:
+            new_vals, new_ndiv, material_map = [], [], []
+            previous_val = 0.0
+            for material_region_index, (val, fsr_divisions) in enumerate(zip(vals, ndiv)):
+                overlap_lower = max(previous_val, lower_bound)
+                overlap_upper = min(val, upper_bound)
+                if overlap_lower < overlap_upper:
+                    new_vals.append(overlap_upper - lower_bound)
+                    new_ndiv.append(fsr_divisions)
+                    material_map.append(material_region_index)
+                previous_val = val
+            return new_vals, new_ndiv, material_map
+
+        def make_quadrant(x_lower: float,
+                          x_upper: float,
+                          y_lower: float,
+                          y_upper: float) -> Tuple[PinMesh, List[int]]:
+            xvals, ndivx, x_material_map = slice_axis(self.xvals, self.ndivx, x_lower, x_upper)
+            yvals, ndivy, y_material_map = slice_axis(self.yvals, self.ndivy, y_lower, y_upper)
+            zvals, ndivz = self.zvals[:], self.ndivz[:]
+
+            old_num_x_regions = len(self.xvals)
+            old_num_xy_regions = len(self.xvals) * len(self.yvals)
+            material_map = [z_index * old_num_xy_regions + y_index * old_num_x_regions + x_index
+                            for z_index in range(len(self.zvals))
+                            for y_index in y_material_map
+                            for x_index in x_material_map]
+
+            return RectangularPinMesh(xvals, yvals, zvals, ndivx, ndivy, ndivz), material_map
+
+        x_mid = self.xvals[-1] / 2.0
+        y_mid = self.yvals[-1] / 2.0
+
+        return [[make_quadrant(0.0,   x_mid,         y_mid, self.yvals[-1]),
+                 make_quadrant(x_mid, self.xvals[-1], y_mid, self.yvals[-1])],
+                [make_quadrant(0.0,   x_mid,         0.0,   y_mid),
+                 make_quadrant(x_mid, self.xvals[-1], 0.0,   y_mid)]]
+
     def _set_pitch(self) -> None:
         self._pitch = {'X' : self.xvals[-1], 'Y' : self.yvals[-1], 'Z' : self.zvals[-1]}
 
@@ -905,6 +973,40 @@ class GeneralCylindricalPinMesh(PinMesh):
         pinmesh = GeneralCylindricalPinMesh(new_r, self.xMin, self.xMax, self.yMin, self.yMax,
                                             new_zvals, new_ndivr, new_ndiva, new_ndivz)
         return pinmesh, material_map
+
+    def divide_into_quadrants(self) -> List[List[Tuple[PinMesh, List[int]]]]:
+        """Return general cylindrical quadrant meshes and material-region mappings.
+
+        The split is performed at the midpoint of the X and Y pin bounds.
+        Radial and axial material-region definitions are unchanged, so each
+        quadrant uses an identity material map. The quadrant ordering is
+        ``[[NW, NE], [SW, SE]]``.
+
+        Returns
+        -------
+        List[List[Tuple[PinMesh, List[int]]]]
+            Quadrant meshes and material maps ordered as
+            ``[[NW, NE], [SW, SE]]``.
+        """
+
+        material_map = list(range(self.number_of_material_regions))
+
+        def make_quadrant(xMin: float,
+                          xMax: float,
+                          yMin: float,
+                          yMax: float) -> Tuple[PinMesh, List[int]]:
+            pinmesh = GeneralCylindricalPinMesh(self.r[:], xMin, xMax, yMin, yMax,
+                                                self.zvals[:], self.ndivr[:], self.ndiva[:], self.ndivz[:])
+            return pinmesh, material_map[:]
+
+        x_mid = (self.xMin + self.xMax) / 2.0
+        y_mid = (self.yMin + self.yMax) / 2.0
+
+        return [[make_quadrant(self.xMin, x_mid,     y_mid,    self.yMax),
+                 make_quadrant(x_mid,     self.xMax, y_mid,    self.yMax)],
+                [make_quadrant(self.xMin, x_mid,     self.yMin, y_mid),
+                 make_quadrant(x_mid,     self.xMax, self.yMin, y_mid)]]
+
 
     def _set_pitch(self) -> None:
         self._pitch = {'X' : self.xMax - self.xMin,

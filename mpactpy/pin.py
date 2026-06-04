@@ -237,6 +237,19 @@ class Pin():
         materials = [self.materials[material_index] for material_index in material_map]
         return Pin(pinmesh, materials)
 
+    def divide_into_quadrants(self) -> List[List[Pin]]:
+        """Return the pin divided into quadrants.
+
+        Returns
+        -------
+        List[List[Pin]]
+            Pins ordered as ``[[Pin_NW, Pin_NE], [Pin_SW, Pin_SE]]``.
+        """
+
+        return [[Pin(pinmesh, [self.materials[material_index] for material_index in material_map])
+                 for pinmesh, material_map in row]
+                for row in self.pinmesh.divide_into_quadrants()]
+
 
     OverlayMask = Set[Material]
 

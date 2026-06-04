@@ -130,6 +130,27 @@ def test_pin_subdivide_rectangular(overlay_mesh):
     assert all(actual_material is materials[material_index]
                for actual_material, material_index in zip(subdivided_pin.materials, material_map))
 
+def test_pin_divide_into_quadrants_rectangular(overlay_mesh):
+    materials = [Material(300.0, {"H1": (material_index + 1) * 1e-6}, Material.MPACTSpecs())
+                 for material_index in range(overlay_mesh.number_of_material_regions)]
+    pin = Pin(overlay_mesh, materials)
+
+    quadrants = pin.divide_into_quadrants()
+
+    expected_maps = [
+        [[z * 9 + y * 3 + x for z in range(3) for y in [1, 2] for x in [0, 1]],
+         [z * 9 + y * 3 + x for z in range(3) for y in [1, 2] for x in [1, 2]]],
+        [[z * 9 + y * 3 + x for z in range(3) for y in [0, 1] for x in [0, 1]],
+         [z * 9 + y * 3 + x for z in range(3) for y in [0, 1] for x in [1, 2]]],
+    ]
+
+    for row, expected_map_row in zip(quadrants, expected_maps):
+        for quadrant_pin, expected_map in zip(row, expected_map_row):
+            assert quadrant_pin.pinmesh.number_of_material_regions == 12
+            assert len(quadrant_pin.materials) == 12
+            assert all(actual_material is materials[material_index]
+                       for actual_material, material_index in zip(quadrant_pin.materials, expected_map))
+
 def test_pin_overlay(openmc_pin, template_pin, template_material, overlay_pin):
     geometry                      = openmc_pin
     offset                        = (-1.5, -1.5, 0.0)
