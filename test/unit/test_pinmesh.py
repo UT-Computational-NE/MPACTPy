@@ -142,6 +142,53 @@ def test_rectangular_pinmesh_write_to_string(rectangular_pinmesh):
     expected_output = "  pinmesh 42 rec 1.0 2.0 3.0 / 1.0 2.0 3.0 / 1.0 2.0 3.0 / 10 10 10 / 10 10 10 / 5 5 5\n"
     assert output == expected_output
 
+def test_rectangular_pinmesh_subdivide(rectangular_pinmesh):
+    subdivisions = RectangularPinMesh.Subdivisions(subd_x=[2, 1, 1], subd_y=[1, 2, 1], subd_z=[1, 1, 2])
+    pinmesh, material_map = rectangular_pinmesh.subdivide(subdivisions)
+
+    assert_allclose(pinmesh.xvals, [0.5, 1.0, 2.0, 3.0])
+    assert_allclose(pinmesh.yvals, [1.0, 1.5, 2.0, 3.0])
+    assert_allclose(pinmesh.zvals, [1.0, 2.0, 2.5, 3.0])
+    assert pinmesh.ndivx == [10, 10, 10, 10]
+    assert pinmesh.ndivy == [10, 10, 10, 10]
+    assert pinmesh.ndivz == [5, 5, 5, 5]
+    assert pinmesh.number_of_material_regions == 64
+
+    expected_material_map = [z * 9 + y * 3 + x
+                             for z in [0, 1, 2, 2]
+                             for y in [0, 1, 1, 2]
+                             for x in [0, 0, 1, 2]]
+    assert material_map == expected_material_map
+
+def test_rectangular_pinmesh_divide_into_quadrants(rectangular_pinmesh):
+    quadrants = rectangular_pinmesh.divide_into_quadrants()
+    [[nw, ne], [sw, se]] = quadrants
+
+    def expected_material_map(x_indices, y_indices):
+        return [z * 9 + y * 3 + x
+                for z in range(3)
+                for y in y_indices
+                for x in x_indices]
+
+    assert_allclose(nw[0].xvals, [1.0, 1.5])
+    assert_allclose(nw[0].yvals, [0.5, 1.5])
+    assert nw[0].ndivx == [10, 10]
+    assert nw[0].ndivy == [10, 10]
+    assert nw[0].ndivz == [5, 5, 5]
+    assert nw[1] == expected_material_map([0, 1], [1, 2])
+
+    assert_allclose(ne[0].xvals, [0.5, 1.5])
+    assert_allclose(ne[0].yvals, [0.5, 1.5])
+    assert ne[1] == expected_material_map([1, 2], [1, 2])
+
+    assert_allclose(sw[0].xvals, [1.0, 1.5])
+    assert_allclose(sw[0].yvals, [1.0, 1.5])
+    assert sw[1] == expected_material_map([0, 1], [0, 1])
+
+    assert_allclose(se[0].xvals, [0.5, 1.5])
+    assert_allclose(se[0].yvals, [1.0, 1.5])
+    assert se[1] == expected_material_map([1, 2], [0, 1])
+
 def test_rectangular_pinmesh_overlay(rectangular_pinmesh, openmc_fuel_material, openmc_moderator_material, openmc_pin):
 
     fuel_area = pi*0.4**2
@@ -238,3 +285,31 @@ def test_general_cylindrical_pinmesh_write_to_string(general_cylindrical_pinmesh
     output = general_cylindrical_pinmesh.write_to_string(prefix="  ", mpact_ids={general_cylindrical_pinmesh: 42})
     expected_output = "  pinmesh 42 gcyl 0.5 1.0 / -1.0 1.0 -1.0 1.0 / 1.0 2.0 3.0 / 1 2 / 8 8 8 8 / 5 5 5\n"
     assert output == expected_output
+
+def test_general_cylindrical_pinmesh_subdivide(general_cylindrical_pinmesh):
+    subdivisions = GeneralCylindricalPinMesh.Subdivisions(subd_r=[2, 1, 1, 2], subd_z=[1, 2, 1])
+    pinmesh, material_map = general_cylindrical_pinmesh.subdivide(subdivisions)
+
+    assert_allclose(pinmesh.r, [0.25, 0.5, 1.0, 1.5])
+    assert_allclose(pinmesh.zvals, [1.0, 1.5, 2.0, 3.0])
+    assert pinmesh.ndivr == [1, 1, 2, 2]
+    assert pinmesh.ndiva == [8, 8, 8, 8, 8, 8, 8]
+    assert pinmesh.ndivz == [5, 5, 5, 5]
+    assert pinmesh.number_of_material_regions == 20
+    assert material_map == [0, 0, 1, 2, 3, 4, 4, 5, 6, 7, 4, 4, 5, 6, 7, 8, 8, 9, 10, 11]
+
+def test_general_cylindrical_pinmesh_divide_into_quadrants(general_cylindrical_pinmesh):
+    quadrants = general_cylindrical_pinmesh.divide_into_quadrants()
+    expected_bounds = [[(-1.0, 0.0, 0.0, 1.0), (0.0, 1.0, 0.0, 1.0)],
+                       [(-1.0, 0.0, -1.0, 0.0), (0.0, 1.0, -1.0, 0.0)]]
+    expected_material_map = list(range(general_cylindrical_pinmesh.number_of_material_regions))
+
+    for row, bounds_row in zip(quadrants, expected_bounds):
+        for (pinmesh, material_map), bounds in zip(row, bounds_row):
+            assert (pinmesh.xMin, pinmesh.xMax, pinmesh.yMin, pinmesh.yMax) == bounds
+            assert_allclose(pinmesh.r, general_cylindrical_pinmesh.r)
+            assert_allclose(pinmesh.zvals, general_cylindrical_pinmesh.zvals)
+            assert pinmesh.ndivr == general_cylindrical_pinmesh.ndivr
+            assert pinmesh.ndiva == general_cylindrical_pinmesh.ndiva
+            assert pinmesh.ndivz == general_cylindrical_pinmesh.ndivz
+            assert material_map == expected_material_map

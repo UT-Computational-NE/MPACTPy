@@ -99,6 +99,58 @@ def test_pin_with_height(pin, pin_2D):
     with pytest.raises(AssertionError, match=f"len\(zvals\) = {len(pin.pinmesh.zvals)}, Pin must be strictly 2D"):
         new_pin = pin.with_height(3.0)
 
+def test_pin_subdivide(pinmesh):
+    materials = [Material(300.0, {"H1": (material_index + 1) * 1e-6}, Material.MPACTSpecs())
+                 for material_index in range(pinmesh.number_of_material_regions)]
+    pin = Pin(pinmesh, materials)
+    subdivisions = GeneralCylindricalPinMesh.Subdivisions(subd_r=[2, 1, 1, 2], subd_z=[1, 2, 1])
+
+    subdivided_pin = pin.subdivide(subdivisions)
+
+    material_map = [0, 0, 1, 2, 3, 4, 4, 5, 6, 7, 4, 4, 5, 6, 7, 8, 8, 9, 10, 11]
+    assert subdivided_pin.pinmesh.number_of_material_regions == 20
+    assert len(subdivided_pin.materials) == 20
+    assert all(actual_material is materials[material_index]
+               for actual_material, material_index in zip(subdivided_pin.materials, material_map))
+
+def test_pin_subdivide_rectangular(overlay_mesh):
+    materials = [Material(300.0, {"H1": (material_index + 1) * 1e-6}, Material.MPACTSpecs())
+                 for material_index in range(overlay_mesh.number_of_material_regions)]
+    pin = Pin(overlay_mesh, materials)
+    subdivisions = RectangularPinMesh.Subdivisions(subd_x=[2, 1, 1], subd_y=[1, 2, 1], subd_z=[1, 1, 2])
+
+    subdivided_pin = pin.subdivide(subdivisions)
+
+    material_map = [z * 9 + y * 3 + x
+                    for z in [0, 1, 2, 2]
+                    for y in [0, 1, 1, 2]
+                    for x in [0, 0, 1, 2]]
+    assert subdivided_pin.pinmesh.number_of_material_regions == 64
+    assert len(subdivided_pin.materials) == 64
+    assert all(actual_material is materials[material_index]
+               for actual_material, material_index in zip(subdivided_pin.materials, material_map))
+
+def test_pin_divide_into_quadrants_rectangular(overlay_mesh):
+    materials = [Material(300.0, {"H1": (material_index + 1) * 1e-6}, Material.MPACTSpecs())
+                 for material_index in range(overlay_mesh.number_of_material_regions)]
+    pin = Pin(overlay_mesh, materials)
+
+    quadrants = pin.divide_into_quadrants()
+
+    expected_maps = [
+        [[z * 9 + y * 3 + x for z in range(3) for y in [1, 2] for x in [0, 1]],
+         [z * 9 + y * 3 + x for z in range(3) for y in [1, 2] for x in [1, 2]]],
+        [[z * 9 + y * 3 + x for z in range(3) for y in [0, 1] for x in [0, 1]],
+         [z * 9 + y * 3 + x for z in range(3) for y in [0, 1] for x in [1, 2]]],
+    ]
+
+    for row, expected_map_row in zip(quadrants, expected_maps):
+        for quadrant_pin, expected_map in zip(row, expected_map_row):
+            assert quadrant_pin.pinmesh.number_of_material_regions == 12
+            assert len(quadrant_pin.materials) == 12
+            assert all(actual_material is materials[material_index]
+                       for actual_material, material_index in zip(quadrant_pin.materials, expected_map))
+
 def test_pin_overlay(openmc_pin, template_pin, template_material, overlay_pin):
     geometry                      = openmc_pin
     offset                        = (-1.5, -1.5, 0.0)
@@ -126,6 +178,20 @@ def test_build_gcyl_pin(material):
 
     assert pin == expected_pin
 
+def test_build_gcyl_pin_default_target_cell_thicknesses(material):
+    pin = build_gcyl_pin(bounds      = (-2.5, 2.5, -2.5, 2.5),
+                         thicknesses = {"R": [2.0], "Z": [1.0]},
+                         materials   = [material, material])
+
+    pin_mesh = GeneralCylindricalPinMesh(r     = [2.0],
+                                         xMin  = -2.5, xMax = 2.5,
+                                         yMin  = -2.5, yMax = 2.5,
+                                         zvals = [1.0],
+                                         ndivr = [1], ndiva = [1, 1], ndivz = [1])
+    expected_pin = Pin(pin_mesh, [material, material])
+
+    assert pin == expected_pin
+
 def test_build_rec_pin(material):
     pin = build_rec_pin(thicknesses             = {"X": [1.0, 1.0], "Y": [3.0], "Z": [5.0]},
                         materials               = [material, material],
@@ -139,5 +205,20 @@ def test_build_rec_pin(material):
                                       ndivy = [2],
                                       ndivz = [1])
     expected_pin = Pin(pin_mesh, materials)
+
+    assert pin == expected_pin
+
+def test_build_rec_pin_rounds_up_target_cell_thicknesses(material):
+    pin = build_rec_pin(thicknesses             = {"X": [1.1], "Y": [1.0], "Z": [1.0]},
+                        materials               = [material],
+                        target_cell_thicknesses = {"X": 0.5})
+
+    pin_mesh = RectangularPinMesh(xvals = [1.1],
+                                  yvals = [1.0],
+                                  zvals = [1.0],
+                                  ndivx = [3],
+                                  ndivy = [1],
+                                  ndivz = [1])
+    expected_pin = Pin(pin_mesh, [material])
 
     assert pin == expected_pin

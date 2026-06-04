@@ -1,4 +1,4 @@
-from typing import List, Union, TypeVar, Callable, Any
+from typing import List, Union, TypeVar, Callable, Any, Literal
 from collections.abc import Hashable
 from decimal import Decimal, ROUND_HALF_UP
 import math
@@ -17,6 +17,148 @@ AVOGADRO = openmc.data.AVOGADRO
 
 # Room Temperature in Kelvin
 ROOM_TEMPERATURE = 293.6
+
+RadialDivisionType = Literal["equal_thickness", "equal_volume"]
+
+
+def equal_thickness_regions(lower_bound: float,
+                            upper_bound: float,
+                            num_div:     int) -> List[float]:
+    """Return region upper bounds that divide an interval into equal thicknesses.
+
+    Parameters
+    ----------
+    lower_bound : float
+        Lower bound of the full interval.
+    upper_bound : float
+        Upper bound of the full interval.
+    num_div : int
+        Number of equal-thickness regions.
+
+    Returns
+    -------
+    List[float]
+        Upper bounds for each equal-thickness region, ordered from lower to upper.
+    """
+    assert upper_bound > lower_bound, f"upper_bound = {upper_bound}, lower_bound = {lower_bound}"
+    assert num_div > 0, f"num_div = {num_div}"
+
+    thickness = upper_bound - lower_bound
+    return [lower_bound + thickness * i / num_div for i in range(1, num_div + 1)]
+
+
+def equal_thickness_ndivs(thicknesses:      List[float],
+                          target_thickness: float) -> List[int]:
+    """Return equal-thickness division counts for interval thicknesses.
+
+    Parameters
+    ----------
+    thicknesses : List[float]
+        Thicknesses of the intervals to subdivide.
+    target_thickness : float
+        Maximum target thickness of each equal-thickness division.
+
+    Returns
+    -------
+    List[int]
+        Number of equal-thickness divisions for each interval.
+    """
+    def ndiv(thickness: float) -> int:
+        assert thickness > 0.0, f"thickness = {thickness}"
+        assert target_thickness > 0.0, f"target_thickness = {target_thickness}"
+        return max(1, math.ceil(thickness / target_thickness))
+
+    assert thicknesses, "thicknesses must not be empty"
+    return [ndiv(thickness) for thickness in thicknesses]
+
+
+def equal_arc_length_ndivs(radii:             List[float],
+                           target_arc_length: float,
+                           multiple_of:       int = 1) -> List[int]:
+    """Return equal-angle division counts for radii and target arc length.
+
+    Parameters
+    ----------
+    radii : List[float]
+        Radii at which arc lengths are evaluated.
+    target_arc_length : float
+        Maximum target arc length of each equal-angle division.
+    multiple_of : int
+        Optional multiple to round each division count up to. Defaults to 1.
+
+    Returns
+    -------
+    List[int]
+        Number of equal-angle divisions for each radius.
+    """
+    def ndiv(radius: float) -> int:
+        assert radius >= 0.0, f"radius = {radius}"
+        assert target_arc_length > 0.0, f"target_arc_length = {target_arc_length}"
+        assert multiple_of > 0, f"multiple_of = {multiple_of}"
+
+        num_div = max(1, math.ceil(2.0 * math.pi * radius / target_arc_length))
+        return math.ceil(num_div / multiple_of) * multiple_of
+
+    assert radii, "radii must not be empty"
+    return [ndiv(radius) for radius in radii]
+
+
+def equal_volume_ring_radii(inner_radius: float,
+                            outer_radius: float,
+                            num_div:      int) -> List[float]:
+    """Return ring outer radii that divide an annulus into equal areas.
+
+    Parameters
+    ----------
+    inner_radius : float
+        Inner radius of the full annulus.
+    outer_radius : float
+        Outer radius of the full annulus.
+    num_div : int
+        Number of equal-area radial regions.
+
+    Returns
+    -------
+    List[float]
+        Outer radii for each equal-area ring, ordered from inner to outer.
+    """
+    assert inner_radius >= 0.0, f"inner_radius = {inner_radius}"
+    assert outer_radius > inner_radius, f"outer_radius = {outer_radius}, inner_radius = {inner_radius}"
+    assert num_div > 0, f"num_div = {num_div}"
+
+    inner_area = inner_radius * inner_radius
+    area_step  = (outer_radius * outer_radius - inner_area) / num_div
+    return [math.sqrt(inner_area + i * area_step) for i in range(1, num_div + 1)]
+
+
+def subdivide_ring(inner_radius: float,
+                   outer_radius: float,
+                   num_div:      int,
+                   div_type:     RadialDivisionType) -> List[float]:
+    """Return ring outer radii using the requested subdivision rule.
+
+    Parameters
+    ----------
+    inner_radius : float
+        Inner radius of the full annulus.
+    outer_radius : float
+        Outer radius of the full annulus.
+    num_div : int
+        Number of radial regions.
+    div_type : RadialDivisionType
+        Rule used to place the radial interfaces.
+
+    Returns
+    -------
+    List[float]
+        Outer radii for each subdivided ring, ordered from inner to outer.
+    """
+    assert div_type in ("equal_thickness", "equal_volume"), f"div_type = {div_type}"
+    if div_type == "equal_thickness":
+        assert inner_radius >= 0.0, f"inner_radius = {inner_radius}"
+        return equal_thickness_regions(inner_radius, outer_radius, num_div)
+    return equal_volume_ring_radii(inner_radius, outer_radius, num_div)
+
 
 def relative_round(value: float, rel_tol: float = ROUNDING_RELATIVE_TOLERANCE) -> float:
     """ Rounds a floating-point number to a precision consistent with a given relative tolerance.

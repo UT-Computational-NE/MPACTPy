@@ -15,7 +15,7 @@ import numpy as np
 
 from mpactpy.material import Material
 from mpactpy.utils import relative_round, allclose, list_to_str, ROUNDING_RELATIVE_TOLERANCE as TOL, \
-                          temporary_environment
+                          temporary_environment, equal_thickness_regions, RadialDivisionType, subdivide_ring
 
 
 # =======================================
@@ -199,6 +199,10 @@ class PinMesh(ABC):
     _regions_inside_bounds: List[int]
     _cached_hash: Optional[int]
 
+    class Subdivisions(ABC):
+        """Base class for pinmesh-specific material-region subdivision specifications.
+        """
+
     @property
     def number_of_material_regions(self) -> int:
         return self._number_of_material_regions
@@ -234,6 +238,35 @@ class PinMesh(ABC):
         -------
         str
             The string that represents the pin mesh
+        """
+
+    @abstractmethod
+    def subdivide(self, subdivisions: PinMesh.Subdivisions) -> Tuple[PinMesh, List[int]]:
+        """Return a subdivided mesh and the mapping from new regions to old regions.
+
+        Parameters
+        ----------
+        subdivisions : PinMesh.Subdivisions
+            Pinmesh-specific material-region subdivision specifications.
+
+        Returns
+        -------
+        Tuple[PinMesh, List[int]]
+            The subdivided pin mesh and a list mapping each new material-region
+            index to the source material-region index in the original mesh.
+        """
+
+    @abstractmethod
+    def divide_into_quadrants(self) -> List[List[Tuple[PinMesh, List[int]]]]:
+        """Return quadrant pin meshes and their material-region mappings.
+
+        Returns
+        -------
+        List[List[Tuple[PinMesh, List[int]]]]
+            Quadrant meshes and material maps ordered as
+            ``[[NW, NE], [SW, SE]]``. Each material map maps a quadrant
+            material-region index to the source material-region index in the
+            original mesh.
         """
 
     def set_axial_mesh(self, zvals: List[float] = None, ndivz: List[int] = None) -> None:
@@ -401,6 +434,29 @@ class RectangularPinMesh(PinMesh):
         dividing the grid defined by yval
     """
 
+    @dataclass
+    class Subdivisions(PinMesh.Subdivisions):
+        """Material-region subdivision specifications for a rectangular pin mesh.
+
+        Attributes
+        ----------
+        subd_x : Optional[List[int]]
+            X-direction material-region subdivision counts. The list must have
+            length ``len(xvals)``. If ``None``, no X-direction material
+            subdivision is applied.
+        subd_y : Optional[List[int]]
+            Y-direction material-region subdivision counts. The list must have
+            length ``len(yvals)``. If ``None``, no Y-direction material
+            subdivision is applied.
+        subd_z : Optional[List[int]]
+            Z-direction material-region subdivision counts. The list must have
+            length ``len(zvals)``. If ``None``, no Z-direction material
+            subdivision is applied.
+        """
+        subd_x: Optional[List[int]] = None
+        subd_y: Optional[List[int]] = None
+        subd_z: Optional[List[int]] = None
+
     @property
     def xvals(self) -> List[float]:
         return self._xvals
@@ -481,6 +537,119 @@ class RectangularPinMesh(PinMesh):
                +  f"{list_to_str(self._ndivx)} / {list_to_str(self._ndivy)} / {list_to_str(self._ndivz)}\n"
 
         return string
+
+    def subdivide(self, subdivisions: PinMesh.Subdivisions) -> Tuple[RectangularPinMesh, List[int]]:
+        """Return a copy with additional Cartesian material interfaces.
+
+        Existing FSR subdivision counts are copied to each new material
+        subregion. The returned material map uses the standard rectangular pin
+        ordering: z-major, then y, with x as the fastest-moving index.
+
+        Parameters
+        ----------
+        subdivisions : PinMesh.Subdivisions
+            Rectangular material-region subdivision specifications.
+
+        Returns
+        -------
+        Tuple[RectangularPinMesh, List[int]]
+            A new pin mesh with the requested material-region subdivisions and
+            a list mapping each new material-region index to its original
+            material-region index.
+        """
+
+        if not isinstance(subdivisions, RectangularPinMesh.Subdivisions):
+            raise TypeError(f"Expected RectangularPinMesh.Subdivisions, got {type(subdivisions).__name__}")
+
+        subd_x = [1] * len(self.xvals) if subdivisions.subd_x is None else subdivisions.subd_x
+        subd_y = [1] * len(self.yvals) if subdivisions.subd_y is None else subdivisions.subd_y
+        subd_z = [1] * len(self.zvals) if subdivisions.subd_z is None else subdivisions.subd_z
+
+        assert len(subd_x) == len(self.xvals), f"len(subd_x) = {len(subd_x)}, expected {len(self.xvals)}"
+        assert len(subd_y) == len(self.yvals), f"len(subd_y) = {len(subd_y)}, expected {len(self.yvals)}"
+        assert len(subd_z) == len(self.zvals), f"len(subd_z) = {len(subd_z)}, expected {len(self.zvals)}"
+
+        def subdivide_axis(vals: List[float],
+                           ndiv: List[int],
+                           subd: List[int]) -> Tuple[List[float], List[int], List[int]]:
+            new_vals, new_ndiv, material_map = [], [], []
+            lower_val = 0.0
+            for material_region_index, (upper_val, fsr_divisions, material_divisions) in enumerate(zip(vals, ndiv, subd)):
+                for val in equal_thickness_regions(lower_val, upper_val, material_divisions):
+                    new_vals.append(val)
+                    new_ndiv.append(fsr_divisions)
+                    material_map.append(material_region_index)
+                lower_val = upper_val
+            return new_vals, new_ndiv, material_map
+
+        xvals, ndivx, x_material_map = subdivide_axis(self.xvals, self.ndivx, subd_x)
+        yvals, ndivy, y_material_map = subdivide_axis(self.yvals, self.ndivy, subd_y)
+        zvals, ndivz, z_material_map = subdivide_axis(self.zvals, self.ndivz, subd_z)
+
+        old_num_x_regions = len(self.xvals)
+        old_num_xy_regions = len(self.xvals) * len(self.yvals)
+        material_map = [z_index * old_num_xy_regions + y_index * old_num_x_regions + x_index
+                        for z_index in z_material_map
+                        for y_index in y_material_map
+                        for x_index in x_material_map]
+
+        pinmesh = RectangularPinMesh(xvals, yvals, zvals, ndivx, ndivy, ndivz)
+        return pinmesh, material_map
+
+    def divide_into_quadrants(self) -> List[List[Tuple[PinMesh, List[int]]]]:
+        """Return rectangular quadrant meshes and material-region mappings.
+
+        The split is performed at the midpoint of the X and Y pin widths.
+        Returned meshes use local coordinates with their lower-left corner at
+        ``(0, 0)``. The quadrant ordering is ``[[NW, NE], [SW, SE]]``.
+
+        Returns
+        -------
+        List[List[Tuple[PinMesh, List[int]]]]
+            Quadrant meshes and material maps ordered as
+            ``[[NW, NE], [SW, SE]]``.
+        """
+
+        def slice_axis(vals: List[float],
+                       ndiv: List[int],
+                       lower_bound: float,
+                       upper_bound: float) -> Tuple[List[float], List[int], List[int]]:
+            new_vals, new_ndiv, material_map = [], [], []
+            previous_val = 0.0
+            for material_region_index, (val, fsr_divisions) in enumerate(zip(vals, ndiv)):
+                overlap_lower = max(previous_val, lower_bound)
+                overlap_upper = min(val, upper_bound)
+                if overlap_lower < overlap_upper:
+                    new_vals.append(overlap_upper - lower_bound)
+                    new_ndiv.append(fsr_divisions)
+                    material_map.append(material_region_index)
+                previous_val = val
+            return new_vals, new_ndiv, material_map
+
+        def make_quadrant(x_lower: float,
+                          x_upper: float,
+                          y_lower: float,
+                          y_upper: float) -> Tuple[PinMesh, List[int]]:
+            xvals, ndivx, x_material_map = slice_axis(self.xvals, self.ndivx, x_lower, x_upper)
+            yvals, ndivy, y_material_map = slice_axis(self.yvals, self.ndivy, y_lower, y_upper)
+            zvals, ndivz = self.zvals[:], self.ndivz[:]
+
+            old_num_x_regions = len(self.xvals)
+            old_num_xy_regions = len(self.xvals) * len(self.yvals)
+            material_map = [z_index * old_num_xy_regions + y_index * old_num_x_regions + x_index
+                            for z_index in range(len(self.zvals))
+                            for y_index in y_material_map
+                            for x_index in x_material_map]
+
+            return RectangularPinMesh(xvals, yvals, zvals, ndivx, ndivy, ndivz), material_map
+
+        x_mid = self.xvals[-1] / 2.0
+        y_mid = self.yvals[-1] / 2.0
+
+        return [[make_quadrant(0.0,   x_mid,         y_mid, self.yvals[-1]),
+                 make_quadrant(x_mid, self.xvals[-1], y_mid, self.yvals[-1])],
+                [make_quadrant(0.0,   x_mid,         0.0,   y_mid),
+                 make_quadrant(x_mid, self.xvals[-1], 0.0,   y_mid)]]
 
     def _set_pitch(self) -> None:
         self._pitch = {'X' : self.xvals[-1], 'Y' : self.yvals[-1], 'Z' : self.zvals[-1]}
@@ -591,6 +760,35 @@ class GeneralCylindricalPinMesh(PinMesh):
     _ndivr_inside_bounds: List[int]
     _ndiva_inside_bounds: List[int]
 
+    @dataclass
+    class Subdivisions(PinMesh.Subdivisions):
+        """Material-region subdivision specifications for a general cylindrical pin mesh.
+
+        Attributes
+        ----------
+        subd_r : Optional[List[int]]
+            Radial material-region subdivision counts. The list must have length
+            ``len(r) + 1``. If ``None``, no radial material subdivision is applied.
+        subd_z : Optional[List[int]]
+            Axial material-region subdivision counts. The list must have length
+            ``len(zvals)``. If ``None``, no axial material subdivision is applied.
+        div_type : Optional[List[RadialDivisionType]]
+            Radial subdivision placement rule. ``"equal_thickness"`` spaces
+            interfaces uniformly in radius, while ``"equal_volume"`` spaces
+            interfaces uniformly in annular area. The list must have length
+            ``len(r) + 1``. If ``None``, all radial material regions use
+            ``"equal_thickness"``.
+        outer_ndivr : int
+            Number of radial FSR subdivisions to use for material-region
+            subdivisions created from the final implicit outer region. This is
+            used only when the outer region is subdivided into additional
+            explicit material regions.
+        """
+        subd_r:   Optional[List[int]] = None
+        subd_z:   Optional[List[int]] = None
+        div_type: Optional[List[RadialDivisionType]] = None
+        outer_ndivr: int = 1
+
     @property
     def r(self) -> List[float]:
         return self._r
@@ -694,6 +892,128 @@ class GeneralCylindricalPinMesh(PinMesh):
                +  f"{list_to_str(self._ndiva_inside_bounds)} / {list_to_str(self._ndivz)}\n"
 
         return string
+
+    def subdivide(self, subdivisions: PinMesh.Subdivisions) -> Tuple[GeneralCylindricalPinMesh, List[int]]:
+        """Return a copy with additional radial and axial material interfaces.
+
+        Radial subdivision counts apply to the explicit radial material regions
+        marked by ``r`` and to the final implicit outer region. The implicit
+        outer region is subdivided using the bounding radius of the pin bounds,
+        but the bounding radius is not written as a new material interface.
+
+        Axial subdivision counts apply to the material regions marked by
+        ``zvals``. Existing FSR subdivision counts are copied to each new
+        material subregion.
+
+        Parameters
+        ----------
+        subdivisions : PinMesh.Subdivisions
+            General cylindrical material-region subdivision specifications.
+
+        Returns
+        -------
+        Tuple[GeneralCylindricalPinMesh, List[int]]
+            A new pin mesh with the requested material-region subdivisions and
+            a list mapping each new material-region index to its original
+            material-region index.
+        """
+
+        if not isinstance(subdivisions, GeneralCylindricalPinMesh.Subdivisions):
+            raise TypeError(f"Expected GeneralCylindricalPinMesh.Subdivisions, got {type(subdivisions).__name__}")
+
+        n_radial_zones = len(self.r) + 1
+        n_axial_zones  = len(self.zvals)
+
+        subd_r   = [1] * n_radial_zones if subdivisions.subd_r is None else subdivisions.subd_r
+        subd_z   = [1] * n_axial_zones  if subdivisions.subd_z is None else subdivisions.subd_z
+        div_type = ["equal_thickness"] * n_radial_zones if subdivisions.div_type is None else subdivisions.div_type
+
+        assert len(subd_r) == n_radial_zones, f"len(subd_r) = {len(subd_r)}, expected {n_radial_zones}"
+        assert len(subd_z) == n_axial_zones, f"len(subd_z) = {len(subd_z)}, expected {n_axial_zones}"
+        assert len(div_type) == n_radial_zones, f"len(div_type) = {len(div_type)}, expected {n_radial_zones}"
+        assert subdivisions.outer_ndivr > 0, f"outer_ndivr = {subdivisions.outer_ndivr}"
+
+        new_r, new_ndivr, new_ndiva = [], [], []
+        radial_material_map = []
+        ndiva_index = 0
+        inner_radius = 0.0
+        for radial_region_index, (outer_radius, ndivr, num_divisions, division_type) in enumerate(zip(
+            self.r, self.ndivr, subd_r[:len(self.r)], div_type[:len(self.r)])):
+
+            ndiva_slice = self.ndiva[ndiva_index:ndiva_index + ndivr]
+            ndiva_index += ndivr
+            for radius in subdivide_ring(inner_radius, outer_radius, num_divisions, division_type):
+                new_r.append(radius)
+                new_ndivr.append(ndivr)
+                new_ndiva.extend(ndiva_slice)
+                radial_material_map.append(radial_region_index)
+            inner_radius = outer_radius
+
+        outer_ndiva = self.ndiva[ndiva_index]
+        outer_region_index = len(self.r)
+        bounding_radius = max(hypot(x, y) for x in (self.xMin, self.xMax) for y in (self.yMin, self.yMax))
+        if bounding_radius > self.r[-1]:
+            for radius in subdivide_ring(self.r[-1], bounding_radius, subd_r[-1], div_type[-1])[:-1]:
+                new_r.append(radius)
+                new_ndivr.append(subdivisions.outer_ndivr)
+                new_ndiva.extend([outer_ndiva] * subdivisions.outer_ndivr)
+                radial_material_map.append(outer_region_index)
+
+        new_ndiva.append(outer_ndiva)
+        radial_material_map.append(outer_region_index)
+
+        new_zvals, new_ndivz = [], []
+        axial_material_map = []
+        lower_zval = 0.0
+        for axial_region_index, (upper_zval, ndivz, num_divisions) in enumerate(zip(self.zvals, self.ndivz, subd_z)):
+            for zval in equal_thickness_regions(lower_zval, upper_zval, num_divisions):
+                new_zvals.append(zval)
+                new_ndivz.append(ndivz)
+                axial_material_map.append(axial_region_index)
+            lower_zval = upper_zval
+
+        old_num_radial_regions = len(self.r) + 1
+        material_map = [axial_region_index * old_num_radial_regions + radial_region_index
+                        for axial_region_index in axial_material_map
+                        for radial_region_index in radial_material_map]
+
+        pinmesh = GeneralCylindricalPinMesh(new_r, self.xMin, self.xMax, self.yMin, self.yMax,
+                                            new_zvals, new_ndivr, new_ndiva, new_ndivz)
+        return pinmesh, material_map
+
+    def divide_into_quadrants(self) -> List[List[Tuple[PinMesh, List[int]]]]:
+        """Return general cylindrical quadrant meshes and material-region mappings.
+
+        The split is performed at the midpoint of the X and Y pin bounds.
+        Radial and axial material-region definitions are unchanged, so each
+        quadrant uses an identity material map. The quadrant ordering is
+        ``[[NW, NE], [SW, SE]]``.
+
+        Returns
+        -------
+        List[List[Tuple[PinMesh, List[int]]]]
+            Quadrant meshes and material maps ordered as
+            ``[[NW, NE], [SW, SE]]``.
+        """
+
+        material_map = list(range(self.number_of_material_regions))
+
+        def make_quadrant(xMin: float,
+                          xMax: float,
+                          yMin: float,
+                          yMax: float) -> Tuple[PinMesh, List[int]]:
+            pinmesh = GeneralCylindricalPinMesh(self.r[:], xMin, xMax, yMin, yMax,
+                                                self.zvals[:], self.ndivr[:], self.ndiva[:], self.ndivz[:])
+            return pinmesh, material_map[:]
+
+        x_mid = (self.xMin + self.xMax) / 2.0
+        y_mid = (self.yMin + self.yMax) / 2.0
+
+        return [[make_quadrant(self.xMin, x_mid,     y_mid,    self.yMax),
+                 make_quadrant(x_mid,     self.xMax, y_mid,    self.yMax)],
+                [make_quadrant(self.xMin, x_mid,     self.yMin, y_mid),
+                 make_quadrant(x_mid,     self.xMax, self.yMin, y_mid)]]
+
 
     def _set_pitch(self) -> None:
         self._pitch = {'X' : self.xMax - self.xMin,
