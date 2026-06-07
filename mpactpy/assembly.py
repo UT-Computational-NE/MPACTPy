@@ -262,7 +262,8 @@ class Assembly():
                 geometry:       openmc.Geometry,
                 offset:         Tuple[float, float, float] = (0.0, 0.0, 0.0),
                 include_only:   Optional[OverlayMask] = None,
-                overlay_policy: PinMesh.OverlayPolicy = PinMesh.OverlayPolicy()) -> Assembly:
+                overlay_policy: PinMesh.OverlayPolicy = PinMesh.OverlayPolicy(),
+                material_cache: Optional[Dict[int, Material]] = None) -> Assembly:
         """ A method for overlaying an OpenMC geometry over top an MPACTPy Assembly
 
         Parameters
@@ -277,6 +278,9 @@ class Assembly():
             If None, all elements are included.
         overlay_policy : OverlayPolicy
             A configuration object specifying how a mesh overlay should be done.
+        material_cache : Optional[Dict[int, Material]]
+            Cache of converted MPACT materials keyed by OpenMC material ID. If not
+            provided, a cache is built from the OpenMC geometry.
 
         Returns
         -------
@@ -284,6 +288,8 @@ class Assembly():
             A new MPACTPy Assembly which is a copy of the original,
             but with the OpenMC Geometry overlaid on top.
         """
+
+        material_cache = material_cache if material_cache is not None else overlay_policy.build_material_cache(geometry)
 
         include_only: Assembly.OverlayMask = include_only if include_only else \
                                             {lattice: None for lattice in self.lattice_map}
@@ -309,7 +315,8 @@ class Assembly():
                                                   self._process_lattice_chunk,
                                                   num_assembly_procs,
                                                   geometry,
-                                                  child_policy)
+                                                  child_policy,
+                                                  material_cache)
 
         # Reconstruct the lattice map with overlaid lattices
         new_lattice_map = self.lattice_map[:]
@@ -319,7 +326,7 @@ class Assembly():
         return Assembly(new_lattice_map)
 
     @staticmethod
-    def _process_lattice_chunk(lattice_chunk, geometry, child_policy):
+    def _process_lattice_chunk(lattice_chunk, geometry, child_policy, material_cache):
         """Process a chunk of lattices in a single worker process.
 
         Parameters
@@ -335,6 +342,8 @@ class Assembly():
         child_policy : PinMesh.OverlayPolicy
             Policy object specifying overlay method and process allocation for
             child operations within each lattice
+        material_cache : Dict[int, Material]
+            Cache of converted MPACT materials keyed by OpenMC material ID.
 
         Returns
         -------
@@ -344,7 +353,12 @@ class Assembly():
         """
         overlaid_lattices = []
         for lattice, offset_pos, include_mask, _ in lattice_chunk:
-            overlaid = Assembly._overlay_lattice_worker(lattice, offset_pos, include_mask, geometry, child_policy)
+            overlaid = Assembly._overlay_lattice_worker(lattice,
+                                                        offset_pos,
+                                                        include_mask,
+                                                        geometry,
+                                                        child_policy,
+                                                        material_cache)
             overlaid_lattices.append(overlaid)
         return overlaid_lattices
 
@@ -353,7 +367,8 @@ class Assembly():
                                 offset:         Tuple[float, float, float],
                                 include_mask:   Optional[Lattice.OverlayMask],
                                 geometry:       openmc.Geometry,
-                                overlay_policy: PinMesh.OverlayPolicy) -> Lattice:
+                                overlay_policy: PinMesh.OverlayPolicy,
+                                material_cache: Dict[int, Material]) -> Lattice:
         """Worker function for parallel lattice overlay processing.
 
         Parameters
@@ -371,10 +386,12 @@ class Assembly():
         overlay_policy : PinMesh.OverlayPolicy
             Configuration object specifying overlay method, sampling parameters,
             and process allocation for cascading parallelization.
+        material_cache : Dict[int, Material]
+            Cache of converted MPACT materials keyed by OpenMC material ID.
 
         Returns
         -------
         Lattice
             A new Lattice instance with the OpenMC geometry overlaid.
         """
-        return lattice.overlay(geometry, offset, include_mask, overlay_policy)
+        return lattice.overlay(geometry, offset, include_mask, overlay_policy, material_cache)

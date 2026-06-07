@@ -249,7 +249,8 @@ class Module():
                 geometry:       openmc.Geometry,
                 offset:         Tuple[float, float, float] = (0.0, 0.0, 0.0),
                 include_only:   Optional[OverlayMask] = None,
-                overlay_policy: PinMesh.OverlayPolicy = PinMesh.OverlayPolicy()) -> Module:
+                overlay_policy: PinMesh.OverlayPolicy = PinMesh.OverlayPolicy(),
+                material_cache: Optional[Dict[int, Material]] = None) -> Module:
         """ A method for overlaying an OpenMC geometry over top an MPACTPy Module
 
         Parameters
@@ -264,6 +265,9 @@ class Module():
             If None, all elements are included.
         overlay_policy : OverlayPolicy
             A configuration object specifying how a mesh overlay should be done.
+        material_cache : Optional[Dict[int, Material]]
+            Cache of converted MPACT materials keyed by OpenMC material ID. If not
+            provided, a cache is built from the OpenMC geometry.
 
         Returns
         -------
@@ -271,6 +275,8 @@ class Module():
             A new MPACTPy Module which is a copy of the original,
             but with the OpenMC Geometry overlaid on top.
         """
+
+        material_cache = material_cache if material_cache is not None else overlay_policy.build_material_cache(geometry)
 
         include_only: Module.OverlayMask = include_only if include_only else \
                                            {pin: None for row in self.pin_map for pin in row}
@@ -299,7 +305,8 @@ class Module():
                                               self._process_pin_chunk,
                                               num_module_procs,
                                               geometry,
-                                              child_policy)
+                                              child_policy,
+                                              material_cache)
 
         # Reconstruct the pin map with overlaid pins
         new_pin_map = [row[:] for row in self.pin_map]
@@ -309,7 +316,7 @@ class Module():
         return Module(1, new_pin_map)
 
     @staticmethod
-    def _process_pin_chunk(pin_chunk, geometry, child_policy):
+    def _process_pin_chunk(pin_chunk, geometry, child_policy, material_cache):
         """Process a chunk of pins in a single worker process.
 
         Parameters
@@ -325,6 +332,8 @@ class Module():
         child_policy : PinMesh.OverlayPolicy
             Policy object specifying overlay method and process allocation for
             child operations within each pin
+        material_cache : Dict[int, Material]
+            Cache of converted MPACT materials keyed by OpenMC material ID.
 
         Returns
         -------
@@ -334,7 +343,7 @@ class Module():
         """
         overlaid_pins = []
         for pin, offset_pos, include_mask, _, _ in pin_chunk:
-            overlaid = Module._overlay_pin_worker(pin, offset_pos, include_mask, geometry, child_policy)
+            overlaid = Module._overlay_pin_worker(pin, offset_pos, include_mask, geometry, child_policy, material_cache)
             overlaid_pins.append(overlaid)
         return overlaid_pins
 
@@ -343,7 +352,8 @@ class Module():
                             offset:         Tuple[float, float, float],
                             include_mask:   Optional[Pin.OverlayMask],
                             geometry:       openmc.Geometry,
-                            overlay_policy: PinMesh.OverlayPolicy) -> Pin:
+                            overlay_policy: PinMesh.OverlayPolicy,
+                            material_cache: Dict[int, Material]) -> Pin:
         """Worker function for parallel pin overlay processing.
 
         Parameters
@@ -361,10 +371,12 @@ class Module():
         overlay_policy : PinMesh.OverlayPolicy
             Configuration object specifying overlay method, sampling parameters,
             and process allocation for cascading parallelization.
+        material_cache : Dict[int, Material]
+            Cache of converted MPACT materials keyed by OpenMC material ID.
 
         Returns
         -------
         Pin
             A new Pin instance with the OpenMC geometry overlaid.
         """
-        return pin.overlay(geometry, offset, include_mask, overlay_policy)
+        return pin.overlay(geometry, offset, include_mask, overlay_policy, material_cache)
