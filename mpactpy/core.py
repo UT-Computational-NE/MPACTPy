@@ -456,7 +456,8 @@ class Core():
                 geometry:       openmc.Geometry,
                 offset:         Tuple[float, float, float] = (0.0, 0.0, 0.0),
                 include_only:   Optional[OverlayMask] = None,
-                overlay_policy: PinMesh.OverlayPolicy = PinMesh.OverlayPolicy()) -> Core:
+                overlay_policy: PinMesh.OverlayPolicy = PinMesh.OverlayPolicy(),
+                material_cache: Optional[Dict[int, Material]] = None) -> Core:
         """ A method for overlaying an OpenMC geometry over top an MPACTPy Core
 
         Parameters
@@ -471,6 +472,9 @@ class Core():
             If None, all elements are included.
         overlay_policy : OverlayPolicy
             A configuration object specifying how a mesh overlay should be done.
+        material_cache : Optional[Dict[int, Material]]
+            Cache of converted MPACT materials keyed by OpenMC material ID. If not
+            provided, a cache is built from the OpenMC geometry.
 
         Returns
         -------
@@ -478,6 +482,8 @@ class Core():
             A new MPACTPy Core which is a copy of the original,
             but with the OpenMC Geometry overlaid on top.
         """
+
+        material_cache = material_cache if material_cache is not None else overlay_policy.build_material_cache(geometry)
 
         include_only: Core.OverlayMask = include_only if include_only else \
                                          {assembly: None for row in self.assembly_map for assembly in row if assembly}
@@ -506,7 +512,8 @@ class Core():
                                                     self._process_assembly_chunk,
                                                     num_core_procs,
                                                     geometry,
-                                                    child_policy)
+                                                    child_policy,
+                                                    material_cache)
 
         # Reconstruct the assembly map with overlaid assemblies
         new_assembly_map = [row[:] for row in self.assembly_map]
@@ -516,7 +523,7 @@ class Core():
         return Core(new_assembly_map)
 
     @staticmethod
-    def _process_assembly_chunk(assembly_chunk, geometry, child_policy):
+    def _process_assembly_chunk(assembly_chunk, geometry, child_policy, material_cache):
         """Process a chunk of assemblies in a single worker process.
 
         Parameters
@@ -532,6 +539,8 @@ class Core():
         child_policy : PinMesh.OverlayPolicy
             Policy object specifying overlay method and process allocation for
             child operations within each assembly
+        material_cache : Dict[int, Material]
+            Cache of converted MPACT materials keyed by OpenMC material ID.
 
         Returns
         -------
@@ -541,7 +550,12 @@ class Core():
         """
         overlaid_assemblies = []
         for assembly, offset_pos, include_mask, _, _ in assembly_chunk:
-            overlaid = Core._overlay_assembly_worker(assembly, offset_pos, include_mask, geometry, child_policy)
+            overlaid = Core._overlay_assembly_worker(assembly,
+                                                     offset_pos,
+                                                     include_mask,
+                                                     geometry,
+                                                     child_policy,
+                                                     material_cache)
             overlaid_assemblies.append(overlaid)
         return overlaid_assemblies
 
@@ -550,7 +564,8 @@ class Core():
                                  offset:         Tuple[float, float, float],
                                  include_mask:   Optional[Assembly.OverlayMask],
                                  geometry:       openmc.Geometry,
-                                 overlay_policy: PinMesh.OverlayPolicy) -> Assembly:
+                                 overlay_policy: PinMesh.OverlayPolicy,
+                                 material_cache: Dict[int, Material]) -> Assembly:
         """Worker function for parallel assembly overlay processing.
 
         Parameters
@@ -568,10 +583,12 @@ class Core():
         overlay_policy : PinMesh.OverlayPolicy
             Configuration object specifying overlay method, sampling parameters,
             and process allocation for cascading parallelization.
+        material_cache : Dict[int, Material]
+            Cache of converted MPACT materials keyed by OpenMC material ID.
 
         Returns
         -------
         Assembly
             A new Assembly instance with the OpenMC geometry overlaid.
         """
-        return assembly.overlay(geometry, offset, include_mask, overlay_policy)
+        return assembly.overlay(geometry, offset, include_mask, overlay_policy, material_cache)

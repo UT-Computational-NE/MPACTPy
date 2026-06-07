@@ -277,7 +277,8 @@ class Pin():
                 geometry:       openmc.Geometry,
                 offset:         Tuple[float, float, float] = (0.0, 0.0, 0.0),
                 include_only:   Optional[OverlayMask] = None,
-                overlay_policy: PinMesh.OverlayPolicy = PinMesh.OverlayPolicy()) -> Pin:
+                overlay_policy: PinMesh.OverlayPolicy = PinMesh.OverlayPolicy(),
+                material_cache: Optional[Dict[int, Material]] = None) -> Pin:
         """ A method for overlaying an OpenMC geometry over top an MPACTPy Pin
 
         Parameters
@@ -292,6 +293,9 @@ class Pin():
             If None, all elements are included.
         overlay_policy : OverlayPolicy
             A configuration object specifying how a mesh overlay should be done.
+        material_cache : Optional[Dict[int, Material]]
+            Cache of converted MPACT materials keyed by OpenMC material ID. If not
+            provided, a cache is built from the OpenMC geometry.
 
         Returns
         -------
@@ -302,7 +306,7 @@ class Pin():
 
         include_mats: Pin.OverlayMask = include_only if include_only else set(self.materials)
 
-        openmc_materials = self.pinmesh.overlay(geometry, offset, overlay_policy)
+        openmc_materials = self.pinmesh.overlay(geometry, offset, overlay_policy, material_cache)
         assert len(openmc_materials) == len(self.materials), \
             f"len(openmc_materials) = {len(openmc_materials)} " + \
             f"len(self.materials) = {len(self.materials)}"

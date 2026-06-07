@@ -245,7 +245,8 @@ class Lattice():
                 geometry:       openmc.Geometry,
                 offset:         Tuple[float, float, float] = (0.0, 0.0, 0.0),
                 include_only:   Optional[OverlayMask] = None,
-                overlay_policy: PinMesh.OverlayPolicy = PinMesh.OverlayPolicy()) -> Lattice:
+                overlay_policy: PinMesh.OverlayPolicy = PinMesh.OverlayPolicy(),
+                material_cache: Optional[Dict[int, Material]] = None) -> Lattice:
         """ A method for overlaying an OpenMC geometry over top an MPACTPy Lattice
 
         Parameters
@@ -260,6 +261,9 @@ class Lattice():
             If None, all elements are included.
         overlay_policy : OverlayPolicy
             A configuration object specifying how a mesh overlay should be done.
+        material_cache : Optional[Dict[int, Material]]
+            Cache of converted MPACT materials keyed by OpenMC material ID. If not
+            provided, a cache is built from the OpenMC geometry.
 
         Returns
         -------
@@ -267,6 +271,8 @@ class Lattice():
             A new MPACTPy Lattice which is a copy of the original,
             but with the OpenMC Geometry overlaid on top.
         """
+
+        material_cache = material_cache if material_cache is not None else overlay_policy.build_material_cache(geometry)
 
         include_only: Lattice.OverlayMask = include_only if include_only else \
                                             {module: None for row in self.module_map for module in row}
@@ -295,7 +301,8 @@ class Lattice():
                                                  self._process_module_chunk,
                                                  num_lattice_procs,
                                                  geometry,
-                                                 child_policy)
+                                                 child_policy,
+                                                 material_cache)
 
         # Reconstruct the module map with overlaid modules
         new_module_map = [row[:] for row in self.module_map]
@@ -305,7 +312,7 @@ class Lattice():
         return Lattice(new_module_map)
 
     @staticmethod
-    def _process_module_chunk(module_chunk, geometry, child_policy):
+    def _process_module_chunk(module_chunk, geometry, child_policy, material_cache):
         """Process a chunk of modules in a single worker process.
 
         Parameters
@@ -321,6 +328,8 @@ class Lattice():
         child_policy : PinMesh.OverlayPolicy
             Policy object specifying overlay method and process allocation for
             child operations within each module
+        material_cache : Dict[int, Material]
+            Cache of converted MPACT materials keyed by OpenMC material ID.
 
         Returns
         -------
@@ -330,7 +339,7 @@ class Lattice():
         """
         overlaid_modules = []
         for module, offset_pos, include_mask, _, _ in module_chunk:
-            overlaid = Lattice._overlay_module_worker(module, offset_pos, include_mask, geometry, child_policy)
+            overlaid = Lattice._overlay_module_worker(module, offset_pos, include_mask, geometry, child_policy, material_cache)
             overlaid_modules.append(overlaid)
         return overlaid_modules
 
@@ -339,7 +348,8 @@ class Lattice():
                                offset:         Tuple[float, float, float],
                                include_mask:   Optional[Module.OverlayMask],
                                geometry:       openmc.Geometry,
-                               overlay_policy: PinMesh.OverlayPolicy) -> Module:
+                               overlay_policy: PinMesh.OverlayPolicy,
+                               material_cache: Dict[int, Material]) -> Module:
         """Worker function for parallel module overlay processing.
 
         Parameters
@@ -357,10 +367,12 @@ class Lattice():
         overlay_policy : PinMesh.OverlayPolicy
             Configuration object specifying overlay method, sampling parameters,
             and process allocation for cascading parallelization.
+        material_cache : Dict[int, Material]
+            Cache of converted MPACT materials keyed by OpenMC material ID.
 
         Returns
         -------
         Module
             A new Module instance with the OpenMC geometry overlaid.
         """
-        return module.overlay(geometry, offset, include_mask, overlay_policy)
+        return module.overlay(geometry, offset, include_mask, overlay_policy, material_cache)

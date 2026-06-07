@@ -3,7 +3,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Dict, List, Any, Tuple, Optional
 from math import isclose, hypot
-from copy import deepcopy
 from concurrent.futures import ProcessPoolExecutor
 import tempfile
 import os
@@ -22,7 +21,53 @@ from mpactpy.utils import relative_round, allclose, list_to_str, ROUNDING_RELATI
 # Helper functions for overlay processing
 # =======================================
 
-def _process_centroid_batch(args: Tuple) -> List[Material]:
+def _material_at_geometry_point(point:              Any,
+                                geometry:           openmc.Geometry,
+                                mpact_specs_by_id:  Dict[int, Material.MPACTSpecs],
+                                material_cache:     Dict[int, Material]
+) -> Optional[Material]:
+    """Return the cached MPACT material at an OpenMC geometry point.
+
+    Parameters
+    ----------
+    point : Any
+        Spatial point to query. The value is converted to a tuple before
+        calling ``openmc.Geometry.find``.
+    geometry : openmc.Geometry
+        The OpenMC geometry to search for the material at ``point``.
+    mpact_specs_by_id : Dict[int, Material.MPACTSpecs]
+        MPACT material specifications keyed by OpenMC material ID.
+    material_cache : Dict[int, Material]
+        Cache of converted MPACT materials keyed by OpenMC material ID.
+
+    Returns
+    -------
+    Optional[Material]
+        The cached or newly converted MPACT material at ``point``. Returns
+        ``None`` if the point is outside the OpenMC geometry or does not resolve
+        to a material-filled cell.
+    """
+    try:
+        elements = geometry.find(tuple(point))
+    except RuntimeError:
+        return None
+
+    openmc_material = None
+    for item in reversed(elements):
+        if isinstance(item, openmc.Cell) and item.fill_type == 'material':
+            openmc_material = item.fill
+            break
+
+    if openmc_material is None:
+        return None
+
+    if openmc_material.id not in material_cache:
+        mpact_specs = mpact_specs_by_id.get(openmc_material.id, Material.MPACTSpecs())
+        material_cache[openmc_material.id] = Material.from_openmc_material(openmc_material, mpact_specs)
+    return material_cache[openmc_material.id]
+
+
+def _process_centroid_batch(args: Tuple) -> List[Optional[Material]]:
     """ Processes a batch of centroid points to determine material assignments in parallel.
 
     Parameters
@@ -33,19 +78,22 @@ def _process_centroid_batch(args: Tuple) -> List[Material]:
                 A list of points (e.g., coordinates) to be processed.
             geometry : openmc.Geometry
                 The OpenMC geometry to query for material assignments.
-            mat_specs : any
+            mpact_specs_by_id : Dict[int, Material.MPACTSpecs]
                 Material specifications or mapping information needed for material assignment.
+            material_cache : Dict[int, Material]
+                Cached MPACT material conversions keyed by OpenMC material ID.
 
     Returns
     -------
-    List[Material]
-        A list of Material objects corresponding to each centroid in the batch.
+    List[Optional[Material]]
+        Materials corresponding to each centroid in the batch. Entries are
+        ``None`` when a centroid does not resolve to a material-filled cell.
     """
-    points_batch, geometry, mat_specs = args
+    points_batch, geometry, mpact_specs_by_id, material_cache = args
 
     results = []
     for point in points_batch:
-        mat = Material.from_openmc_geometry_point(point, geometry, mat_specs)
+        mat = _material_at_geometry_point(point, geometry, mpact_specs_by_id, material_cache)
         results.append(mat)
     return results
 
@@ -82,7 +130,8 @@ def _process_homogenized_batch(args: Tuple) -> List[Material]:
 
 def _materials_at_centroids(centroids: np.ndarray,
                             geometry: openmc.Geometry,
-                            overlay_policy: PinMesh.OverlayPolicy) -> List[Material]:
+                            overlay_policy: PinMesh.OverlayPolicy,
+                            material_cache: Optional[Dict[int, Material]] = None) -> List[Optional[Material]]:
     """ Determines material assignments at specified centroids
 
     Parameters
@@ -93,24 +142,35 @@ def _materials_at_centroids(centroids: np.ndarray,
         The OpenMC geometry used to determine material assignments.
     overlay_policy : PinMesh.OverlayPolicy
         Policy object specifying overlay options.
+    material_cache : Optional[Dict[int, Material]]
+        Cache of converted MPACT materials keyed by OpenMC material ID. If not
+        provided, a cache is built from the OpenMC geometry.
 
     Returns
     -------
-    List[Material]
-        A list of Material objects corresponding to each centroid.
+    List[Optional[Material]]
+        Materials corresponding to each centroid. Entries are ``None`` when a
+        centroid does not resolve to a material-filled cell.
     """
+
+    mpact_specs_by_id = {mat.id: spec for mat, spec in overlay_policy.mat_specs.items()} \
+        if overlay_policy.mat_specs else {}
+    material_cache = material_cache if material_cache is not None else overlay_policy.build_material_cache(geometry)
 
     # Run overlay in serial
     if overlay_policy.num_procs <= 1:
         materials = []
         for point in centroids:
-            mat = Material.from_openmc_geometry_point(point, geometry, overlay_policy.mat_specs)
+            mat = _material_at_geometry_point(point,
+                                              geometry,
+                                              mpact_specs_by_id,
+                                              material_cache)
             materials.append(mat)
         return materials
 
     # Run overlay in parallel
     chunks    = np.array_split(centroids, overlay_policy.num_procs)
-    args_list = [(chunk, geometry, overlay_policy.mat_specs) for chunk in chunks]
+    args_list = [(chunk, geometry, mpact_specs_by_id, material_cache) for chunk in chunks]
 
     with ProcessPoolExecutor(max_workers=overlay_policy.num_procs) as executor:
         batch_results = list(executor.map(_process_centroid_batch, args_list))
@@ -349,6 +409,23 @@ class PinMesh(ABC):
             assert self.num_procs > 0, f"num_procs = {self.num_procs}"
             self.mix_policy = Material.MixPolicy() if self.mix_policy is None else self.mix_policy
 
+        def build_material_cache(self, geometry: openmc.Geometry) -> Dict[int, Material]:
+            """Build converted MPACT materials keyed by OpenMC material ID.
+
+            Parameters
+            ----------
+            geometry : openmc.Geometry
+                OpenMC geometry whose materials should be converted.
+
+            Returns
+            -------
+            Dict[int, Material]
+                MPACT materials keyed by their source OpenMC material IDs.
+            """
+            mpact_specs_by_id = {mat.id: spec for mat, spec in self.mat_specs.items()} if self.mat_specs else {}
+            return {mat.id: Material.from_openmc_material(mat, mpact_specs_by_id.get(mat.id, Material.MPACTSpecs()))
+                    for mat in geometry.get_all_materials().values()}
+
         def allocate_processes(self, num_children: int) -> PinMesh.OverlayPolicy:
             """Allocate process budget among child operations
 
@@ -362,15 +439,17 @@ class PinMesh(ABC):
             PinMesh.OverlayPolicy
                 A new policy with processes allocated for child operations
             """
-            if self.num_procs <= 1 or num_children <= 1:
-                child_policy = deepcopy(self)
-                child_policy.num_procs = 1
-                return child_policy
 
-            processes_per_child = max(1, self.num_procs // num_children)
-            child_policy = deepcopy(self)
-            child_policy.num_procs = processes_per_child
-            return child_policy
+            num_procs = 1 if self.num_procs <= 1 or num_children <= 1 else \
+                        max(1, self.num_procs // num_children)
+
+            # Overlay policies are read-only while traversing the hierarchy, so
+            # share the heavier fields instead of deep-copying them at each level.
+            return PinMesh.OverlayPolicy(method     = self.method,
+                                         n_samples  = self.n_samples,
+                                         mat_specs  = self.mat_specs,
+                                         mix_policy = self.mix_policy,
+                                         num_procs  = num_procs)
 
 
     @abstractmethod
@@ -378,6 +457,7 @@ class PinMesh(ABC):
                 geometry:       openmc.Geometry,
                 offset:         Tuple[float, float, float] = (0.0, 0.0, 0.0),
                 overlay_policy: OverlayPolicy = OverlayPolicy(),
+                material_cache: Optional[Dict[int, Material]] = None,
     ) -> List[Optional[Material]]:
         """ A method for overlaying an OpenMC geometry over top a MPACTPy PinMesh
 
@@ -390,6 +470,9 @@ class PinMesh(ABC):
             MPACT PinMesh lower-left. Default is (0.0, 0.0, 0.0)
         overlay_policy : OverlayPolicy
             A configuration object specifying how a mesh overlay should be done.
+        material_cache : Optional[Dict[int, Material]]
+            Cache of converted MPACT materials keyed by OpenMC material ID. If not
+            provided, centroid overlays build a cache from the OpenMC geometry.
 
         Returns
         -------
@@ -665,25 +748,32 @@ class RectangularPinMesh(PinMesh):
                 geometry:       openmc.Geometry,
                 offset:         Tuple[float, float, float] = (0.0, 0.0, 0.0),
                 overlay_policy: PinMesh.OverlayPolicy = PinMesh.OverlayPolicy(),
+                material_cache: Optional[Dict[int, Material]] = None,
     ) -> List[Optional[Material]]:
 
-        # Create mesh for overlay operations
-        mesh = openmc.RectilinearMesh()
-        mesh.x_grid = np.array([0.0] + self.xvals) + offset[0]
-        mesh.y_grid = np.array([0.0] + self.yvals) + offset[1]
-        mesh.z_grid = np.array([0.0] + self.zvals) + offset[2]
-
         mesh_shape = (len(self.xvals), len(self.yvals), len(self.zvals))
+
+        x_grid = np.array([0.0] + self.xvals) + offset[0]
+        y_grid = np.array([0.0] + self.yvals) + offset[1]
+        z_grid = np.array([0.0] + self.zvals) + offset[2]
 
         # Perform overlay based on the selected method
         if overlay_policy.method == "centroid":
             # Centroid-based overlay using ProcessPoolExecutor
-            centroids = mesh.centroids.reshape((-1, 3))
-            materials = _materials_at_centroids(centroids, geometry, overlay_policy)
+            x_centroids = 0.5 * (x_grid[:-1] + x_grid[1:])
+            y_centroids = 0.5 * (y_grid[:-1] + y_grid[1:])
+            z_centroids = 0.5 * (z_grid[:-1] + z_grid[1:])
+            centroid_grid = np.meshgrid(x_centroids, y_centroids, z_centroids, indexing='ij')
+            centroids = np.stack(centroid_grid, axis=-1).reshape((-1, 3))
+            materials = _materials_at_centroids(centroids, geometry, overlay_policy, material_cache)
             materials = np.array(materials).reshape(mesh_shape, order='C')
         else:
             # Homogenized overlay using ProcessPoolExecutor
             # Note: For homogenized method, we need a full model for material_volumes
+            mesh = openmc.RectilinearMesh()
+            mesh.x_grid = x_grid
+            mesh.y_grid = y_grid
+            mesh.z_grid = z_grid
             model = openmc.Model(geometry=geometry)
             model.settings.temperature = {'method': 'interpolation'}
             with temporary_environment("OMP_NUM_THREADS", str(overlay_policy.num_procs)):
@@ -1072,6 +1162,8 @@ class GeneralCylindricalPinMesh(PinMesh):
                 geometry:       openmc.Geometry,
                 offset:         Tuple[float, float, float] = (0.0, 0.0, 0.0),
                 overlay_policy: PinMesh.OverlayPolicy = PinMesh.OverlayPolicy(),
+                material_cache: Optional[Dict[int, Material]] = None,
     ) -> List[Optional[Material]]:
 
+        _ = material_cache
         raise NotImplementedError("Overlay not implemented for GeneralCylindricalPinMesh")
