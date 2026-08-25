@@ -48,6 +48,23 @@ def test_material_initialization(material):
     assert material.number_densities == {"U235": 1e-3, "C": 2e-3}
     assert material.replace_isotopes == {"C" : "C_in_Graphite"}
 
+def test_using_fission_products():
+    specs = Material.MPACTSpecs(replace_isotopes = {"H": "H1_in_ZrH"},
+                                is_depletable    = True,
+                                has_resonance    = True,
+                                is_fuel          = True)
+
+    fission_product_specs = specs.using_fission_product_ids(exclude=["Zr96"])
+
+    assert fission_product_specs is not specs
+    assert fission_product_specs.replace_isotopes["H"] == "H1_in_ZrH"
+    assert fission_product_specs.replace_isotopes["Zr91"] == "Zr91_FP"
+    assert "Zr96" not in fission_product_specs.replace_isotopes
+    assert specs.replace_isotopes == {"H": "H1_in_ZrH"}
+    assert fission_product_specs.is_depletable
+    assert fission_product_specs.has_resonance
+    assert fission_product_specs.is_fuel
+
 def test_material_equality(material, equal_material, unequal_material):
     assert material == equal_material
     assert material != unequal_material
