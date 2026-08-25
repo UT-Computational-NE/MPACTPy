@@ -126,7 +126,7 @@ class Material():
                 is_fluid         = self.is_fluid,
                 is_depletable    = self.is_depletable,
                 has_resonance    = self.has_resonance,
-                is_fuel          = self.is_fuel,
+                is_fuel          = self.is_fuel
             )
 
     @property
