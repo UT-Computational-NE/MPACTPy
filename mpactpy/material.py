@@ -95,6 +95,40 @@ class Material():
             assert all(value in MPACT_SUPPORTED_ISOTOPE_IDS for value in self.replace_isotopes.values()), \
                 f"Invalid replacement isotope ID: {self.replace_isotopes.values()}"
 
+        def using_fission_product_ids(self, exclude: Optional[List[str]] = None) -> Material.MPACTSpecs:
+            """Return a copy that replaces isotopes with their fission-product IDs.
+
+            Parameters
+            ----------
+            exclude : Optional[List[str]]
+                Isotope IDs to exclude from the fission-product replacements.
+
+            Returns
+            -------
+            Material.MPACTSpecs
+                A copy of these specifications with fission-product replacements added.
+
+            Notes
+            -----
+            Existing isotope replacements take precedence over the automatically added
+            fission-product replacements.
+            """
+
+            excluded = set(exclude or [])
+            fission_product_replacements = {
+                isotope: replacement
+                for isotope, replacement in MPACT_FISSION_PRODUCT_EQUIVALENT_ISOTOPES.items()
+                if isotope not in excluded
+            }
+
+            return Material.MPACTSpecs(
+                replace_isotopes = fission_product_replacements | self.replace_isotopes,
+                is_fluid         = self.is_fluid,
+                is_depletable    = self.is_depletable,
+                has_resonance    = self.has_resonance,
+                is_fuel          = self.is_fuel
+            )
+
     @property
     def density(self) -> float:
         return self._density
@@ -516,6 +550,47 @@ class Material():
 # ORNL/SPR-2021/2331, https://doi.org/10.2172/1887706 (2022)
 # Section 3.4 pg 8-14
 MPACT_NATURAL_ELEMENTS = [ 'C', 'Mg', 'Si', 'S', 'Cl', 'K', 'Ca', 'Ti', 'V']
+
+
+# Isotopes with distinct MPACT IDs when present as fission products
+MPACT_FISSION_PRODUCT_EQUIVALENT_ISOTOPES = {
+    "Zr91":  "Zr91_FP",
+    "Zr93":  "Zr93_FP",
+    "Zr95":  "Zr95_FP",
+    "Zr96":  "Zr96_FP",
+    "Mo95":  "Mo95_FP",
+    "Rh103": "Rh103_FP",
+    "Ag109": "Ag109_FP",
+    "Cd110": "Cd110_FP",
+    "Cd111": "Cd111_FP",
+    "Cd113": "Cd113_FP",
+    "In115": "In115_FP",
+    "Sb121": "Sb121_FP",
+    "Sb125": "Sb125_FP",
+    "Sm152": "Sm152_FP",
+    "Sm153": "Sm153_FP",
+    "Eu151": "Eu151_FP",
+    "Eu153": "Eu153_FP",
+    "Eu154": "Eu154_FP",
+    "Eu155": "Eu155_FP",
+    "Eu156": "Eu156_FP",
+    "Eu157": "Eu157_FP",
+    "Gd154": "Gd154_FP",
+    "Gd155": "Gd155_FP",
+    "Gd156": "Gd156_FP",
+    "Gd157": "Gd157_FP",
+    "Gd158": "Gd158_FP",
+    "Gd160": "Gd160_FP",
+    "Tb159": "Tb159_FP",
+    "Tb160": "Tb160_FP",
+    "Tb161": "Tb161_FP",
+    "Dy160": "Dy160_FP",
+    "Dy161": "Dy161_FP",
+    "Dy162": "Dy162_FP",
+    "Dy163": "Dy163_FP",
+    "Dy164": "Dy164_FP",
+    "Ho165": "Ho165_FP",
+}
 
 
 # All MPACT supported elements / isotopes
