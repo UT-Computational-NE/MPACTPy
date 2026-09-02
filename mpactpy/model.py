@@ -116,10 +116,9 @@ class Model():
         string += "\n"
 
         for state in self.states:
-            string += "STATE"
+            string += "STATE\n"
             for param, val in state.items():
-                string += " " + param + " " + val
-            string += "\n"
+                string += prefix + param + " " + val + "\n"
         string += "\n"
 
         string += "GEOM\n"
