@@ -60,7 +60,8 @@ MATERIAL
     6001 0.002
     92235 0.001
 
-STATE power 0.0
+STATE
+  power 0.0
 
 GEOM
   mod_dim 4.0 4.0 3.0
@@ -93,7 +94,6 @@ OPTION
 
 """
     assert output == expected_output
-
 
 
 def test_harder_model():
@@ -153,7 +153,8 @@ MATERIAL
     1001 0.002
     92235 0.001
 
-STATE power 0.0
+STATE
+  power 0.0
 
 GEOM
   mod_dim 2.0 2.0 1.0 2.0
