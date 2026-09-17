@@ -873,11 +873,16 @@ class GeneralCylindricalPinMesh(PinMesh):
             subdivisions created from the final implicit outer region. This is
             used only when the outer region is subdivided into additional
             explicit material regions.
+        outer_bounding_radius : Optional[float]
+            Radius used as the outer endpoint when subdividing the final
+            implicit radial region. When omitted, the radius is the maximum
+            distance from the cylindrical origin to a pin-mesh corner.
         """
-        subd_r:   Optional[List[int]] = None
-        subd_z:   Optional[List[int]] = None
-        div_type: Optional[List[RadialDivisionType]] = None
-        outer_ndivr: int = 1
+        subd_r:                Optional[List[int]] = None
+        subd_z:                Optional[List[int]] = None
+        div_type:              Optional[List[RadialDivisionType]] = None
+        outer_ndivr:           int = 1
+        outer_bounding_radius: Optional[float] = None
 
     @property
     def r(self) -> List[float]:
@@ -1045,7 +1050,20 @@ class GeneralCylindricalPinMesh(PinMesh):
 
         outer_ndiva = self.ndiva[ndiva_index]
         outer_region_index = len(self.r)
-        bounding_radius = max(hypot(x, y) for x in (self.xMin, self.xMax) for y in (self.yMin, self.yMax))
+        cell_bounding_radius = max(
+            hypot(x, y)
+            for x in (self.xMin, self.xMax)
+            for y in (self.yMin, self.yMax)
+        )
+        bounding_radius = subdivisions.outer_bounding_radius
+        if bounding_radius is None:
+            bounding_radius = cell_bounding_radius
+        else:
+            assert bounding_radius > cell_bounding_radius or \
+                   isclose(bounding_radius, cell_bounding_radius), \
+                (f"outer_bounding_radius = {bounding_radius} does not enclose "
+                 f"the pin-mesh bounds; minimum = {cell_bounding_radius}")
+
         if bounding_radius > self.r[-1]:
             for radius in subdivide_ring(self.r[-1], bounding_radius, subd_r[-1], div_type[-1])[:-1]:
                 new_r.append(radius)
