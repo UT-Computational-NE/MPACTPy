@@ -109,6 +109,9 @@ class Pin():
             The string that represents the pin
         """
 
+        assert self.pinmesh.regions_inside_bounds, \
+            "Pin has no material regions inside its pinmesh bounds"
+
         if material_mpact_ids is None:
             materials = unique(material for material in self.materials)
             material_mpact_ids = {material: i for i, material in enumerate(materials)}

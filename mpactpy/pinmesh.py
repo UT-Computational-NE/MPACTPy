@@ -974,6 +974,10 @@ class GeneralCylindricalPinMesh(PinMesh):
 
     def write_to_string(self, prefix: str = "", mpact_ids: Dict[PinMesh, int] = None) -> str:
 
+        assert self._r_inside_bounds, \
+            f"GCYL PinMesh with bounds {self.xMin, self.yMin, self.xMax, self.yMax} " + \
+            f"and radii {self.r} has no radial interface which intersects the bounds"
+
         mpact_id = 1 if mpact_ids is None else mpact_ids[self]
         string = prefix
         string += f"pinmesh {mpact_id} gcyl {list_to_str(self._r_inside_bounds)} / " \
@@ -1132,9 +1136,12 @@ class GeneralCylindricalPinMesh(PinMesh):
         radii_inside_bounds = [i for i,r in enumerate(self.r)
                                if box_overlaps_circle(r) and not circle_encloses_box(r)]
 
-        assert radii_inside_bounds, \
-            f"GCYL PinMesh with bounds {self.xMin, self.yMin, self.xMax, self.yMax} " + \
-            f"and radii {self.r} has no radial interface which intersects the bounds"
+        if not radii_inside_bounds:
+            self._r_inside_bounds = []
+            self._ndivr_inside_bounds = []
+            self._ndiva_inside_bounds = []
+            self._regions_inside_bounds = []
+            return
 
         self._r_inside_bounds       = [self._r[i] for i in radii_inside_bounds]
         self._ndivr_inside_bounds   = [self._ndivr[i] for i in radii_inside_bounds]
