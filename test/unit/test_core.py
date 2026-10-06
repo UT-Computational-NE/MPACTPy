@@ -76,6 +76,15 @@ def openmc_core(openmc_assembly):
 
     return geometry
 
+def test_core_non_square(assembly):
+    core = Core([[assembly, assembly, assembly]])
+
+    assert core.nx == 3
+    assert core.ny == 1
+    assert_allclose(core.pitch['column'], [8., 8., 8.])
+    assert_allclose(core.pitch['row'], [8.])
+    assert_allclose([core.width[i] for i in ['X','Y']], [24., 8.])
+
 def test_core_initialization(core, assembly):
     assert isclose(core.height, 12.0)
     assert core.symmetry_opt    == ""

@@ -4,7 +4,7 @@ from numpy.testing import assert_allclose
 
 import openmc
 
-from mpactpy import PinMesh, Pin, Module
+from mpactpy import PinMesh, Pin, Module, build_rec_pin
 from test.unit.test_material import material, equal_material, unequal_material
 from test.unit.test_pinmesh import general_cylindrical_pinmesh as pinmesh,\
                                    equal_general_cylindrical_pinmesh as equal_pinmesh,\
@@ -86,6 +86,24 @@ def test_module_write_to_string(module, pin):
                       "    5 5\n" + \
                       "    5 5\n"
     assert output == expected_output
+
+def test_module_non_square(material):
+    def rec_pin(dx, dy):
+        return build_rec_pin({'X': [dx], 'Y': [dy], 'Z': [1.0]}, [material])
+
+    pins   = [[rec_pin(1., 4.), rec_pin(2., 4.), rec_pin(3., 4.)],
+              [rec_pin(1., 5.), rec_pin(2., 5.), rec_pin(3., 5.)]]
+    module = Module(1, pins)
+
+    assert module.nx == 3
+    assert module.ny == 2
+    assert_allclose([module.pitch[i] for i in ['X','Y','Z']], [6., 9., 1.])
+
+    pin_ids = {pin: i+1 for i, pin in enumerate(p for row in pins for p in row)}
+    output  = module.write_to_string(prefix="  ", pin_mpact_ids=pin_ids, module_mpact_ids={module: 7})
+    assert output == "  module 7 3 2 1\n" + \
+                     "    1 2 3\n" + \
+                     "    4 5 6\n"
 
 def test_module_get_axial_slice(module):
     module_slice = module.get_axial_slice(0.5, 1.5)

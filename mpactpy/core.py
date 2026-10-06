@@ -98,11 +98,11 @@ class Core():
 
     @property
     def nx(self) -> int:
-        return len(self.assembly_map)
+        return len(self.assembly_map[0])
 
     @property
     def ny(self) -> int:
-        return len(self.assembly_map[0])
+        return len(self.assembly_map)
 
     @property
     def nz(self) -> int:
@@ -182,8 +182,8 @@ class Core():
         self._pitch = {'row':    [next((assembly.pitch['Y'] for assembly in row if assembly), 0.0)
                                        for row in self.assembly_map],
                        'column': [next((self.assembly_map[i][j].pitch['X']
-                                        for i in range(self.nx) if self.assembly_map[i][j]), 0.0)
-                                        for j in range(self.ny)]}
+                                        for i in range(self.ny) if self.assembly_map[i][j]), 0.0)
+                                        for j in range(self.nx)]}
 
         self._width = {'X': sum(self.pitch["column"]), 'Y': sum(self.pitch["row"])}
 
@@ -344,8 +344,8 @@ class Core():
                 return False
 
         # Check columns
-        for j in range(self.ny):
-            column = [self.assembly_map[i][j] for i in range(self.nx)]
+        for j in range(self.nx):
+            column = [self.assembly_map[i][j] for i in range(self.ny)]
             if not is_continuous_line(column, 'X'):
                 return False
 
