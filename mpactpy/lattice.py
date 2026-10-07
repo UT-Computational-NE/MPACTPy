@@ -56,11 +56,11 @@ class Lattice():
 
     @property
     def nx(self) -> int:
-        return len(self.module_map)
+        return len(self.module_map[0])
 
     @property
     def ny(self) -> int:
-        return len(self.module_map[0])
+        return len(self.module_map)
 
     @property
     def pitch(self) -> Pitch:
@@ -102,10 +102,10 @@ class Lattice():
                             'Y': self.module_map[0][0].pitch['Y']}
 
         assert all(isclose(self.module_map[i][j].pitch['X'], self.mod_dim['X'])
-                   for j in range(self.ny) for i in range(self.nx))
+                   for i in range(self.ny) for j in range(self.nx))
 
         assert all(isclose(self.module_map[i][j].pitch['Y'], self.mod_dim['Y'])
-                   for i in range(self.nx) for j in range(self.ny))
+                   for i in range(self.ny) for j in range(self.nx))
 
         assert all(isclose(module.pitch['Z'], self.module_map[0][0].pitch['Z'])
                    for row in self.module_map for module in row)

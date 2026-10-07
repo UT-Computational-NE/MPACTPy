@@ -89,6 +89,17 @@ def test_lattice_write_to_string(lattice, module):
                       "    2 2\n"
     assert output == expected_output
 
+def test_lattice_non_square(module):
+    lattice = Lattice([[module, module, module]])
+
+    assert lattice.nx == 3
+    assert lattice.ny == 1
+    assert_allclose([lattice.pitch[i] for i in ['X','Y','Z']], [12., 4., 3.])
+
+    output = lattice.write_to_string(prefix="  ", module_mpact_ids={module: 2}, lattice_mpact_ids={lattice: 4})
+    assert output == "  lattice 4 3 1\n" + \
+                     "    2 2 2\n"
+
 def test_lattice_get_axial_slice(lattice):
     lattice_slice = lattice.get_axial_slice(0.5, 1.5)
     module_slice  = lattice_slice.module_map[0][0]

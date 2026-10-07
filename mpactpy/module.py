@@ -50,11 +50,11 @@ class Module():
 
     @property
     def nx(self) -> int:
-        return len(self.pin_map)
+        return len(self.pin_map[0])
 
     @property
     def ny(self) -> int:
-        return  len(self.pin_map[0])
+        return len(self.pin_map)
 
     @property
     def nz(self) -> int:
@@ -91,16 +91,16 @@ class Module():
         self._pin_map = pin_map
 
         assert all(isclose(self.pin_map[i][j].pitch['X'], self.pin_map[0][j].pitch['X'])
-                   for j in range(self.ny) for i in range(self.nx))
+                   for i in range(self.ny) for j in range(self.nx))
 
         assert all(isclose(self.pin_map[i][j].pitch['Y'], self.pin_map[i][0].pitch['Y'])
-                   for i in range(self.nx) for j in range(self.ny))
+                   for i in range(self.ny) for j in range(self.nx))
 
         assert all(isclose(pin.pitch['Z'], self.pin_map[0][0].pitch['Z'])
                    for row in self.pin_map for pin in row)
 
-        x_pitch     = sum(self.pin_map[0][j].pitch['X'] for j in range(self.ny))
-        y_pitch     = sum(self.pin_map[i][0].pitch['Y'] for i in range(self.nx))
+        x_pitch     = sum(self.pin_map[0][j].pitch['X'] for j in range(self.nx))
+        y_pitch     = sum(self.pin_map[i][0].pitch['Y'] for i in range(self.ny))
         z_pitch     = self.pin_map[0][0].pitch['Z'] * self.nz
         self._pitch = {'X': x_pitch, 'Y': y_pitch, 'Z': z_pitch}
 
