@@ -3,7 +3,7 @@ from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 
 
-class CardBlock():
+class KeyValueBlock():
     """ An ordered collection of the input cards of an MPACT key/value block
 
     Blocks such as STATE, OPTION, XSEC, and TRANS are a list of cards, each of which
@@ -34,7 +34,7 @@ class CardBlock():
 
     @dataclass
     class Entry():
-        """ A dataclass for a single line of a card block
+        """ A dataclass for a single line of a key/value block
 
         Attributes
         ----------
@@ -68,7 +68,7 @@ class CardBlock():
     def __eq__(self, other: Any) -> bool:
         if self is other:
             return True
-        return (isinstance(other, CardBlock)           and
+        return (isinstance(other, KeyValueBlock)       and
                 self.name.lower() == other.name.lower() and
                 self._cards()     == other._cards()
                )
@@ -94,8 +94,8 @@ class CardBlock():
         self._entries = [entry for entry in self.entries if not self._matches(entry, keyword)]
 
     @staticmethod
-    def from_dict(name: str, cards: Dict[str, str]) -> CardBlock:
-        """ Method for creating a card block from a dictionary of keywords and values
+    def from_dict(name: str, cards: Dict[str, str]) -> KeyValueBlock:
+        """ Method for creating a key/value block from a dictionary of keywords and values
 
         Parameters
         ----------
@@ -106,11 +106,11 @@ class CardBlock():
 
         Returns
         -------
-        CardBlock
-            The card block with one card per dictionary item, in dictionary order
+        KeyValueBlock
+            The key/value block with one card per dictionary item, in dictionary order
         """
 
-        block = CardBlock(name)
+        block = KeyValueBlock(name)
         for keyword, value in cards.items():
             block.add(keyword, value)
         return block
@@ -186,7 +186,7 @@ class CardBlock():
         """
 
         self._check_card(keyword, value, comment)
-        self._entries.append(CardBlock.Entry(keyword, value, comment))
+        self._entries.append(KeyValueBlock.Entry(keyword, value, comment))
 
     def add_comment(self, text: str) -> None:
         """ Method for adding a comment-only line to the end of the block
@@ -198,10 +198,10 @@ class CardBlock():
         """
 
         assert "\n" not in text, f"text = {text}"
-        self._entries.append(CardBlock.Entry(None, text))
+        self._entries.append(KeyValueBlock.Entry(None, text))
 
     def write_to_string(self, prefix: str = "  ") -> str:
-        """ Method for writing the card block to a string
+        """ Method for writing the key/value block to a string
 
         Parameters
         ----------
@@ -212,7 +212,7 @@ class CardBlock():
         Returns
         -------
         str
-            The string that represents the card block
+            The string that represents the key/value block
         """
 
         assert len(prefix) > 0, "prefix must not be empty"
