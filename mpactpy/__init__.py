@@ -6,6 +6,7 @@ from .lattice import Lattice
 from .assembly  import Assembly
 from .core import Core
 from .model import Model
+from .key_value_block import KeyValueBlock
 
 
 
@@ -21,5 +22,6 @@ __all__ = [
     "Lattice",
     "Assembly",
     "Core",
-    "Model"
+    "Model",
+    "KeyValueBlock"
 ]
