@@ -107,6 +107,21 @@ def test_key_value_block_set(key_value_block):
     key_value_block.set("ray", "0.05 CHEBYSHEV-YAMAMOTO 16 3", comment="ray spacing")
     assert key_value_block.entries[-1] == KeyValueBlock.Entry("ray", "0.05 CHEBYSHEV-YAMAMOTO 16 3", "ray spacing")
 
+def test_key_value_block_set_index(key_value_block):
+    key_value_block.set("param", "SHIELD_MOC_KERNEL LS 2", index=1)
+    assert key_value_block.get_all("param") == ["MOC_KERNEL SIK 2", "SHIELD_MOC_KERNEL LS 2"]
+
+    key_value_block.set("param", "SHIELD_MOC_KERNEL SIK 3", index=-1)
+    assert key_value_block.get_all("param") == ["MOC_KERNEL SIK 2", "SHIELD_MOC_KERNEL SIK 3"]
+
+    key_value_block.set("ray", "0.05", index=-1)
+    assert key_value_block.entries[-1] == KeyValueBlock.Entry("ray", "0.05")
+
+    with pytest.raises(AssertionError):
+        key_value_block.set("param", "MOC_KERNEL LS 2", index=2)
+    with pytest.raises(AssertionError):
+        key_value_block.set("solver", "1 2", index=1)
+
 def test_key_value_block_set_comment_rule(key_value_block):
     key_value_block["conv_crit"] = "1E-6 1E-4"
     assert key_value_block.entries[4].comment == "k and flux"

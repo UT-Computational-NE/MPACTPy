@@ -155,11 +155,13 @@ class KeyValueBlock():
             keyword:      str,
             value:        str,
             comment:      Optional[str] = None,
-            keep_comment: bool = False) -> None:
+            keep_comment: bool = False,
+            index:        int = 0) -> None:
         """ Method for setting the value of a card
 
-        The first card with the given keyword is updated, or a new card is added to the
-        end of the block if there is no card with that keyword.  If an existing card is
+        The card with the given keyword is updated, or a new card is added to the end of
+        the block if there is no card with that keyword.  When the keyword appears more
+        than once, index selects which of those cards to update.  If an existing card is
         given a different value, its comment is dropped unless a new comment is provided
         or keep_comment is True.
 
@@ -173,15 +175,23 @@ class KeyValueBlock():
             A new comment for the card, without the leading '!'
         keep_comment : bool
             Whether to keep the card's existing comment when its value changes
+        index : int
+            Which card with this keyword to update, counting only cards with this keyword
+            (0 for the first, the default; -1 for the last)
         """
 
         assert not (comment is not None and keep_comment), \
             "Cannot both provide a new comment and keep the existing comment"
 
-        entry = self._find(keyword)
-        if entry is None:
+        matches = [entry for entry in self.entries if self._matches(entry, keyword)]
+        if not matches:
+            assert index in (0, -1), f"index = {index}, but there is no card with keyword {keyword}"
             self.add(keyword, value, comment)
             return
+
+        assert -len(matches) <= index < len(matches), \
+            f"index = {index}, but there are {len(matches)} cards with keyword {keyword}"
+        entry = matches[index]
 
         self._check_card(keyword, value, comment)
         if comment is not None:
