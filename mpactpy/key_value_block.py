@@ -19,8 +19,9 @@ class KeyValueBlock():
     Comments describe the value on their line, so setting a card to a different value
     drops its comment unless a new comment is given or the comment is explicitly kept.
 
-    Because a block can be changed after it is created, it is not hashable.  Use
-    `snapshot()` wherever the block's contents need to be hashed.
+    Blocks are not hashable.  Hashing exists so that identical geometry elements can be
+    found and written only once; blocks are never deduplicated that way, and a block can
+    be changed after it is created, which would change its hash.
 
     Parameters
     ----------
@@ -71,12 +72,12 @@ class KeyValueBlock():
     def __eq__(self, other: Any) -> bool:
         if self is other:
             return True
-        return (isinstance(other, KeyValueBlock) and
-                self.snapshot() == other.snapshot()
+        return (isinstance(other, KeyValueBlock)       and
+                self.name.lower() == other.name.lower() and
+                self._cards()     == other._cards()
                )
 
-    # A block can be changed after it is created, so a hash of its contents could change
-    # while it is stored in a dict or set.  Use snapshot() to hash the contents instead.
+    # Not hashable: see the class docstring
     __hash__ = None
 
     def __contains__(self, keyword: str) -> bool:
@@ -134,22 +135,6 @@ class KeyValueBlock():
 
         return [entry.value for entry in self.entries if self._matches(entry, keyword)]
 
-    def snapshot(self) -> Tuple[str, Tuple[Tuple[str, str], ...]]:
-        """ Method for getting an immutable snapshot of the block's contents
-
-        The snapshot contains only what equality compares: the block name and the
-        card keywords (both lower case, as MPACT is not case sensitive) and values.
-        Comments and comment-only lines are left out.  Later changes to the block do
-        not change a snapshot that has already been taken, so it is safe to hash.
-
-        Returns
-        -------
-        Tuple[str, Tuple[Tuple[str, str], ...]]
-            The block name and the (keyword, value) pairs of its cards, in order
-        """
-
-        return (self.name.lower(),
-                tuple((entry.keyword.lower(), entry.value) for entry in self.entries if entry.keyword is not None))
 
     def set(self,
             keyword:      str,
@@ -257,6 +242,11 @@ class KeyValueBlock():
                 line += f" !{entry.comment}"
             string += prefix + line + "\n"
         return string
+
+    def _cards(self) -> List[Tuple[str, str]]:
+        # What equality compares: (keyword, value) of each card, keywords in lower case as
+        # MPACT is not case sensitive.  Comments and comment-only lines are left out.
+        return [(entry.keyword.lower(), entry.value) for entry in self.entries if entry.keyword is not None]
 
     def _find(self, keyword: str) -> Optional[Entry]:
         return next((entry for entry in self.entries if self._matches(entry, keyword)), None)

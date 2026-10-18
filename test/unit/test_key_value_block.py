@@ -42,29 +42,12 @@ def test_key_value_block_equality(key_value_block, equal_key_value_block, unequa
     assert key_value_block != unequal_key_value_block
     assert KeyValueBlock("STATE") != KeyValueBlock("OPTION")
 
-def test_key_value_block_hash(key_value_block, equal_key_value_block, unequal_key_value_block):
+def test_key_value_block_hash(key_value_block):
+    # Blocks are deliberately not hashable: they change after creation and are never deduplicated
     with pytest.raises(TypeError):
         hash(key_value_block)
-
-    assert hash(key_value_block.snapshot()) == hash(equal_key_value_block.snapshot())
-    assert hash(key_value_block.snapshot()) != hash(unequal_key_value_block.snapshot())
-
-def test_key_value_block_snapshot(key_value_block):
-    snapshot = key_value_block.snapshot()
-    assert snapshot == ("option", (("bound_cond", "1 1 1 1 1 1"),
-                                   ("param",      "MOC_KERNEL SIK 2"),
-                                   ("param",      "SHIELD_MOC_KERNEL SIK 2"),
-                                   ("conv_crit",  "1E-6 1E-4")))
-
-    # Changing the block must not change a snapshot that is already stored as a key
-    cache = {snapshot: "original result"}
-    key_value_block["conv_crit"] = "1E-7 1E-5"
-    assert cache[snapshot] == "original result"
-    assert key_value_block.snapshot() not in cache
-    assert key_value_block.snapshot()[1][-1] == ("conv_crit", "1E-7 1E-5")
-
     with pytest.raises(TypeError):
-        cache[key_value_block] = "updated result"
+        {key_value_block: "value"}
 
 def test_key_value_block_write_to_string(key_value_block):
     output = key_value_block.write_to_string(prefix="  ")
