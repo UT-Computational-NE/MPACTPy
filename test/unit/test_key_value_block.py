@@ -42,12 +42,25 @@ def test_key_value_block_equality(key_value_block, equal_key_value_block, unequa
     assert key_value_block != unequal_key_value_block
     assert KeyValueBlock("STATE") != KeyValueBlock("OPTION")
 
-def test_key_value_block_hash(key_value_block):
-    # Blocks are deliberately not hashable: they change after creation and are never deduplicated
-    with pytest.raises(TypeError):
-        hash(key_value_block)
-    with pytest.raises(TypeError):
-        {key_value_block: "value"}
+def test_key_value_block_hash(key_value_block, equal_key_value_block, unequal_key_value_block):
+    assert hash(key_value_block) == hash(equal_key_value_block)
+    assert hash(key_value_block) != hash(unequal_key_value_block)
+
+    # The hash is derived on every call, so it follows the block's contents
+    original = hash(key_value_block)
+    key_value_block["conv_crit"] = "1E-7 1E-5"
+    assert hash(key_value_block) != original
+
+def test_key_value_block_snapshot(key_value_block):
+    snapshot = key_value_block.snapshot()
+    assert snapshot == ("option", (("bound_cond", "1 1 1 1 1 1"),
+                                   ("param",      "MOC_KERNEL SIK 2"),
+                                   ("param",      "SHIELD_MOC_KERNEL SIK 2"),
+                                   ("conv_crit",  "1E-6 1E-4")))
+
+    key_value_block["conv_crit"] = "1E-7 1E-5"
+    assert snapshot[1][-1] == ("conv_crit", "1E-6 1E-4")
+    assert key_value_block.snapshot()[1][-1] == ("conv_crit", "1E-7 1E-5")
 
 def test_key_value_block_write_to_string(key_value_block):
     output = key_value_block.write_to_string(prefix="  ")
