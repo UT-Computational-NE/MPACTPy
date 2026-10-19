@@ -3,7 +3,7 @@ from math import isclose
 from numpy.testing import assert_allclose
 
 from mpactpy  import Material, RectangularPinMesh, GeneralCylindricalPinMesh, \
-                     Pin, Module, Lattice, Assembly, Core, Model
+                     Pin, Module, Lattice, Assembly, Core, Model, KeyValueBlock
 from test.unit.test_material import material, equal_material, unequal_material
 from test.unit.test_pinmesh import general_cylindrical_pinmesh as pinmesh,\
                                    equal_general_cylindrical_pinmesh as equal_pinmesh,\
@@ -38,9 +38,10 @@ def unequal_model(unequal_core):
 
 def test_core_initialization(model, core):
     assert model.core          == core
-    assert model.states        == [{"power": "0.0"}]
-    assert model.xsec_settings == {"xslib": "ORNL mpact_lib.fmt"}
-    assert model.options       == {"bound_cond": "1 1 1 1 1 1"}
+    assert model.states        == [KeyValueBlock.from_dict("STATE", {"power": "0.0"})]
+    assert model.xsec_settings == KeyValueBlock.from_dict("XSEC", {"xslib": "ORNL mpact_lib.fmt"})
+    assert model.options       == KeyValueBlock.from_dict("OPTION", {"bound_cond": "1 1 1 1 1 1"})
+    assert model.trans         is None
 
 def test_model_equality(model, equal_model, unequal_model):
     assert model == equal_model
@@ -91,6 +92,71 @@ XSEC
 
 OPTION
   bound_cond 1 1 1 1 1 1
+
+"""
+    assert output == expected_output
+
+
+def test_model_key_value_blocks(core, material):
+    state = KeyValueBlock("STATE")
+    state.add("power", "100.0", comment="full power")
+    state.add_comment("boron 0.0")
+    options = KeyValueBlock("OPTION")
+    options.add("param", "MOC_KERNEL SIK 2")
+    options.add("param", "SHIELD_MOC_KERNEL SIK 2")
+
+    model = Model(core          = core,
+                  states        = [state],
+                  xsec_settings = {"xslib": "ORNL mpact_lib.fmt"},
+                  options       = options,
+                  trans         = {"enable": "T"})
+    assert model.trans == KeyValueBlock.from_dict("TRANS", {"enable": "T"})
+
+    output = model.write_to_string(caseid="test", indent=2)
+    expected_output = \
+f"""CASEID test
+
+MATERIAL
+  mat 1 1 {material.density} g/cc 300.0 K \\
+    6001 0.002
+    92235 0.001
+
+STATE
+  power 100.0 !full power
+  !boron 0.0
+
+TRANS
+  enable T
+
+GEOM
+  mod_dim 4.0 4.0 3.0
+
+  pinmesh 1 gcyl 0.5 1.0 / -1.0 1.0 -1.0 1.0 / 1.0 2.0 3.0 / 1 2 / 8 8 8 8 / 5 5 5
+
+  pin 1 1 / 1 1 1 1 1 1 1 1 1
+
+  module 1 2 2 1
+    1 1
+    1 1
+
+  lattice 1 2 2
+    1 1
+    1 1
+
+  assembly 1
+    1 1 1 1
+
+  core
+      1
+    1 1 1
+      1
+
+XSEC
+  xslib ORNL mpact_lib.fmt
+
+OPTION
+  param MOC_KERNEL SIK 2
+  param SHIELD_MOC_KERNEL SIK 2
 
 """
     assert output == expected_output
