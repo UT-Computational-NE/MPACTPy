@@ -17,15 +17,13 @@ class Model():
     (i.e. geometry elements that are identical to some previously defined geometry
     element in all features except ID) are purged.
 
-    The STATE, XSEC, OPTION and TRANS blocks may each be given as a KeyValueBlock or as
-    a dictionary of keywords and values.  A KeyValueBlock is written in its own order,
-    with repeated keywords and comments.  A dictionary is written as before: STATE
-    keywords in dictionary order, XSEC and OPTION keywords sorted.
+    Settings may be given as a KeyValueBlock or a dictionary, and are stored as
+    KeyValueBlocks.  XSEC and OPTION dictionaries are written with their keys sorted.
 
     Parameters
     ----------
     states : List[Settings]
-        The model states, one STATE block each, in the order they are run
+        The model states
     core : Core
         The model core
     xsec_settings : Settings
@@ -33,24 +31,24 @@ class Model():
     options : Settings
         The model options
     trans : Optional[Settings]
-        The model transient settings (no TRANS block is written if None)
+        The model transient settings (optional)
 
     Attributes
     ----------
-    states : List[Settings]
-        The model states, as given
+    states : List[KeyValueBlock]
+        The model states
     core : Core
         The model core
-    xsec_settings : Settings
-        The model cross-section settings, as given
-    options : Settings
-        The model options, as given
-    trans : Optional[Settings]
-        The model transient settings, as given
+    xsec_settings : KeyValueBlock
+        The model cross-section settings
+    options : KeyValueBlock
+        The model options
+    trans : Optional[KeyValueBlock]
+        The model transient settings
     """
 
     @property
-    def states(self) -> List[Settings]:
+    def states(self) -> List[KeyValueBlock]:
         return self._states
 
     @property
@@ -58,15 +56,15 @@ class Model():
         return self._core
 
     @property
-    def xsec_settings(self) -> Settings:
+    def xsec_settings(self) -> KeyValueBlock:
         return self._xsec_settings
 
     @property
-    def options(self) -> Settings:
+    def options(self) -> KeyValueBlock:
         return self._options
 
     @property
-    def trans(self) -> Optional[Settings]:
+    def trans(self) -> Optional[KeyValueBlock]:
         return self._trans
 
 
@@ -77,36 +75,29 @@ class Model():
                  options       : Settings,
                  trans         : Optional[Settings] = None
     ):
-        for state in states:
-            self._check_settings(state, "STATE")
-        self._check_settings(xsec_settings, "XSEC")
-        self._check_settings(options,       "OPTION")
-        if trans is not None:
-            self._check_settings(trans, "TRANS")
-
         self._core          = core
-        self._states        = states
-        self._xsec_settings = xsec_settings
-        self._options       = options
-        self._trans         = trans
+        self._states        = [self._as_block(state, "STATE") for state in states]
+        self._xsec_settings = self._as_block(xsec_settings, "XSEC",   sort_keys=True)
+        self._options       = self._as_block(options,       "OPTION", sort_keys=True)
+        self._trans         = None if trans is None else self._as_block(trans, "TRANS")
 
     def __eq__(self, other: Any) -> bool:
         if self is other:
             return True
-        return (isinstance(other, Model)                      and
-                self.core            == other.core            and
-                self._state_blocks() == other._state_blocks() and
-                self._xsec_block()   == other._xsec_block()   and
-                self._option_block() == other._option_block() and
-                self._trans_block()  == other._trans_block()
+        return (isinstance(other, Model)                  and
+                self.core          == other.core          and
+                self.states        == other.states        and
+                self.xsec_settings == other.xsec_settings and
+                self.options       == other.options       and
+                self.trans         == other.trans
                )
 
     def __hash__(self) -> int:
         return hash((self.core,
-                    tuple(self._state_blocks()),
-                    self._xsec_block(),
-                    self._option_block(),
-                    self._trans_block()))
+                    tuple(self.states),
+                    self.xsec_settings,
+                    self.options,
+                    self.trans))
 
     def write_to_string(self, caseid: str, indent: int) -> str:
         """ Writes an MPACT input file of the model
@@ -142,13 +133,12 @@ class Model():
             string += material.write_to_string(prefix, material_ids)
         string += "\n"
 
-        for state in self._state_blocks():
+        for state in self.states:
             string += state.write_to_string(prefix)
         string += "\n"
 
-        trans = self._trans_block()
-        if trans is not None:
-            string += trans.write_to_string(prefix) + "\n"
+        if self.trans is not None:
+            string += self.trans.write_to_string(prefix) + "\n"
 
         string += "GEOM\n"
         string += prefix + f"mod_dim {num_to_str(self.core.mod_dim['X'])} " + \
@@ -177,39 +167,19 @@ class Model():
 
         string += self.core.write_to_string(prefix, assembly_ids) + "\n"
 
-        string += self._xsec_block().write_to_string(prefix) + "\n"
+        string += self.xsec_settings.write_to_string(prefix) + "\n"
 
-        string += self._option_block().write_to_string(prefix) + "\n"
+        string += self.options.write_to_string(prefix) + "\n"
 
         return string
 
     @staticmethod
-    def _check_settings(settings: Settings, name: str) -> None:
+    def _as_block(settings: Settings, name: str, sort_keys: bool = False) -> KeyValueBlock:
         if isinstance(settings, KeyValueBlock):
-            assert settings.name.upper() == name, f"expected a {name} block, got {settings.name}"
-        else:
-            assert isinstance(settings, dict), f"{name} settings must be a KeyValueBlock or a dict: {settings}"
-
-    @staticmethod
-    def _as_block(settings: Settings, name: str, sort_keys: bool) -> KeyValueBlock:
-        # Dictionaries are converted each time they are used, so later changes to them
-        # are still written (as they were before KeyValueBlock existed)
-        if isinstance(settings, KeyValueBlock):
+            assert settings.name.upper() == name, f"settings.name = {settings.name}, expected {name}"
             return settings
         items = sorted(settings.items()) if sort_keys else settings.items()
         return KeyValueBlock.from_dict(name, dict(items))
-
-    def _state_blocks(self) -> List[KeyValueBlock]:
-        return [self._as_block(state, "STATE", sort_keys=False) for state in self.states]
-
-    def _xsec_block(self) -> KeyValueBlock:
-        return self._as_block(self.xsec_settings, "XSEC", sort_keys=True)
-
-    def _option_block(self) -> KeyValueBlock:
-        return self._as_block(self.options, "OPTION", sort_keys=True)
-
-    def _trans_block(self) -> Optional[KeyValueBlock]:
-        return None if self.trans is None else self._as_block(self.trans, "TRANS", sort_keys=False)
 
     @staticmethod
     def read_from_string(string_to_read: str) -> Model:

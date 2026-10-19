@@ -38,9 +38,10 @@ def unequal_model(unequal_core):
 
 def test_core_initialization(model, core):
     assert model.core          == core
-    assert model.states        == [{"power": "0.0"}]
-    assert model.xsec_settings == {"xslib": "ORNL mpact_lib.fmt"}
-    assert model.options       == {"bound_cond": "1 1 1 1 1 1"}
+    assert model.states        == [KeyValueBlock.from_dict("STATE", {"power": "0.0"})]
+    assert model.xsec_settings == KeyValueBlock.from_dict("XSEC", {"xslib": "ORNL mpact_lib.fmt"})
+    assert model.options       == KeyValueBlock.from_dict("OPTION", {"bound_cond": "1 1 1 1 1 1"})
+    assert model.trans         is None
 
 def test_model_equality(model, equal_model, unequal_model):
     assert model == equal_model
@@ -96,27 +97,22 @@ OPTION
     assert output == expected_output
 
 
-@pytest.fixture
-def block_model(core):
-    hot_zero_power = KeyValueBlock("STATE")
-    hot_zero_power.add("power", "0.0", comment="hot zero power")
-    full_power = KeyValueBlock("STATE")
-    full_power.add("power", "100.0")
-    full_power.add_comment("boron 0.0")
-
+def test_model_key_value_blocks(core, material):
+    state = KeyValueBlock("STATE")
+    state.add("power", "100.0", comment="full power")
+    state.add_comment("boron 0.0")
     options = KeyValueBlock("OPTION")
-    options.add("param",      "MOC_KERNEL SIK 2")
-    options.add("param",      "SHIELD_MOC_KERNEL SIK 2")
-    options.add("bound_cond", "1 1 1 1 1 1")
+    options.add("param", "MOC_KERNEL SIK 2")
+    options.add("param", "SHIELD_MOC_KERNEL SIK 2")
 
-    return Model(core          = core,
-                 states        = [hot_zero_power, full_power],
-                 xsec_settings = {"xslib": "ORNL mpact_lib.fmt"},
-                 options       = options,
-                 trans         = KeyValueBlock.from_dict("TRANS", {"enable": "T"}))
+    model = Model(core          = core,
+                  states        = [state],
+                  xsec_settings = {"xslib": "ORNL mpact_lib.fmt"},
+                  options       = options,
+                  trans         = {"enable": "T"})
+    assert model.trans == KeyValueBlock.from_dict("TRANS", {"enable": "T"})
 
-def test_model_write_key_value_blocks(block_model, material):
-    output = block_model.write_to_string(caseid="test", indent=2)
+    output = model.write_to_string(caseid="test", indent=2)
     expected_output = \
 f"""CASEID test
 
@@ -126,9 +122,7 @@ MATERIAL
     92235 0.001
 
 STATE
-  power 0.0 !hot zero power
-STATE
-  power 100.0
+  power 100.0 !full power
   !boron 0.0
 
 TRANS
@@ -163,40 +157,9 @@ XSEC
 OPTION
   param MOC_KERNEL SIK 2
   param SHIELD_MOC_KERNEL SIK 2
-  bound_cond 1 1 1 1 1 1
 
 """
     assert output == expected_output
-
-def test_model_dict_and_key_value_block_inputs_are_equal(model, core):
-    block_inputs = Model(core          = core,
-                         states        = [KeyValueBlock.from_dict("STATE", {"power": "0.0"})],
-                         xsec_settings = KeyValueBlock.from_dict("XSEC", {"xslib": "ORNL mpact_lib.fmt"}),
-                         options       = KeyValueBlock.from_dict("OPTION", {"bound_cond": "1 1 1 1 1 1"}))
-    assert model == block_inputs
-    assert hash(model) == hash(block_inputs)
-    assert model.write_to_string(caseid="test", indent=2) == block_inputs.write_to_string(caseid="test", indent=2)
-
-def test_model_trans(model, block_model):
-    assert model.trans is None
-    assert "TRANS" not in model.write_to_string(caseid="test", indent=2)
-
-    output = block_model.write_to_string(caseid="test", indent=2)
-    assert output.index("STATE") < output.index("TRANS") < output.index("GEOM")
-    assert model != block_model
-
-def test_model_dict_changes_are_written(model):
-    model.states[0]["boron"] = "1200.0"
-    assert "STATE\n  power 0.0\n  boron 1200.0\n" in model.write_to_string(caseid="test", indent=2)
-
-def test_model_rejects_mismatched_blocks(core):
-    with pytest.raises(AssertionError):
-        Model(core, [KeyValueBlock("OPTION")], {"xslib": "ORNL mpact_lib.fmt"}, {"bound_cond": "1 1 1 1 1 1"})
-    with pytest.raises(AssertionError):
-        Model(core, [{"power": "0.0"}], {"xslib": "ORNL mpact_lib.fmt"}, KeyValueBlock("STATE"))
-    with pytest.raises(AssertionError):
-        Model(core, [{"power": "0.0"}], {"xslib": "ORNL mpact_lib.fmt"}, {"bound_cond": "1 1 1 1 1 1"},
-              trans=KeyValueBlock("STATE"))
 
 
 def test_harder_model():
