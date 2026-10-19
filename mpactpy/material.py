@@ -567,7 +567,7 @@ class Material():
 
         return ZZZAAAI
 
-    def write_to_string(self, prefix: str = "", mpact_ids: Dict[Material, int] = None) -> str:
+    def write_to_string(self, prefix: str = "", mpact_ids: Dict[int, int] = None) -> str:
         """ Method for writing the material to a string
 
         It should be noted that this method will only write out those elements / isotopes
@@ -584,8 +584,8 @@ class Material():
         ----------
         prefix : str
             A prefix with which to start each line of the written output string
-        mpact_ids : Dict[Material, int]
-            A collection of Materials and their corresponding MPACT IDs
+        mpact_ids : Dict[int, int]
+            The MPACT IDs of the Materials, keyed by the id() of each Material
 
         Returns
         -------
@@ -610,7 +610,7 @@ class Material():
         temperature   = relative_round(self._temperature / scale - offset, TOL)
 
         unit_tag = "" if self.percents is None else f" ({self.percent_unit})"
-        mpact_id = 1 if mpact_ids is None else mpact_ids[self]
+        mpact_id = 1 if mpact_ids is None else mpact_ids[id(self)]
         string = prefix + f"mat {mpact_id} {self._mpact_specs.material_type} " + \
                           f"{self.density} g/cc {temperature} {self._temperature_unit}{unit_tag} \\\n"
 

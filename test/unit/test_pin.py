@@ -17,8 +17,8 @@ def pin(material, pinmesh):
     return Pin(pinmesh, materials)
 
 @pytest.fixture
-def equal_pin(equal_material, equal_pinmesh):
-    materials = [equal_material for _ in range(equal_pinmesh.number_of_material_regions)]
+def equal_pin(material, equal_pinmesh):
+    materials = [material for _ in range(equal_pinmesh.number_of_material_regions)]
     return Pin(equal_pinmesh, materials)
 
 @pytest.fixture
@@ -74,7 +74,7 @@ def test_pin_hash(pin, equal_pin, unequal_pin):
 
 def test_pin_write_to_string(pin, pinmesh, material):
     output = pin.write_to_string(prefix="  ",
-                                 material_mpact_ids={material: 3},
+                                 material_mpact_ids={id(material): 3},
                                  pinmesh_mpact_ids={pinmesh: 2},
                                  pin_mpact_ids={pin: 1})
     expected_output = "  pin 1 2 / 3 3 3 3 3 3 3 3 3\n"

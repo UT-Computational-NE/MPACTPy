@@ -117,7 +117,7 @@ class Model():
 
         assert indent > 0
 
-        material_ids = {material: i+1 for i, material  in enumerate(self.core.materials)}
+        material_ids = {id(material): i+1 for i, material  in enumerate(self.core.materials)}
         pinmesh_ids  = {pinmesh:  i+1 for i, pinmesh   in enumerate(self.core.pinmeshes)}
         pin_ids      = {pin:      i+1 for i, pin       in enumerate(self.core.pins)}
         module_ids   = {module:   i+1 for i, module    in enumerate(self.core.modules)}

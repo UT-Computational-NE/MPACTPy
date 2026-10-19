@@ -162,6 +162,19 @@ OPTION
     assert output == expected_output
 
 
+def test_model_keeps_separate_materials(pinmesh, material, equal_material):
+    def write(materials):
+        pins = [Pin(pinmesh, [m for _ in range(pinmesh.number_of_material_regions)]) for m in materials]
+        core = Core([[Assembly([Lattice([[Module(1, [pins])]])])]])
+        return Model(core, [{"power": "0.0"}], {"xslib": "ORNL mpact_lib.fmt"}, {}).write_to_string(caseid="test", indent=2)
+
+    output = write([material, equal_material])
+    assert output.count("  mat ") == 2 and output.count("  pin ") == 2
+
+    output = write([material, material])
+    assert output.count("  mat ") == 1 and output.count("  pin ") == 1
+
+
 def test_harder_model():
     """ This tests a harder model with multiple repeated element definitions that the model
         must successfully NOT repeat when writing to string
