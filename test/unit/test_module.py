@@ -12,7 +12,7 @@ from test.unit.test_pinmesh import general_cylindrical_pinmesh as pinmesh,\
                                    rectangular_pinmesh as overlay_mesh, \
                                    pinmesh_2D, openmc_pin, openmc_fuel_material, openmc_moderator_material
 from test.unit.test_pin import pin, equal_pin, unequal_pin, pin_2D, overlay_pin, \
-                               template_material, template_pin
+                               template_material, template_pin, overlay_material_cache
 
 
 @pytest.fixture
@@ -124,13 +124,22 @@ def test_module_with_height(module_2D, pin):
     with pytest.raises(AssertionError, match=f"nz = {module.nz}, Module must be strictly 2D"):
         new_module = module.with_height(3.0)
 
-def test_module_overlay(openmc_module, template_module, template_pin, template_material, overlay_module):
+def test_module_overlay(openmc_module, template_module, template_pin, template_material, overlay_material_cache, overlay_module):
     geometry                         = openmc_module
     offset                           = (-3.0, -3.0, 0.0)
     overlay_policy                   = PinMesh.OverlayPolicy(method="centroid")
     pin_mask: Pin.OverlayMask        = {template_material}
     include_only: Module.OverlayMask = {template_pin : pin_mask}
 
-    module          = template_module.overlay(geometry, offset, include_only, overlay_policy)
+    module          = template_module.overlay(geometry, offset, include_only, overlay_policy, overlay_material_cache)
     expected_module = overlay_module
     assert module == expected_module
+
+def test_module_overlay_shares_materials(openmc_module, template_module, overlay_material_cache):
+    overlay_policy = PinMesh.OverlayPolicy(method="centroid", num_procs=2)
+    module         = template_module.overlay(openmc_module, (-3.0, -3.0, 0.0), overlay_policy=overlay_policy,
+                                             material_cache=overlay_material_cache)
+    materials      = [material for row in module.pin_map for pin in row for material in pin.materials]
+    cached         = {material: material for material in overlay_material_cache.values()}
+    assert len({id(material) for material in materials}) == len(set(materials))
+    assert all(material is cached.get(material, material) for material in materials)

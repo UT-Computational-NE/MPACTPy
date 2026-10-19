@@ -520,7 +520,9 @@ class Core():
         for (_, _, _, i, j), overlaid in zip(assembly_work, overlaid_assemblies):
             new_assembly_map[i][j] = overlaid
 
-        return Core(new_assembly_map)
+        shared = {material: material for material in material_cache.values()}
+        return Core([[assembly.with_shared_materials(shared) if assembly else None for assembly in row]
+                     for row in new_assembly_map])
 
     @staticmethod
     def _process_assembly_chunk(assembly_chunk, geometry, child_policy, material_cache):
