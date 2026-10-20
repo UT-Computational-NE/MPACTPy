@@ -1,5 +1,7 @@
 import pytest
 from math import isclose
+from concurrent.futures import ProcessPoolExecutor
+from multiprocessing import get_context
 from mpactpy import Material
 from mpactpy.utils import atomic_mass, AVOGADRO, ROUNDING_RELATIVE_TOLERANCE
 import openmc
@@ -72,6 +74,15 @@ def test_material_equality(material, equal_material, unequal_material):
 def test_material_hash(material, equal_material, unequal_material):
     assert hash(material) == hash(equal_material)
     assert hash(material) != hash(unequal_material)
+
+def hash_material(material):
+    hash(material)
+    return material
+
+def test_material_hash_across_processes(material):
+    with ProcessPoolExecutor(max_workers=1, mp_context=get_context("spawn")) as executor:
+        returned_material = executor.submit(hash_material, material).result()
+    assert hash(returned_material) == hash(material)
 
 def test_material_from_openmc_material():
     openmc_material = openmc.Material()

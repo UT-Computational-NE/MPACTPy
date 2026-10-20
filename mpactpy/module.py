@@ -122,6 +122,10 @@ class Module():
             self._cached_hash = hash((self.nz, tuple(tuple(row) for row in self.pin_map)))
         return self._cached_hash
 
+    def __getstate__(self) -> Dict[str, Any]:
+        # String hashes differ between processes, so a cached hash must not be pickled
+        return {**self.__dict__, "_cached_hash": None}
+
     def write_to_string(self,
                         prefix: str = "",
                         pin_mpact_ids: Dict[Pin, int] = None,

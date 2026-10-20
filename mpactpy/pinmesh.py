@@ -357,6 +357,9 @@ class PinMesh(ABC):
         self._set_regions_inside_bounds()
         self._cached_hash = None
 
+    def __getstate__(self) -> Dict[str, Any]:
+        # String hashes differ between processes, so a cached hash must not be pickled
+        return {**self.__dict__, "_cached_hash": None}
 
     @abstractmethod
     def _set_pitch(self) -> None:
