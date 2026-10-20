@@ -590,26 +590,26 @@ class Material():
             The string representing the material definition
         """
 
-        composition = self.number_densities if self.percents is None else self.percents
-        values      = {}
-        for iso, value in composition.items():
+        composition       = self.number_densities if self.percents is None else self.percents
+        mpact_composition = {}
+        for iso, amount in composition.items():
             if iso in self.replace_isotopes:
                 replacement_iso = self.replace_isotopes[iso]
-                if replacement_iso in values:
-                    values[replacement_iso] += value
+                if replacement_iso in mpact_composition:
+                    mpact_composition[replacement_iso] += amount
                 else:
-                    values[replacement_iso] = value
+                    mpact_composition[replacement_iso] = amount
             else:
-                values[iso] = value
+                mpact_composition[iso] = amount
 
         unit_tag = "" if self.percents is None else f" ({MPACT_PERCENT_TAGS[self.percent_type]})"
         mpact_id = 1 if mpact_ids is None else mpact_ids[self]
         string = prefix + f"mat {mpact_id} {self._mpact_specs.material_type} " + \
                           f"{self.density} g/cc {self._temperature} {self._temperature_unit}{unit_tag} \\\n"
 
-        for iso, value in sorted(values.items()):
+        for iso, amount in sorted(mpact_composition.items()):
             if iso in MPACT_SUPPORTED_ISOTOPE_IDS:
-                string += prefix + prefix + f"{MPACT_SUPPORTED_ISOTOPE_IDS[iso]} {value}\n"
+                string += prefix + prefix + f"{MPACT_SUPPORTED_ISOTOPE_IDS[iso]} {amount}\n"
 
         return string
 
