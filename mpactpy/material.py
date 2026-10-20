@@ -24,7 +24,7 @@ class Material():
     mpact_specs : MPACTSpecs
         Specifications for how the material should be handled in MPACT
     temperature_unit : str
-        The temperature unit: 'K' (default), 'C', 'F' or 'R'
+        The temperature unit, in any case: 'K' (default), 'C', 'F' or 'R'
     percents : Dict[str, float]
         The isotopic percents, normalized to their sum
         (key: isotope ID, value: percent)
@@ -211,10 +211,10 @@ class Material():
 
         assert (number_densities is None) != (percents is None), \
             f"number_densities = {number_densities}, percents = {percents}, expected exactly one"
-        assert temperature_unit in MPACT_TEMPERATURE_UNITS, f"temperature_unit = {temperature_unit}"
+        assert temperature_unit.upper() in MPACT_TEMPERATURE_UNITS, f"temperature_unit = {temperature_unit}"
         assert percent_type in MPACT_PERCENT_TAGS, f"percent_type = {percent_type}"
 
-        self._temperature_unit = temperature_unit
+        self._temperature_unit = temperature_unit.upper()
         self._temperature      = temperature
         assert self.temperature > 0., f"temperature = {temperature} {temperature_unit}"
 

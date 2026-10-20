@@ -106,12 +106,12 @@ def test_material_write_to_string(material):
     assert output == expected_output
 
 def test_material_temperature_units():
-    for temp, unit in [(20.0, "C"), (68.0, "F"), (527.67, "R")]:
+    for temp, unit in [(20.0, "c"), (68.0, "F"), (527.67, "R")]:
         material = Material(temp, {"H1": 1e-3}, temperature_unit=unit)
         assert isclose(material.temperature, 293.15, rel_tol=TOL)
 
         output = material.write_to_string(prefix="  ")
-        expected_output = (f"  mat 1 0 {material.density} g/cc {temp} {unit} \\\n"
+        expected_output = (f"  mat 1 0 {material.density} g/cc {temp} {unit.upper()} \\\n"
                             "    1001 0.001\n")
         assert output == expected_output
 
