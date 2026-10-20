@@ -108,24 +108,33 @@ def test_material_write_to_string(material):
 def test_material_temperature_units():
     for temp, unit in [(20.0, "C"), (68.0, "F"), (527.67, "R")]:
         material = Material(temp, {"H1": 1e-3}, temperature_unit=unit)
-        assert isclose(material.temperature, 293.15)
-        assert material.write_to_string(prefix="  ") == (f"  mat 1 0 {material.density} g/cc {temp} {unit} \\\n"
-                                                          "    1001 0.001\n")
+        assert isclose(material.temperature, 293.15, rel_tol=TOL)
+
+        output = material.write_to_string(prefix="  ")
+        expected_output = (f"  mat 1 0 {material.density} g/cc {temp} {unit} \\\n"
+                            "    1001 0.001\n")
+        assert output == expected_output
 
 def test_material_percents():
-    water = Material(293.15, percents={"H1": 2.0, "O16": 1.0}, percent_type="ao", density=1.0)
-    assert isclose(water.number_densities["H1"],  6.68734e-2, rel_tol=1e-5)
-    assert isclose(water.number_densities["O16"], 3.34367e-2, rel_tol=1e-5)
-    assert water.write_to_string(prefix="  ") == ("  mat 1 0 1.0 g/cc 293.15 K (at%) \\\n"
-                                                  "    1001 2.0\n"
-                                                  "    8016 1.0\n")
+    material = Material(293.15, percents={"H1": 2.0, "O16": 1.0}, percent_type="ao", density=1.0)
+    assert isclose(material.number_densities["H1"],  6.687342530e-2, rel_tol=TOL)
+    assert isclose(material.number_densities["O16"], 3.343671265e-2, rel_tol=TOL)
 
-    water = Material(293.15, percents={"H1": 11.19, "O16": 88.81}, percent_type="wo", density=1.0)
-    assert isclose(water.number_densities["H1"],  6.68645e-2, rel_tol=1e-5)
-    assert isclose(water.number_densities["O16"], 3.34373e-2, rel_tol=1e-5)
-    assert water.write_to_string(prefix="  ") == ("  mat 1 0 1.0 g/cc 293.15 K (wt%) \\\n"
-                                                  "    1001 11.19\n"
-                                                  "    8016 88.81\n")
+    output = material.write_to_string(prefix="  ")
+    expected_output = ("  mat 1 0 1.0 g/cc 293.15 K (at%) \\\n"
+                       "    1001 2.0\n"
+                       "    8016 1.0\n")
+    assert output == expected_output
+
+    material = Material(293.15, percents={"H1": 11.19, "O16": 88.81}, percent_type="wo", density=1.0)
+    assert isclose(material.number_densities["H1"],  6.686453796e-2, rel_tol=TOL)
+    assert isclose(material.number_densities["O16"], 3.343727263e-2, rel_tol=TOL)
+
+    output = material.write_to_string(prefix="  ")
+    expected_output = ("  mat 1 0 1.0 g/cc 293.15 K (wt%) \\\n"
+                       "    1001 11.19\n"
+                       "    8016 88.81\n")
+    assert output == expected_output
 
 def test_material_mix_materials(material, unequal_material):
 
