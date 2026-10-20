@@ -12,7 +12,7 @@ from test.unit.test_pinmesh import general_cylindrical_pinmesh as pinmesh,\
                                    rectangular_pinmesh as overlay_mesh, \
                                    pinmesh_2D, openmc_pin, openmc_fuel_material, openmc_moderator_material
 from test.unit.test_pin import pin, equal_pin, unequal_pin, pin_2D, overlay_pin, \
-                               template_material, template_pin
+                               template_material, template_pin, overlay_material_cache
 from test.unit.test_module import module, equal_module, unequal_module, module_2D, \
                                   template_module, overlay_module, openmc_module
 from test.unit.test_lattice import lattice, equal_lattice, unequal_lattice, lattice_2D, \
@@ -184,7 +184,7 @@ def test_core_with_height(core, core_2D):
     with pytest.raises(AssertionError, match=f"nz = {core.nz}, Core must be strictly 2D"):
         new_core = core.with_height(3.0)
 
-def test_module_overlay(openmc_core, template_core, template_assembly, template_lattice, template_module, template_pin, template_material, overlay_core):
+def test_module_overlay(openmc_core, template_core, template_assembly, template_lattice, template_module, template_pin, template_material, overlay_material_cache, overlay_core):
     geometry                            = openmc_core
     offset                              = (-18.0, -18.0, -6.0)
     overlay_policy                      = PinMesh.OverlayPolicy(method="centroid")
@@ -194,6 +194,6 @@ def test_module_overlay(openmc_core, template_core, template_assembly, template_
     assembly_mask: Assembly.OverlayMask = {template_lattice : lattice_mask}
     include_only: Core.OverlayMask      = {template_assembly : assembly_mask}
 
-    core          = template_core.overlay(geometry, offset, include_only, overlay_policy)
+    core          = template_core.overlay(geometry, offset, include_only, overlay_policy, overlay_material_cache)
     expected_core = overlay_core
     assert core == expected_core

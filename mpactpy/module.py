@@ -313,7 +313,24 @@ class Module():
         for (_, _, _, i, j), overlaid in zip(pin_work, overlaid_pins):
             new_pin_map[i][j] = overlaid
 
-        return Module(1, new_pin_map)
+        shared = {material: material for material in material_cache.values()}
+        return Module(1, [[pin.with_shared_materials(shared) for pin in row] for row in new_pin_map])
+
+    def with_shared_materials(self, shared: Dict[Material, Material]) -> Module:
+        """ Method for rebuilding this Module so that materials with the same composition are one instance
+
+        Parameters
+        ----------
+        shared : Dict[Material, Material]
+            The instance kept for each composition.  Compositions not yet in it are added.
+
+        Returns
+        -------
+        Module
+            The rebuilt Module
+        """
+
+        return Module(self.nz, [[pin.with_shared_materials(shared) for pin in row] for row in self.pin_map])
 
     @staticmethod
     def _process_pin_chunk(pin_chunk, geometry, child_policy, material_cache):

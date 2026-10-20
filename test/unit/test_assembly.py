@@ -12,7 +12,7 @@ from test.unit.test_pinmesh import general_cylindrical_pinmesh as pinmesh,\
                                    rectangular_pinmesh as overlay_mesh, \
                                    pinmesh_2D, openmc_pin, openmc_fuel_material, openmc_moderator_material
 from test.unit.test_pin import pin, equal_pin, unequal_pin, pin_2D, overlay_pin, \
-                               template_material, template_pin
+                               template_material, template_pin, overlay_material_cache
 from test.unit.test_module import module, equal_module, unequal_module, module_2D, \
                                   template_module, overlay_module, openmc_module
 from test.unit.test_lattice import lattice, equal_lattice, unequal_lattice, lattice_2D, \
@@ -110,7 +110,7 @@ def test_assembly_with_height(assembly, assembly_2D):
     with pytest.raises(AssertionError, match=f"nz = {assembly.nz}, Assembly must be strictly 2D"):
         new_assembly = assembly.with_height(3.0)
 
-def test_module_overlay(openmc_assembly, template_assembly, template_lattice, template_module, template_pin, template_material, overlay_assembly):
+def test_module_overlay(openmc_assembly, template_assembly, template_lattice, template_module, template_pin, template_material, overlay_material_cache, overlay_assembly):
     geometry                           = openmc_assembly
     offset                             = (-6.0, -6.0, -6.0)
     overlay_policy                     = PinMesh.OverlayPolicy(method="centroid")
@@ -119,6 +119,6 @@ def test_module_overlay(openmc_assembly, template_assembly, template_lattice, te
     lattice_mask: Lattice.OverlayMask  = {template_module : module_mask}
     include_only: Assembly.OverlayMask = {template_lattice : lattice_mask}
 
-    assembly          = template_assembly.overlay(geometry, offset, include_only, overlay_policy)
+    assembly          = template_assembly.overlay(geometry, offset, include_only, overlay_policy, overlay_material_cache)
     expected_assembly = overlay_assembly
     assert assembly == expected_assembly

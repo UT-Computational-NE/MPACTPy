@@ -307,6 +307,8 @@ class Pin():
             but with the OpenMC Geometry overlaid on top.
         """
 
+        material_cache = material_cache if material_cache is not None else overlay_policy.build_material_cache(geometry)
+
         include_mats: Pin.OverlayMask = include_only if include_only else set(self.materials)
 
         openmc_materials = self.pinmesh.overlay(geometry, offset, overlay_policy, material_cache)
@@ -317,7 +319,24 @@ class Pin():
         new_materials = [openmc_mat if openmc_mat and (old_mat in include_mats) else old_mat
                          for openmc_mat, old_mat in zip(openmc_materials, self.materials)]
 
-        return Pin(self.pinmesh, new_materials)
+        shared = {material: material for material in material_cache.values()}
+        return Pin(self.pinmesh, new_materials).with_shared_materials(shared)
+
+    def with_shared_materials(self, shared: Dict[Material, Material]) -> Pin:
+        """ Method for rebuilding this Pin so that materials with the same composition are one instance
+
+        Parameters
+        ----------
+        shared : Dict[Material, Material]
+            The instance kept for each composition.  Compositions not yet in it are added.
+
+        Returns
+        -------
+        Pin
+            The rebuilt Pin
+        """
+
+        return Pin(self.pinmesh, [shared.setdefault(material, material) for material in self.materials])
 
 
 

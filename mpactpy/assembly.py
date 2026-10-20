@@ -323,7 +323,24 @@ class Assembly():
         for (_, _, _, i), overlaid in zip(lattice_work, overlaid_lattices):
             new_lattice_map[i] = overlaid
 
-        return Assembly(new_lattice_map)
+        shared = {material: material for material in material_cache.values()}
+        return Assembly([lattice.with_shared_materials(shared) for lattice in new_lattice_map])
+
+    def with_shared_materials(self, shared: Dict[Material, Material]) -> Assembly:
+        """ Method for rebuilding this Assembly so that materials with the same composition are one instance
+
+        Parameters
+        ----------
+        shared : Dict[Material, Material]
+            The instance kept for each composition.  Compositions not yet in it are added.
+
+        Returns
+        -------
+        Assembly
+            The rebuilt Assembly
+        """
+
+        return Assembly([lattice.with_shared_materials(shared) for lattice in self.lattice_map])
 
     @staticmethod
     def _process_lattice_chunk(lattice_chunk, geometry, child_policy, material_cache):
