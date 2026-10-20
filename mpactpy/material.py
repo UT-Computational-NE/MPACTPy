@@ -28,8 +28,8 @@ class Material():
     percents : Dict[str, float]
         The isotopic percents, normalized to their sum
         (key: isotope ID, value: percent)
-    percent_type : str
-        The type of percents: 'ao' for atom percent (default) or 'wo' for weight percent
+    percent_unit : str
+        The unit of the percents, in any case: 'at%' for atom percent (default) or 'wt%' for weight percent
     density : float
         The density (g/cc). Required with `percents`, otherwise computed from `number_densities`.
 
@@ -47,8 +47,8 @@ class Material():
     percents : Optional[Dict[str, float]]
         The isotopic percents the material was given in, if any
         (key: isotope ID, value: percent)
-    percent_type : str
-        The type of percents: 'ao' or 'wo'
+    percent_unit : str
+        The unit of the percents: 'at%' or 'wt%'
     is_fluid : bool
         Boolean flag indicating whether or not the material is a fluid
     is_depletable : bool
@@ -170,8 +170,8 @@ class Material():
         return self._percents
 
     @property
-    def percent_type(self) -> str:
-        return self._percent_type
+    def percent_unit(self) -> str:
+        return self._percent_unit
 
     @property
     def number_densities(self) -> Dict[str, float]:
@@ -203,7 +203,7 @@ class Material():
                  mpact_specs:                 MPACTSpecs = None,
                  temperature_unit:            str = "K",
                  percents:                    Dict[str, float] = None,
-                 percent_type:                str = "ao",
+                 percent_unit:                str = "at%",
                  density:                     float = None,
     ):
 
@@ -212,7 +212,7 @@ class Material():
         assert (number_densities is None) != (percents is None), \
             f"number_densities = {number_densities}, percents = {percents}, expected exactly one"
         assert temperature_unit.upper() in MPACT_TEMPERATURE_UNITS, f"temperature_unit = {temperature_unit}"
-        assert percent_type in MPACT_PERCENT_TAGS, f"percent_type = {percent_type}"
+        assert percent_unit.lower() in MPACT_PERCENT_UNITS, f"percent_unit = {percent_unit}"
 
         self._temperature_unit = temperature_unit.upper()
         self._temperature      = temperature
@@ -220,7 +220,7 @@ class Material():
 
         self._mpact_specs      = mpact_specs if mpact_specs else Material.MPACTSpecs()
         self._percents         = percents
-        self._percent_type     = percent_type
+        self._percent_unit     = percent_unit.lower()
 
         if percents is None:
             assert density is None, f"density = {density}, expected None with number_densities"
@@ -238,7 +238,7 @@ class Material():
             assert all(self.replace_isotopes.get(iso, iso) in MPACT_SUPPORTED_ISOTOPE_IDS for iso in percents), \
                 f"percents = {percents}, expected only MPACT supported isotopes"
             fracs = {iso: percent / total for iso, percent in percents.items()}
-            if percent_type == "ao":
+            if self._percent_unit == "at%":
                 molar_mass     = sum(frac * atomic_mass(iso) for iso, frac in fracs.items())
                 moles_per_gram = {iso: frac / molar_mass for iso, frac in fracs.items()}
             else:
@@ -602,7 +602,7 @@ class Material():
             else:
                 mpact_composition[iso] = amount
 
-        unit_tag = "" if self.percents is None else f" ({MPACT_PERCENT_TAGS[self.percent_type]})"
+        unit_tag = "" if self.percents is None else f" ({self.percent_unit})"
         mpact_id = 1 if mpact_ids is None else mpact_ids[self]
         string = prefix + f"mat {mpact_id} {self._mpact_specs.material_type} " + \
                           f"{self.density} g/cc {self._temperature} {self._temperature_unit}{unit_tag} \\\n"
@@ -629,10 +629,9 @@ MPACT_TEMPERATURE_UNITS = {"K": (0.,     1.),
                            "R": (0.,     5./9.)}
 
 
-# MPACT unit tags for compositions given in percents
+# MPACT units for compositions given in percents
 # "MPACT Native Input User's Manual", Version 4.4, Section 4.5.1 pg 28
-MPACT_PERCENT_TAGS = {"ao": "at%",
-                      "wo": "wt%"}
+MPACT_PERCENT_UNITS = ["at%", "wt%"]
 
 
 # Isotopes with distinct MPACT IDs when present as fission products

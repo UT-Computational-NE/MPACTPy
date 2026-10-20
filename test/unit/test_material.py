@@ -116,7 +116,7 @@ def test_material_temperature_units():
         assert output == expected_output
 
 def test_material_percents():
-    material = Material(293.15, percents={"H1": 2.0, "O16": 1.0}, percent_type="ao", density=1.0)
+    material = Material(293.15, percents={"H1": 2.0, "O16": 1.0}, percent_unit="at%", density=1.0)
     assert isclose(material.number_densities["H1"],  6.687342530e-2, rel_tol=TOL)
     assert isclose(material.number_densities["O16"], 3.343671265e-2, rel_tol=TOL)
 
@@ -126,7 +126,7 @@ def test_material_percents():
                        "    8016 1.0\n")
     assert output == expected_output
 
-    material = Material(293.15, percents={"H1": 11.19, "O16": 88.81}, percent_type="wo", density=1.0)
+    material = Material(293.15, percents={"H1": 11.19, "O16": 88.81}, percent_unit="WT%", density=1.0)
     assert isclose(material.number_densities["H1"],  6.686453796e-2, rel_tol=TOL)
     assert isclose(material.number_densities["O16"], 3.343727263e-2, rel_tol=TOL)
 
