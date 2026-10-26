@@ -39,9 +39,14 @@ def template_pin(template_material, overlay_mesh):
     return Pin(overlay_mesh, materials)
 
 @pytest.fixture
-def overlay_pin(openmc_fuel_material, openmc_moderator_material, overlay_mesh):
-    F = Material.from_openmc_material(openmc_fuel_material)
-    M = Material.from_openmc_material(openmc_moderator_material)
+def overlay_material_cache(openmc_fuel_material, openmc_moderator_material):
+    return {material.id: Material.from_openmc_material(material)
+            for material in [openmc_fuel_material, openmc_moderator_material]}
+
+@pytest.fixture
+def overlay_pin(overlay_material_cache, openmc_fuel_material, openmc_moderator_material, overlay_mesh):
+    F = overlay_material_cache[openmc_fuel_material.id]
+    M = overlay_material_cache[openmc_moderator_material.id]
     materials = [M, M, M,
                  M, F, M,
                  M, M, M] * 3
@@ -151,13 +156,13 @@ def test_pin_divide_into_quadrants_rectangular(overlay_mesh):
             assert all(actual_material is materials[material_index]
                        for actual_material, material_index in zip(quadrant_pin.materials, expected_map))
 
-def test_pin_overlay(openmc_pin, template_pin, template_material, overlay_pin):
+def test_pin_overlay(openmc_pin, template_pin, template_material, overlay_material_cache, overlay_pin):
     geometry                      = openmc_pin
     offset                        = (-1.5, -1.5, 0.0)
     overlay_policy                = PinMesh.OverlayPolicy(method="centroid")
     include_only: Pin.OverlayMask = {template_material}
 
-    pin          = template_pin.overlay(geometry, offset, include_only, overlay_policy)
+    pin          = template_pin.overlay(geometry, offset, include_only, overlay_policy, overlay_material_cache)
     expected_pin = overlay_pin
     assert pin == expected_pin
 

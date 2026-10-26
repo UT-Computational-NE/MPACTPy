@@ -309,7 +309,24 @@ class Lattice():
         for (_, _, _, i, j), overlaid in zip(module_work, overlaid_modules):
             new_module_map[i][j] = overlaid
 
-        return Lattice(new_module_map)
+        shared = {material: material for material in material_cache.values()}
+        return Lattice([[module.with_shared_materials(shared) for module in row] for row in new_module_map])
+
+    def with_shared_materials(self, shared: Dict[Material, Material]) -> Lattice:
+        """ Method for rebuilding this Lattice so that materials with the same composition are one instance
+
+        Parameters
+        ----------
+        shared : Dict[Material, Material]
+            The instance kept for each composition.  Compositions not yet in it are added.
+
+        Returns
+        -------
+        Lattice
+            The rebuilt Lattice
+        """
+
+        return Lattice([[module.with_shared_materials(shared) for module in row] for row in self.module_map])
 
     @staticmethod
     def _process_module_chunk(module_chunk, geometry, child_policy, material_cache):
