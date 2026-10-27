@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List, Any, Union, TypedDict, Tuple, Set, Optional, Iterable
+from typing import Dict, List, Any, Union, TypedDict, Tuple, Set, Optional, Collection
 from math import isclose, inf, isinf
 from copy import deepcopy
 from itertools import accumulate
@@ -263,7 +263,7 @@ class Pin():
                 for row in self.pinmesh.divide_into_quadrants()]
 
 
-    OverlayMask = Iterable[Material]
+    OverlayMask = Collection[Material]
 
     def has_overlay_work(self, include_only: Optional[OverlayMask] = None) -> bool:
         """Check if this pin has actual overlay work to do based on the include mask.
@@ -271,7 +271,8 @@ class Pin():
         Parameters
         ----------
         include_only : Optional[OverlayMask]
-            The materials to include for this pin, matched by instance
+            The materials to include for this pin, matched by instance.
+            A set keeps only one of several equal materials, so use a list for those.
 
         Returns
         -------

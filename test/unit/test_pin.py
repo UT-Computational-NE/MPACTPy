@@ -174,13 +174,16 @@ def test_pin_overlay(openmc_pin, template_pin, template_material, overlay_materi
     expected_pin = overlay_pin
     assert pin == expected_pin
 
-def test_pin_overlay_masks_by_instance(openmc_pin, template_pin, template_material, overlay_material_cache, overlay_pin):
-    copy           = Material(300.0, {"H": 1e0}, Material.MPACTSpecs())
+def test_pin_overlay_keeps_given_materials(openmc_pin, template_pin, template_material, overlay_material_cache,
+                                           overlay_pin, openmc_moderator_material):
+    template_copy  = Material(300.0, {"H": 1e0}, Material.MPACTSpecs())
+    cache_copy     = Material.from_openmc_material(openmc_moderator_material)
+    given          = [template_copy] * 9 + [cache_copy] * 9
     overlay_policy = PinMesh.OverlayPolicy(method="centroid")
-    template       = Pin(template_pin.pinmesh, [copy] * 9 + template_pin.materials[9:])
+    template       = Pin(template_pin.pinmesh, given + template_pin.materials[18:])
 
     pin          = template.overlay(openmc_pin, (-1.5, -1.5, 0.0), [template_material], overlay_policy, overlay_material_cache)
-    expected_pin = Pin(template_pin.pinmesh, [copy] * 9 + overlay_pin.materials[9:])
+    expected_pin = Pin(template_pin.pinmesh, given + overlay_pin.materials[18:])
     assert pin == expected_pin
 
 
