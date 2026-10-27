@@ -86,6 +86,14 @@ def test_material_hash_after_temperature_change():
     assert hash(material) == hash(equal_material)
     assert equal_material in {material}
 
+def test_material_number_densities_read_only():
+    number_densities = {"H1": 1e-3}
+    material         = Material(300.0, number_densities)
+    with pytest.raises(TypeError):
+        material.number_densities["H1"] = 2e-3
+    number_densities["H1"] = 2e-3
+    assert material.number_densities == {"H1": 1e-3}
+
 def hash_material(material):
     hash(material)
     return material
