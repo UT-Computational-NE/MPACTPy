@@ -16,12 +16,22 @@ class Material():
     Parameters
     ----------
     temperature : float
-        The temperature (K)
+        The temperature, in `temperature_unit`
     number_densities : Dict[str, float]
         The isotopic number densities (atoms/b-cm)
         (key: isotope ID, value: number density)
+        Exactly one of `number_densities` and `percents` must be given.
     mpact_specs : MPACTSpecs
         Specifications for how the material should be handled in MPACT
+    temperature_unit : str
+        The temperature unit, in any case: 'K' (default), 'C', 'F' or 'R'
+    percents : Dict[str, float]
+        The isotopic percents, normalized to their sum
+        (key: isotope ID, value: percent)
+    percent_unit : str
+        The unit of the percents, in any case: 'at%' for atom percent (default) or 'wt%' for weight percent
+    density : float
+        The density (g/cc). Required with `percents`, otherwise computed from `number_densities`.
 
     Attributes
     ----------
@@ -29,9 +39,16 @@ class Material():
         The density (g/cc)
     temperature : float
         The temperature (K)
+    temperature_unit : str
+        The unit the temperature is written in
     number_densities : Dict[str, float]
         The isotopic number densities (atoms/b-cm)
         (key: isotope ID, value: number density)
+    percents : Optional[Dict[str, float]]
+        The isotopic percents the material was given in, if any
+        (key: isotope ID, value: percent)
+    percent_unit : str
+        The unit of the percents: 'at%' or 'wt%'
     is_fluid : bool
         Boolean flag indicating whether or not the material is a fluid
     is_depletable : bool
@@ -143,6 +160,18 @@ class Material():
         self._temperature = temperature
 
     @property
+    def temperature_unit(self) -> str:
+        return self._temperature_unit
+
+    @property
+    def percents(self) -> Optional[Dict[str, float]]:
+        return self._percents
+
+    @property
+    def percent_unit(self) -> str:
+        return self._percent_unit
+
+    @property
     def number_densities(self) -> Dict[str, float]:
         return self._number_densities
 
@@ -168,20 +197,54 @@ class Material():
 
     def __init__(self,
                  temperature:                 float,
-                 number_densities:            Dict[str, float],
+                 number_densities:            Dict[str, float] = None,
                  mpact_specs:                 MPACTSpecs = None,
+                 temperature_unit:            str = "K",
+                 percents:                    Dict[str, float] = None,
+                 percent_unit:                str = "at%",
+                 density:                     float = None,
     ):
 
         self._cached_hash = None
 
-        assert all(number_dens >= 0. for number_dens in number_densities.values()), \
-            f"number_densities = {number_densities}"
+        assert (number_densities is None) != (percents is None), \
+            f"number_densities = {number_densities}, percents = {percents}, expected exactly one"
+        assert temperature_unit.upper() in MPACT_TEMPERATURE_UNITS, f"temperature_unit = {temperature_unit}"
+        assert percent_unit.lower() in MPACT_PERCENT_UNITS, f"percent_unit = {percent_unit}"
 
-        self.temperature       = temperature
+        self._temperature_unit = temperature_unit.upper()
+        offset, scale          = MPACT_TEMPERATURE_UNITS[self._temperature_unit]
+        self._temperature      = (temperature + offset) * scale
+        assert self.temperature > 0., f"temperature = {temperature} {temperature_unit}"
+
         self._mpact_specs      = mpact_specs if mpact_specs else Material.MPACTSpecs()
-        self._number_densities = number_densities
-        self._density          = sum(num_dens * 1e24 * atomic_mass(iso) / AVOGADRO
-                                     for iso, num_dens in number_densities.items())
+        self._percents         = percents
+        self._percent_unit     = percent_unit.lower()
+
+        if percents is None:
+            assert density is None, f"density = {density}, expected None with number_densities"
+            assert all(number_dens >= 0. for number_dens in number_densities.values()), \
+                f"number_densities = {number_densities}"
+            self._number_densities = number_densities
+            self._density          = sum(num_dens * 1e24 * atomic_mass(iso) / AVOGADRO
+                                         for iso, num_dens in number_densities.items())
+        else:
+            total = sum(percents.values())
+            assert density is not None and density > 0., f"density = {density}"
+            assert all(percent >= 0. for percent in percents.values()) and total > 0., \
+                f"percents = {percents}"
+            # MPACT normalizes over the isotopes it writes, so none may be dropped by write_to_string
+            assert all(self.replace_isotopes.get(iso, iso) in MPACT_SUPPORTED_ISOTOPE_IDS for iso in percents), \
+                f"percents = {percents}, expected only MPACT supported isotopes"
+            fracs = {iso: percent / total for iso, percent in percents.items()}
+            if self._percent_unit == "at%":
+                molar_mass     = sum(frac * atomic_mass(iso) for iso, frac in fracs.items())
+                moles_per_gram = {iso: frac / molar_mass for iso, frac in fracs.items()}
+            else:
+                moles_per_gram = {iso: frac / atomic_mass(iso) for iso, frac in fracs.items()}
+            self._number_densities = {iso: moles * density * AVOGADRO * 1e-24
+                                      for iso, moles in moles_per_gram.items()}
+            self._density          = density
 
     def __eq__(self, other: Any) -> bool:
         if self is other:
@@ -196,8 +259,8 @@ class Material():
 
     def __hash__(self) -> int:
         if self._cached_hash is None:
-            number_densities = sorted({iso: relative_round(numd, TOL)
-                                       for iso, numd in self.number_densities.items()})
+            number_densities = sorted((iso, relative_round(numd, TOL))
+                                      for iso, numd in self.number_densities.items())
             self._cached_hash = hash((self._mpact_specs.material_type,
                                      relative_round(self.temperature, TOL),
                                      tuple(number_densities)))
@@ -514,6 +577,9 @@ class Material():
         Isotopes which are replaced with a common isotope (as defined in `self.replace_isotopes`)
         will have their number densities summed together and written as the replacement isotope.
 
+        A material given in percents is written in percents with its unit tag, and the
+        temperature is written in `temperature_unit`.
+
         Parameters
         ----------
         prefix : str
@@ -527,24 +593,30 @@ class Material():
             The string representing the material definition
         """
 
-        number_densities = {}
-        for iso, num_dens in self.number_densities.items():
+        composition       = self.number_densities if self.percents is None else self.percents
+        mpact_composition = {}
+        for iso, amount in composition.items():
             if iso in self.replace_isotopes:
                 replacement_iso = self.replace_isotopes[iso]
-                if replacement_iso in number_densities:
-                    number_densities[replacement_iso] += num_dens
+                if replacement_iso in mpact_composition:
+                    mpact_composition[replacement_iso] += amount
                 else:
-                    number_densities[replacement_iso] = num_dens
+                    mpact_composition[replacement_iso] = amount
             else:
-                number_densities[iso] = num_dens
+                mpact_composition[iso] = amount
 
+        # Round off the noise of converting back from K, so a temperature is written as it was given
+        offset, scale = MPACT_TEMPERATURE_UNITS[self._temperature_unit]
+        temperature   = relative_round(self._temperature / scale - offset, TOL)
+
+        unit_tag = "" if self.percents is None else f" ({self.percent_unit})"
         mpact_id = 1 if mpact_ids is None else mpact_ids[self]
         string = prefix + f"mat {mpact_id} {self._mpact_specs.material_type} " + \
-                          f"{self.density} g/cc {self.temperature} K \\\n"
+                          f"{self.density} g/cc {temperature} {self._temperature_unit}{unit_tag} \\\n"
 
-        for iso, number_density in sorted(number_densities.items()):
+        for iso, amount in sorted(mpact_composition.items()):
             if iso in MPACT_SUPPORTED_ISOTOPE_IDS:
-                string += prefix + prefix + f"{MPACT_SUPPORTED_ISOTOPE_IDS[iso]} {number_density}\n"
+                string += prefix + prefix + f"{MPACT_SUPPORTED_ISOTOPE_IDS[iso]} {amount}\n"
 
         return string
 
@@ -554,6 +626,19 @@ class Material():
 # ORNL/SPR-2021/2331, https://doi.org/10.2172/1887706 (2022)
 # Section 3.4 pg 8-14
 MPACT_NATURAL_ELEMENTS = [ 'C', 'Mg', 'Si', 'S', 'Cl', 'K', 'Ca', 'Ti', 'V']
+
+
+# Temperature units accepted by MPACT, as (offset, scale) converting to K: T_K = (T + offset) * scale
+# "MPACT Native Input User's Manual", Version 4.4, Section 4.5.1 pg 27
+MPACT_TEMPERATURE_UNITS = {"K": (0.,     1.),
+                           "C": (273.15, 1.),
+                           "F": (459.67, 5./9.),
+                           "R": (0.,     5./9.)}
+
+
+# MPACT units for compositions given in percents
+# "MPACT Native Input User's Manual", Version 4.4, Section 4.5.1 pg 28
+MPACT_PERCENT_UNITS = ["at%", "wt%"]
 
 
 # Isotopes with distinct MPACT IDs when present as fission products
