@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Any, Tuple, Optional, Dict, TypedDict
+from typing import List, Any, Tuple, Optional, Dict, TypedDict, Set
 from math import isclose
 
 import openmc
@@ -320,7 +320,8 @@ class Assembly():
                                                   num_assembly_procs,
                                                   geometry,
                                                   child_policy,
-                                                  material_cache)
+                                                  material_cache,
+                                                  instances = self.materials + list(material_cache.values()))
 
         # Reconstruct the lattice map with overlaid lattices
         new_lattice_map = self.lattice_map[:]
@@ -328,15 +329,18 @@ class Assembly():
             new_lattice_map[i] = overlaid
 
         shared = {material: material for material in material_cache.values()}
-        return Assembly([lattice.with_shared_materials(shared) for lattice in new_lattice_map])
+        kept   = {id(material) for material in self.materials}
+        return Assembly([lattice.with_shared_materials(shared, kept) for lattice in new_lattice_map])
 
-    def with_shared_materials(self, shared: Dict[Material, Material]) -> Assembly:
-        """ Method for rebuilding this Assembly so that materials with the same composition are one instance
+    def with_shared_materials(self, shared: Dict[Material, Material], kept: Set[int]) -> Assembly:
+        """ Method for rebuilding this Assembly so that the materials not kept are one instance per composition
 
         Parameters
         ----------
         shared : Dict[Material, Material]
             The instance kept for each composition.  Compositions not yet in it are added.
+        kept : Set[int]
+            The id() of each Material that keeps its own instance
 
         Returns
         -------
@@ -344,7 +348,7 @@ class Assembly():
             The rebuilt Assembly
         """
 
-        return Assembly([lattice.with_shared_materials(shared) for lattice in self.lattice_map])
+        return Assembly([lattice.with_shared_materials(shared, kept) for lattice in self.lattice_map])
 
     @staticmethod
     def _process_lattice_chunk(lattice_chunk, geometry, child_policy, material_cache):
