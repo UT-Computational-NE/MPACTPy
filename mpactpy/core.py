@@ -209,6 +209,10 @@ class Core():
                                       tuple(tuple(row) for row in self.assembly_map)))
         return self._cached_hash
 
+    def __getstate__(self) -> Dict[str, Any]:
+        # String hashes differ between processes, so a cached hash must not be pickled
+        return {**self.__dict__, "_cached_hash": None}
+
     def write_to_string(self,
                         prefix: str = "",
                         assembly_mpact_ids = Dict[Assembly, int]) -> str:

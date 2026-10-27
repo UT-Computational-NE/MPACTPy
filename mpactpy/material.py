@@ -203,6 +203,10 @@ class Material():
                                      tuple(number_densities)))
         return self._cached_hash
 
+    def __getstate__(self) -> Dict[str, Any]:
+        # String hashes differ between processes, so a cached hash must not be pickled
+        return {**self.__dict__, "_cached_hash": None}
+
     @dataclass
     class MixPolicy():
         """ Data class for specifying how to perform mixing
