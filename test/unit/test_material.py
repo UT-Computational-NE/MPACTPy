@@ -77,6 +77,15 @@ def test_material_hash(material, equal_material, unequal_material):
     denser_material = Material(300.0, {"U235": 2e-3, "C": 4e-3}, Material.MPACTSpecs(is_fluid=True))
     assert hash(material) != hash(denser_material)
 
+def test_material_hash_after_temperature_change():
+    material       = Material(300.0, {"H1": 1e-3})
+    equal_material = Material(600.0, {"H1": 1e-3})
+    hash(material)  # Cache the hash before the temperature changes
+    material.temperature = 600.0
+    assert material == equal_material
+    assert hash(material) == hash(equal_material)
+    assert equal_material in {material}
+
 def hash_material(material):
     hash(material)
     return material

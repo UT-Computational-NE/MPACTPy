@@ -158,6 +158,7 @@ class Material():
     def temperature(self, temperature: float) -> None:
         assert temperature > 0., f"temperature = {temperature}"
         self._temperature = temperature
+        self._cached_hash = None
 
     @property
     def temperature_unit(self) -> str:
