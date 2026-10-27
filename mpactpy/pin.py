@@ -263,7 +263,7 @@ class Pin():
                 for row in self.pinmesh.divide_into_quadrants()]
 
 
-    OverlayMask = Set[Material]
+    OverlayMask = List[Material]
 
     def has_overlay_work(self, include_only: Optional[OverlayMask] = None) -> bool:
         """Check if this pin has actual overlay work to do based on the include mask.
@@ -271,7 +271,7 @@ class Pin():
         Parameters
         ----------
         include_only : Optional[OverlayMask]
-            The set of materials to include for this pin
+            The materials to include for this pin, matched by instance
 
         Returns
         -------
@@ -283,7 +283,8 @@ class Pin():
             return True
 
         # Check if pin contains any of the specified materials
-        return any(material in include_only for material in self.unique_materials)
+        included = {id(material) for material in include_only}
+        return any(id(material) in included for material in self.unique_materials)
 
     def overlay(self,
                 geometry:       openmc.Geometry,
@@ -318,26 +319,28 @@ class Pin():
 
         material_cache = material_cache if material_cache is not None else overlay_policy.build_material_cache(geometry)
 
-        include_mats: Pin.OverlayMask = include_only if include_only else set(self.materials)
+        included = {id(material) for material in (include_only if include_only else self.materials)}
 
         openmc_materials = self.pinmesh.overlay(geometry, offset, overlay_policy, material_cache)
         assert len(openmc_materials) == len(self.materials), \
             f"len(openmc_materials) = {len(openmc_materials)} " + \
             f"len(self.materials) = {len(self.materials)}"
 
-        new_materials = [openmc_mat if openmc_mat and (old_mat in include_mats) else old_mat
+        new_materials = [openmc_mat if openmc_mat and id(old_mat) in included else old_mat
                          for openmc_mat, old_mat in zip(openmc_materials, self.materials)]
 
         shared = {material: material for material in material_cache.values()}
-        return Pin(self.pinmesh, new_materials).with_shared_materials(shared)
+        return Pin(self.pinmesh, new_materials).with_shared_materials(shared, {id(material) for material in self.materials})
 
-    def with_shared_materials(self, shared: Dict[Material, Material]) -> Pin:
-        """ Method for rebuilding this Pin so that materials with the same composition are one instance
+    def with_shared_materials(self, shared: Dict[Material, Material], kept: Set[int]) -> Pin:
+        """ Method for rebuilding this Pin so that the materials not kept are one instance per composition
 
         Parameters
         ----------
         shared : Dict[Material, Material]
             The instance kept for each composition.  Compositions not yet in it are added.
+        kept : Set[int]
+            The id() of each Material that keeps its own instance
 
         Returns
         -------
@@ -345,7 +348,8 @@ class Pin():
             The rebuilt Pin
         """
 
-        return Pin(self.pinmesh, [shared.setdefault(material, material) for material in self.materials])
+        return Pin(self.pinmesh, [material if id(material) in kept else shared.setdefault(material, material)
+                                  for material in self.materials])
 
 
 

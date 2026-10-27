@@ -135,6 +135,19 @@ def test_module_overlay(openmc_module, template_module, template_pin, template_m
     expected_module = overlay_module
     assert module == expected_module
 
+def test_module_overlay_keeps_given_materials(openmc_module, template_pin, template_material, overlay_material_cache,
+                                              overlay_pin, material, equal_material):
+    overlay_policy = PinMesh.OverlayPolicy(method="centroid", num_procs=2)
+    copies         = [material, equal_material]
+    pins           = [Pin(template_pin.pinmesh, [m] * 9 + template_pin.materials[9:]) for m in copies]
+    include_only   = {pin: [template_material] for pin in pins}
+
+    module          = Module(1, [pins, pins]).overlay(openmc_module, (-3.0, -3.0, 0.0), include_only, overlay_policy,
+                                                       overlay_material_cache)
+    expected_pins   = [Pin(template_pin.pinmesh, [m] * 9 + overlay_pin.materials[9:]) for m in copies]
+    expected_module = Module(1, [expected_pins, expected_pins])
+    assert module == expected_module
+
 def test_module_overlay_shares_materials(openmc_module, template_module, overlay_material_cache):
     overlay_policy = PinMesh.OverlayPolicy(method="centroid", num_procs=2)
     module         = template_module.overlay(openmc_module, (-3.0, -3.0, 0.0), overlay_policy=overlay_policy,
