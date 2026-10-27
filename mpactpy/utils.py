@@ -1,4 +1,4 @@
-from typing import List, Union, TypeVar, Callable, Any, Literal, Optional
+from typing import List, Union, TypeVar, Callable, Any, Literal, Optional, Sequence
 from collections.abc import Hashable
 from decimal import Decimal, ROUND_HALF_UP
 import math
@@ -391,7 +391,7 @@ def temporary_environment(var: str, value: str):
 class _InstancePickler(pickle.Pickler):
     """ A pickler which writes each of the given instances as its index in the list """
 
-    def __init__(self, file: io.BytesIO, instances: List[Any]):
+    def __init__(self, file: io.BytesIO, instances: Sequence[Any]):
         super().__init__(file)
         self._indices = {id(instance): i for i, instance in enumerate(instances)}
 
@@ -402,7 +402,7 @@ class _InstancePickler(pickle.Pickler):
 class _InstanceUnpickler(pickle.Unpickler):
     """ An unpickler which reads each index written by an _InstancePickler as that instance """
 
-    def __init__(self, file: io.BytesIO, instances: List[Any]):
+    def __init__(self, file: io.BytesIO, instances: Sequence[Any]):
         super().__init__(file)
         self._instances = instances
 
@@ -410,17 +410,20 @@ class _InstanceUnpickler(pickle.Unpickler):
         return self._instances[pid]
 
 
-def _dumps(obj: Any, instances: List[Any]) -> bytes:
+def _dumps(obj: Any, instances: Sequence[Any]) -> bytes:
+    """ Pickles an object, writing each of the given instances as a reference """
     file = io.BytesIO()
     _InstancePickler(file, instances).dump(obj)
     return file.getvalue()
 
 
-def _loads(data: bytes, instances: List[Any]) -> Any:
+def _loads(data: bytes, instances: Sequence[Any]) -> Any:
+    """ Unpickles an object written by _dumps, reading each reference as the given instance """
     return _InstanceUnpickler(io.BytesIO(data), instances).load()
 
 
-def _process_pickled_chunk(worker_function: Callable[..., Any], data: bytes, instances: List[Any]) -> bytes:
+def _process_pickled_chunk(worker_function: Callable[..., Any], data: bytes, instances: Sequence[Any]) -> bytes:
+    """ Runs a worker function on a chunk pickled by _dumps, and pickles its results the same way """
     chunk, worker_args = _loads(data, instances)
     return _dumps(worker_function(chunk, *worker_args), instances)
 
@@ -431,7 +434,7 @@ def process_parallel_work(work_items:      List[S],
                           worker_function: Callable[..., R],
                           num_processes:   int,
                           *worker_args:    Any,
-                          instances:       List[Any] = ()) -> List[R]:
+                          instances:       Sequence[Any] = ()) -> List[R]:
     """Process work items in parallel using chunked distribution.
 
     Parameters
@@ -445,7 +448,7 @@ def process_parallel_work(work_items:      List[S],
         Maximum number of processes to use
     *worker_args : Any
         Additional arguments to pass to the worker function
-    instances : List[Any]
+    instances : Sequence[Any]
         Objects in the work items, arguments and results which come back from the
         workers as these same instances, rather than as copies
 

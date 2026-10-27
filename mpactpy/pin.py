@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List, Any, Union, TypedDict, Tuple, Set, Optional
+from typing import Dict, List, Any, Union, TypedDict, Tuple, Set, Optional, Iterable
 from math import isclose, inf, isinf
 from copy import deepcopy
 from itertools import accumulate
@@ -263,7 +263,7 @@ class Pin():
                 for row in self.pinmesh.divide_into_quadrants()]
 
 
-    OverlayMask = List[Material]
+    OverlayMask = Iterable[Material]
 
     def has_overlay_work(self, include_only: Optional[OverlayMask] = None) -> bool:
         """Check if this pin has actual overlay work to do based on the include mask.
@@ -302,8 +302,8 @@ class Pin():
             Offset of the OpenMC geometry's lower-left corner relative to the
             MPACT PinMesh lower-left. Default is (0.0, 0.0, 0.0)
         include_only : Optional[OverlayMask]
-            Specifies which MPACT elements should be considered during overlay.
-            If None, all elements are included.
+            The materials to overlay, matched by instance.
+            If None, all materials are included.
         overlay_policy : OverlayPolicy
             A configuration object specifying how a mesh overlay should be done.
         material_cache : Optional[Dict[int, Material]]
