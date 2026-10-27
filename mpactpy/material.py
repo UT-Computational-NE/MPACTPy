@@ -603,7 +603,7 @@ class Material():
 
         # Round off the noise of converting back from K, so a temperature is written as it was given
         offset, scale = MPACT_TEMPERATURE_UNITS[self._temperature_unit]
-        temperature   = relative_round(self._temperature / scale - offset, 1e-12)
+        temperature   = relative_round(self._temperature / scale - offset, TOL)
 
         unit_tag = "" if self.percents is None else f" ({self.percent_unit})"
         mpact_id = 1 if mpact_ids is None else mpact_ids[self]
