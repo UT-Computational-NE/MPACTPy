@@ -330,7 +330,8 @@ class Pin():
                          for openmc_mat, old_mat in zip(openmc_materials, self.materials)]
 
         shared = {material: material for material in material_cache.values()}
-        return Pin(self.pinmesh, new_materials).with_shared_materials(shared, {id(material) for material in self.materials})
+        kept   = {id(material) for material in self.materials}
+        return Pin(self.pinmesh, new_materials).with_shared_materials(shared, kept)
 
     def with_shared_materials(self, shared: Dict[Material, Material], kept: Set[int]) -> Pin:
         """ Method for rebuilding this Pin so that the materials not kept are one instance per composition
