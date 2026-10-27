@@ -197,3 +197,23 @@ def test_module_overlay(openmc_core, template_core, template_assembly, template_
     core          = template_core.overlay(geometry, offset, include_only, overlay_policy, overlay_material_cache)
     expected_core = overlay_core
     assert core == expected_core
+
+def test_core_overlay_keeps_given_materials(openmc_core, template_pin, template_material, overlay_material_cache,
+                                            overlay_pin, material, equal_material):
+    def build_core(pins):
+        module   = Module(1, [pins, pins])
+        lattice  = Lattice([[module, module], [module, module]])
+        assembly = Assembly([lattice, lattice, lattice, lattice])
+        return Core([[None, assembly, None], [assembly, assembly, assembly], [None, assembly, None]])
+
+    overlay_policy = PinMesh.OverlayPolicy(method="centroid", num_procs=2)
+    copies         = [material, equal_material]
+    template       = build_core([Pin(template_pin.pinmesh, [m] * 9 + template_pin.materials[9:]) for m in copies])
+    include_only   = {assembly: {lattice: {module: {pin: [template_material] for pin in module.pins}
+                                           for module in lattice.modules}
+                                 for lattice in assembly.lattices}
+                      for assembly in template.assemblies}
+
+    core          = template.overlay(openmc_core, (-18.0, -18.0, -6.0), include_only, overlay_policy, overlay_material_cache)
+    expected_core = build_core([Pin(template_pin.pinmesh, [m] * 9 + overlay_pin.materials[9:]) for m in copies])
+    assert core == expected_core
