@@ -3,7 +3,6 @@ from typing import Dict, List, Any, Union, TypedDict, Tuple, Set, Optional
 from math import isclose, inf, isinf
 from copy import deepcopy
 from itertools import accumulate
-from operator import is_
 
 import openmc
 
@@ -72,23 +71,29 @@ class Pin():
         self._pinmesh          = pinmesh
         self._materials        = materials
         self._unique_materials = unique_instances(materials)
+        self._material_ids     = tuple(map(id, materials))
 
     def __eq__(self, other: Any) -> bool:
         if self is other:
             return True
-        return (isinstance(other, Pin)          and
-                self.pinmesh == other.pinmesh   and
-                all(map(is_, self.materials, other.materials))
+        return (isinstance(other, Pin)                  and
+                self.pinmesh       == other.pinmesh     and
+                self._material_ids == other._material_ids
                )
 
     def __hash__(self) -> int:
         if self._cached_hash is None:
-            self._cached_hash = hash((self.pinmesh, tuple(map(id, self.materials))))
+            self._cached_hash = hash((self.pinmesh, self._material_ids))
         return self._cached_hash
 
     def __getstate__(self) -> Dict[str, Any]:
         # String hashes differ between processes, so a cached hash must not be pickled
         return {**self.__dict__, "_cached_hash": None}
+
+    def __setstate__(self, state: Dict[str, Any]) -> None:
+        # The materials of a copy are new instances
+        self.__dict__.update(state)
+        self._material_ids = tuple(map(id, self._materials))
 
     def write_to_string(self,
                         prefix: str = "",

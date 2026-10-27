@@ -1,4 +1,5 @@
 import pytest
+from copy import deepcopy
 from math import isclose
 from numpy.testing import assert_allclose
 from mpactpy import PinMesh, RectangularPinMesh, GeneralCylindricalPinMesh, Material, \
@@ -68,6 +69,8 @@ def test_pin_equality(pin, equal_pin, unequal_pin, equal_material):
     assert pin == equal_pin
     assert pin != unequal_pin
     assert pin != Pin(pin.pinmesh, [equal_material for _ in pin.materials])
+    pin_copy = deepcopy(pin)
+    assert pin_copy == Pin(pin_copy.pinmesh, pin_copy.materials)
 
 def test_pin_hash(pin, equal_pin, unequal_pin):
     assert hash(pin) == hash(equal_pin)
