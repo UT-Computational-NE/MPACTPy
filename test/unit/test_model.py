@@ -162,17 +162,21 @@ OPTION
     assert output == expected_output
 
 
-def test_model_keeps_separate_materials(pinmesh, material, equal_material):
-    def write(materials):
-        pins = [Pin(pinmesh, [m for _ in range(pinmesh.number_of_material_regions)]) for m in materials]
+def test_model_keeps_separate_materials(pinmesh, material, equal_material, unequal_material):
+    def write(pin_materials):
+        pins = [Pin(pinmesh, materials) for materials in pin_materials]
         core = Core([[Assembly([Lattice([[Module(1, [pins])]])])]])
         return Model(core, [{"power": "0.0"}], {"xslib": "ORNL mpact_lib.fmt"}, {}).write_to_string(caseid="test", indent=2)
 
-    output = write([material, equal_material])
-    assert output.count("  mat ") == 2 and output.count("  pin ") == 2
+    n = pinmesh.number_of_material_regions
 
-    output = write([material, material])
-    assert output.count("  mat ") == 1 and output.count("  pin ") == 1
+    output = write([[material] * n, [equal_material] * n])
+    assert output.count("  mat ") == 2
+    assert output.count("  pin ") == 2
+
+    output = write([[material] * n, [material] * (n-1) + [unequal_material]])
+    assert output.count("  mat ") == 2
+    assert output.count("  pin ") == 2
 
 
 def test_harder_model():
