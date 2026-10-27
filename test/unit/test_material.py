@@ -72,6 +72,8 @@ def test_material_equality(material, equal_material, unequal_material):
 def test_material_hash(material, equal_material, unequal_material):
     assert hash(material) == hash(equal_material)
     assert hash(material) != hash(unequal_material)
+    denser_material = Material(300.0, {"U235": 2e-3, "C": 4e-3}, Material.MPACTSpecs(is_fluid=True))
+    assert hash(material) != hash(denser_material)
 
 def test_material_from_openmc_material():
     openmc_material = openmc.Material()
@@ -114,6 +116,14 @@ def test_material_temperature_units():
         expected_output = (f"  mat 1 0 {material.density} g/cc {temp} {unit.upper()} \\\n"
                             "    1001 0.001\n")
         assert output == expected_output
+
+    material = Material(20.0, {"H1": 1e-3}, temperature_unit="C")
+    material.temperature = 600.0
+    assert material.temperature_unit == "C"
+    output = material.write_to_string(prefix="  ")
+    expected_output = (f"  mat 1 0 {material.density} g/cc 326.85 C \\\n"
+                        "    1001 0.001\n")
+    assert output == expected_output
 
 def test_material_percents():
     material = Material(293.15, percents={"H1": 2.0, "O16": 1.0}, percent_unit="at%", density=1.0)

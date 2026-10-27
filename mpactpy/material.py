@@ -38,7 +38,7 @@ class Material():
     density : float
         The density (g/cc)
     temperature : float
-        The temperature (K). Setting it also sets `temperature_unit` to 'K'.
+        The temperature (K)
     temperature_unit : str
         The unit the temperature is written in
     number_densities : Dict[str, float]
@@ -152,14 +152,12 @@ class Material():
 
     @property
     def temperature(self) -> float:
-        offset, scale = MPACT_TEMPERATURE_UNITS[self._temperature_unit]
-        return (self._temperature + offset) * scale
+        return self._temperature
 
     @temperature.setter
     def temperature(self, temperature: float) -> None:
         assert temperature > 0., f"temperature = {temperature}"
-        self._temperature      = temperature
-        self._temperature_unit = "K"
+        self._temperature = temperature
 
     @property
     def temperature_unit(self) -> str:
@@ -215,7 +213,8 @@ class Material():
         assert percent_unit.lower() in MPACT_PERCENT_UNITS, f"percent_unit = {percent_unit}"
 
         self._temperature_unit = temperature_unit.upper()
-        self._temperature      = temperature
+        offset, scale          = MPACT_TEMPERATURE_UNITS[self._temperature_unit]
+        self._temperature      = (temperature + offset) * scale
         assert self.temperature > 0., f"temperature = {temperature} {temperature_unit}"
 
         self._mpact_specs      = mpact_specs if mpact_specs else Material.MPACTSpecs()
@@ -260,8 +259,8 @@ class Material():
 
     def __hash__(self) -> int:
         if self._cached_hash is None:
-            number_densities = sorted({iso: relative_round(numd, TOL)
-                                       for iso, numd in self.number_densities.items()})
+            number_densities = sorted((iso, relative_round(numd, TOL))
+                                      for iso, numd in self.number_densities.items())
             self._cached_hash = hash((self._mpact_specs.material_type,
                                      relative_round(self.temperature, TOL),
                                      tuple(number_densities)))
@@ -602,10 +601,14 @@ class Material():
             else:
                 mpact_composition[iso] = amount
 
+        # Round off the noise of converting back from K, so a temperature is written as it was given
+        offset, scale = MPACT_TEMPERATURE_UNITS[self._temperature_unit]
+        temperature   = relative_round(self._temperature / scale - offset, 1e-12)
+
         unit_tag = "" if self.percents is None else f" ({self.percent_unit})"
         mpact_id = 1 if mpact_ids is None else mpact_ids[self]
         string = prefix + f"mat {mpact_id} {self._mpact_specs.material_type} " + \
-                          f"{self.density} g/cc {self._temperature} {self._temperature_unit}{unit_tag} \\\n"
+                          f"{self.density} g/cc {temperature} {self._temperature_unit}{unit_tag} \\\n"
 
         for iso, amount in sorted(mpact_composition.items()):
             if iso in MPACT_SUPPORTED_ISOTOPE_IDS:
