@@ -3,6 +3,7 @@ from typing import Dict, List, Any, Union, TypedDict, Tuple, Set, Optional
 from math import isclose, inf, isinf
 from copy import deepcopy
 from itertools import accumulate
+from operator import is_
 
 import openmc
 
@@ -77,12 +78,12 @@ class Pin():
             return True
         return (isinstance(other, Pin)          and
                 self.pinmesh == other.pinmesh   and
-                all(material is other_material for material, other_material in zip(self.materials, other.materials))
+                all(map(is_, self.materials, other.materials))
                )
 
     def __hash__(self) -> int:
         if self._cached_hash is None:
-            self._cached_hash = hash((self.pinmesh, tuple(id(material) for material in self.materials)))
+            self._cached_hash = hash((self.pinmesh, tuple(map(id, self.materials))))
         return self._cached_hash
 
     def __getstate__(self) -> Dict[str, Any]:

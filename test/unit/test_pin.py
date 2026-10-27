@@ -64,20 +64,25 @@ def test_pin_initialization(pin, pinmesh, material):
     assert pin.materials      == [material for _ in range(number_of_material_regions)]
     assert_allclose([pin.pitch[i] for i in ['X','Y','Z']], [2., 2., 3.])
 
-def test_pin_equality(pin, equal_pin, unequal_pin):
+def test_pin_equality(pin, equal_pin, unequal_pin, equal_material):
     assert pin == equal_pin
     assert pin != unequal_pin
+    assert pin != Pin(pin.pinmesh, [equal_material for _ in pin.materials])
 
 def test_pin_hash(pin, equal_pin, unequal_pin):
     assert hash(pin) == hash(equal_pin)
     assert hash(pin) != hash(unequal_pin)
 
-def test_pin_write_to_string(pin, pinmesh, material):
+def test_pin_write_to_string(pin, pinmesh, material, equal_material):
     output = pin.write_to_string(prefix="  ",
                                  material_mpact_ids={id(material): 3},
                                  pinmesh_mpact_ids={pinmesh: 2},
                                  pin_mpact_ids={pin: 1})
     expected_output = "  pin 1 2 / 3 3 3 3 3 3 3 3 3\n"
+    assert output == expected_output
+
+    output = Pin(pinmesh, [equal_material] + pin.materials[1:]).write_to_string()
+    expected_output = "pin 1 1 / 0 1 1 1 1 1 1 1 1\n"
     assert output == expected_output
 
 def test_pin_get_axial_slice(pin):

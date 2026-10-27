@@ -172,11 +172,11 @@ def test_model_keeps_separate_materials(pinmesh, material, equal_material, unequ
 
     output = write([[material] * n, [equal_material] * n])
     assert output.count("  mat ") == 2
-    assert output.count("  pin ") == 2
+    assert "  pin 1 1 / 1 1 1 1 1 1 1 1 1\n  pin 2 1 / 2 2 2 2 2 2 2 2 2\n" in output
 
-    output = write([[material] * n, [material] * (n-1) + [unequal_material]])
+    output = write([[material] * n, [unequal_material] + [material] * (n-1)])
     assert output.count("  mat ") == 2
-    assert output.count("  pin ") == 2
+    assert "  pin 1 1 / 1 1 1 1 1 1 1 1 1\n  pin 2 1 / 2 1 1 1 1 1 1 1 1\n" in output
 
 
 def test_harder_model():
