@@ -82,7 +82,7 @@ class Pin():
 
     def __hash__(self) -> int:
         if self._cached_hash is None:
-            self._cached_hash = hash((self.pinmesh, tuple(self.materials)))
+            self._cached_hash = hash((self.pinmesh, tuple(id(material) for material in self.materials)))
         return self._cached_hash
 
     def __getstate__(self) -> Dict[str, Any]:
