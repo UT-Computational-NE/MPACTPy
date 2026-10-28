@@ -177,7 +177,8 @@ def test_material_name(material):
                         "    1001 0.001\n")
     assert output == expected_output
 
-    for name in ["1Fuel", "at%", "k", "G/CC", "Fuel \"1\"", "Fuel\\1", "Fuel\n1", ""]:
+    for name in ["1Fuel", "Éau", "at%", "f", "G/CC", "",
+                 "Fuel \"1\"", "Fuel\\1", "Fuel!1", "Fuel\n1", "Fuel\t1", "Fuel\r1"]:
         with pytest.raises(AssertionError):
             Material(300.0, {"H1": 1e-3}, name=name)
 

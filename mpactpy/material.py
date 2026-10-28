@@ -33,8 +33,8 @@ class Material():
     density : float
         The density (g/cc). Required with `percents`, otherwise computed from `number_densities`.
     name : Optional[str]
-        The material name, written in double quotes if it has a space. It must start with a letter, not be a unit
-        string and not contain '"', '\\' or a newline.
+        The material name, written in double quotes if it has a space. It must start with an ASCII letter,
+        not be a unit string, and contain no '"', '\\', '!' or whitespace other than spaces.
 
     Attributes
     ----------
@@ -221,9 +221,10 @@ class Material():
             f"number_densities = {number_densities}, percents = {percents}, expected exactly one"
         assert temperature_unit.upper() in MPACT_TEMPERATURE_UNITS, f"temperature_unit = {temperature_unit}"
         assert percent_unit.lower() in MPACT_PERCENT_UNITS, f"percent_unit = {percent_unit}"
-        assert name is None or (name[:1].isalpha()                     and
-                                name.upper() not in MPACT_UNIT_STRINGS and
-                                not any(char in name for char in '"\\\n')), f"name = {name}"
+        assert name is None or (name[:1].isascii() and name[:1].isalpha() and
+                                name.upper() not in MPACT_UNIT_STRINGS    and
+                                name.isprintable()                        and
+                                not any(char in name for char in '"\\!')), f"name = {name}"
 
         self._name             = name
         self._temperature_unit = temperature_unit.upper()
