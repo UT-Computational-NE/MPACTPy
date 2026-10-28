@@ -1,5 +1,6 @@
 import pytest
 from math import isclose
+from copy import copy
 from concurrent.futures import ProcessPoolExecutor
 from multiprocessing import get_context
 from mpactpy import Material, Comments
@@ -159,21 +160,16 @@ def test_material_comments():
     assert material == uncommented_material
     assert hash(material) == hash(uncommented_material)
 
-    material.temperature = 600.0
-    output = material.write_to_string(prefix="  ")
-    expected_output = ( "  !MODERATOR\n"
-                        "  ! MAT  MAT_ID  MAT_TYPE\n"
-                       f"  mat 1 0 {material.density} g/cc 600.0 K \\\n"
-                        "    6001 0.0001 !graphite\n"
-                        "    !   1002  1.0E-7 ! Excluded\n"
-                        "    1001 0.002 !H-1\n"
-                        "    !   8017  4.0E-7 ! Excluded\n"
-                        "    8016 0.001\n")
-    assert output == expected_output
-    assert comments[None].inline == "Water"
+    copied_material = copy(material)
+    copied_material.temperature = 293.15
+    assert copied_material.write_to_string(prefix="  ") == expected_output.replace(" !Water", "")
+    assert material.write_to_string(prefix="  ") == expected_output
 
+    material.comments["C"] = Comments(inline="graphite")
     with pytest.raises(AssertionError):
-        Material(293.15, {"H1": 2e-3, "O16": 1e-3, "C": 1e-4}, specs, comments={"C": Comments(inline="graphite")})
+        material.write_to_string()
+    with pytest.raises(AssertionError):
+        Material(293.15, {"H1": 1e-3, "As75": 1e-9}, comments={"As75": Comments(inline="As-75")}).write_to_string()
     with pytest.raises(AssertionError):
         Comments(["line\nbreak"])
     with pytest.raises(AssertionError):

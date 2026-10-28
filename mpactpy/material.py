@@ -167,7 +167,7 @@ class Material():
         assert temperature > 0., f"temperature = {temperature}"
         self._temperature = temperature
         if None in self._comments:
-            self._comments[None] = replace(self._comments[None], inline=None)
+            self._comments = self._comments | {None: replace(self._comments[None], inline=None)}
 
     @property
     def temperature_unit(self) -> str:
@@ -235,7 +235,7 @@ class Material():
         self._mpact_specs      = mpact_specs if mpact_specs else Material.MPACTSpecs()
         self._percents         = percents
         self._percent_unit     = percent_unit.lower()
-        self._comments         = dict(comments) if comments else {}
+        self._comments         = comments if comments else {}
 
         if percents is None:
             assert density is None, f"density = {density}, expected None with number_densities"
@@ -261,10 +261,6 @@ class Material():
             self._number_densities = {iso: moles * density * AVOGADRO * 1e-24
                                       for iso, moles in moles_per_gram.items()}
             self._density          = density
-
-        isotopes = {self.replace_isotopes.get(iso, iso) for iso in self.number_densities}
-        assert all(key is None or key in isotopes for key in self._comments), \
-            f"comments = {comments}, expected keys None or isotope IDs after replacements"
 
     def __eq__(self, other: Any) -> bool:
         if self is other:
@@ -628,6 +624,10 @@ class Material():
         # Round off the noise of converting back from K, so a temperature is written as it was given
         offset, scale = MPACT_TEMPERATURE_UNITS[self._temperature_unit]
         temperature   = relative_round(self._temperature / scale - offset, TOL)
+
+        assert all(key is None or (key in mpact_composition and key in MPACT_SUPPORTED_ISOTOPE_IDS)
+                   for key in self.comments), \
+            f"comments = {self.comments}, expected keys None or written isotope IDs after replacements"
 
         unit_tag = "" if self.percents is None else f" ({self.percent_unit})"
         mpact_id = 1 if mpact_ids is None else mpact_ids[self]
