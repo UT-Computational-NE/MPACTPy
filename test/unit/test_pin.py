@@ -2,7 +2,7 @@ import pytest
 from math import isclose
 from numpy.testing import assert_allclose
 from mpactpy import PinMesh, RectangularPinMesh, GeneralCylindricalPinMesh, Material, \
-                    Pin, build_rec_pin, build_gcyl_pin
+                    Pin, build_rec_pin, build_gcyl_pin, Comments
 from test.unit.test_material import material, equal_material, unequal_material
 from test.unit.test_pinmesh import general_cylindrical_pinmesh as pinmesh,\
                                    equal_general_cylindrical_pinmesh as equal_pinmesh,\
@@ -79,6 +79,36 @@ def test_pin_write_to_string(pin, pinmesh, material):
                                  pin_mpact_ids={pin: 1})
     expected_output = "  pin 1 2 / 3 3 3 3 3 3 3 3 3\n"
     assert output == expected_output
+
+def test_pin_comments(pin, material):
+    pinmesh       = GeneralCylindricalPinMesh([0.5, 1.0, 1.5], -1.0, 1.0, -1.0, 1.0, [1.0, 2.0, 3.0],
+                                              [1, 2, 2], [8, 8, 8, 8, 8, 8], [5, 5, 5],
+                                              {None: Comments(inline="fuel")})
+    commented_pin = Pin(pinmesh, pin.materials, {None: Comments(["PIN  ID  MESH / MATS"], "P00 fuel")})
+    assert commented_pin == pin
+    assert hash(commented_pin) == hash(pin)
+
+    output = commented_pin.write_to_string(prefix="  ",
+                                           material_mpact_ids={material: 3},
+                                           pinmesh_mpact_ids={pinmesh: 2},
+                                           pin_mpact_ids={commented_pin: 1})
+    expected_output = ("  !PIN  ID  MESH / MATS\n"
+                       "  pin 1 2 / 3 3 3 3 3 3 3 3 3 !P00 fuel\n")
+    assert output == expected_output
+
+    pinmesh_2D = GeneralCylindricalPinMesh([0.5, 1.0, 1.5], -1.0, 1.0, -1.0, 1.0, [1.0],
+                                           [1, 2, 2], [8, 8, 8, 8, 8, 8], [5],
+                                           {None: Comments(inline="fuel")})
+    pin_2D     = Pin(pinmesh_2D, [material] * pinmesh_2D.number_of_material_regions, {None: Comments(inline="2D")})
+    for derived_pin in [commented_pin.get_axial_slice(0.5, 1.5),
+                        commented_pin.axial_merge(commented_pin),
+                        pin_2D.with_height(2.0)]:
+        assert derived_pin.comments == {}
+        assert derived_pin.pinmesh.comments == {}
+
+    commented_pin.comments[0] = Comments(inline="row")
+    with pytest.raises(AssertionError):
+        commented_pin.write_to_string()
 
 def test_pin_get_axial_slice(pin):
     pin_slice = pin.get_axial_slice(0.5, 1.5)

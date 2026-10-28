@@ -4,7 +4,7 @@ from numpy.testing import assert_allclose
 
 import openmc
 
-from mpactpy import PinMesh, Pin, Module, Lattice
+from mpactpy import PinMesh, Pin, Module, Lattice, Comments
 from test.unit.test_material import material, equal_material, unequal_material
 from test.unit.test_pinmesh import general_cylindrical_pinmesh as pinmesh,\
                                    equal_general_cylindrical_pinmesh as equal_pinmesh,\
@@ -88,6 +88,27 @@ def test_lattice_write_to_string(lattice, module):
                       "    2 2\n" + \
                       "    2 2\n"
     assert output == expected_output
+
+def test_lattice_comments(lattice, module):
+    commented_lattice = Lattice(lattice.module_map, {None: Comments(["LATTICE  ID  NX NY"], "P00"),
+                                                     1:    Comments(["south row"], "S")})
+    assert commented_lattice == lattice
+    assert hash(commented_lattice) == hash(lattice)
+
+    output = commented_lattice.write_to_string(prefix="  ",
+                                               module_mpact_ids={module: 2},
+                                               lattice_mpact_ids={commented_lattice: 4})
+    expected_output = ("  !LATTICE  ID  NX NY\n"
+                       "  lattice 4 2 2 !P00\n"
+                       "    2 2\n"
+                       "    !south row\n"
+                       "    2 2 !S\n")
+    assert output == expected_output
+    assert commented_lattice.get_axial_slice(0.5, 1.5).comments == {}
+
+    commented_lattice.comments[2] = Comments(inline="row")
+    with pytest.raises(AssertionError):
+        commented_lattice.write_to_string()
 
 def test_lattice_non_square(module):
     lattice = Lattice([[module, module, module]])

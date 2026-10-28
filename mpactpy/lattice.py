@@ -7,6 +7,7 @@ import openmc
 from mpactpy.module import PinMesh, Module
 from mpactpy.pin import Pin
 from mpactpy.material import Material
+from mpactpy.comments import Comments, write_line, assert_keys_written
 from mpactpy.utils import list_to_str, is_rectangular, unique, process_parallel_work
 
 
@@ -17,6 +18,9 @@ class Lattice():
     ----------
     module_map : List[List[Module]]
         a 2-D array of modules
+    comments : Dict[Optional[int], Comments]
+        The comments of each line of the `lattice` card
+        (key: None for the `lattice` line, else the `module_map` row index)
 
     Attributes
     ----------
@@ -38,6 +42,9 @@ class Lattice():
         The unique pinmeshes contained in this lattice
     materials : List[Material]
         The unique materials contained in this lattice
+    comments : Dict[Optional[int], Comments]
+        The comments of each line of the `lattice` card
+        (key: None for the `lattice` line, else the `module_map` row index)
     """
 
     class Pitch(TypedDict):
@@ -90,14 +97,19 @@ class Lattice():
     def materials(self) -> List[Material]:
         return self._materials
 
+    @property
+    def comments(self) -> Dict[Optional[int], Comments]:
+        return self._comments
 
-    def __init__(self, module_map: List[List[Module]]):
+
+    def __init__(self, module_map: List[List[Module]], comments: Dict[Optional[int], Comments] = None):
 
         self._cached_hash = None
 
         assert is_rectangular(module_map)
 
         self._module_map = module_map
+        self._comments   = dict(comments) if comments else {}
         self._mod_dim    = {'X': self.module_map[0][0].pitch['X'],
                             'Y': self.module_map[0][0].pitch['Y']}
 
@@ -156,6 +168,8 @@ class Lattice():
             The string that represents the lattice
         """
 
+        assert_keys_written(self.comments, range(self.ny))
+
         if module_mpact_ids is None:
             modules = unique(module for row in self.module_map for module in row)
             module_mpact_ids = {module: i+1 for i, module in enumerate(modules)}
@@ -164,10 +178,10 @@ class Lattice():
 
         id_length = max(len(str(module_mpact_ids[module])) for row in self.module_map for module in row)
 
-        string = prefix + f"lattice {lattice_id} {self.nx} {self.ny}\n"
-        for row in self.module_map:
+        string = write_line(prefix, f"lattice {lattice_id} {self.nx} {self.ny}", self.comments.get(None))
+        for i, row in enumerate(self.module_map):
             modules = [module_mpact_ids[module] for module in row]
-            string += prefix + prefix + f"{list_to_str(modules, id_length)}\n"
+            string += write_line(prefix + prefix, list_to_str(modules, id_length), self.comments.get(i))
         return string
 
     def get_axial_slice(self, start_pos: float, stop_pos: float) -> Lattice:

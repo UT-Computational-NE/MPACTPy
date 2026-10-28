@@ -4,7 +4,7 @@ from numpy.testing import assert_allclose
 
 import openmc
 
-from mpactpy import build_rec_pin, PinMesh, Pin, Module, Lattice, Assembly, Core
+from mpactpy import build_rec_pin, PinMesh, Pin, Module, Lattice, Assembly, Core, Comments
 from test.unit.test_material import material, equal_material, unequal_material
 from test.unit.test_pinmesh import general_cylindrical_pinmesh as pinmesh,\
                                    equal_general_cylindrical_pinmesh as equal_pinmesh,\
@@ -136,6 +136,31 @@ def test_core_write_to_string(core, assembly):
     assert output == expected_output
     assert core.nx == 5
     assert core.ny == 5
+
+def test_core_comments(core, assembly):
+    assembly_map = [[None, None,     None,     None,     None],
+                    [None, None,     assembly, None,     None],
+                    [None, assembly, assembly, assembly, None],
+                    [None, None,     assembly, None,     None],
+                    [None, None,     None,     None,     None]]
+    commented_core = Core(assembly_map, comments={None: Comments(["CORE SYMMETRY"], "TRIGA"),
+                                                  2:    Comments(["middle row"], "M")})
+    assert commented_core == Core(assembly_map)
+    assert hash(commented_core) == hash(Core(assembly_map))
+
+    output = commented_core.write_to_string(prefix="  ", assembly_mpact_ids={assembly: 3})
+    expected_output = ("  !CORE SYMMETRY\n"
+                       "  core !TRIGA\n"
+                       "      3\n"
+                       "    !middle row\n"
+                       "    3 3 3 !M\n"
+                       "      3\n")
+    assert output == expected_output
+    assert commented_core.get_axial_slice(0.5, 1.5).comments == {}
+
+    commented_core.comments[0] = Comments(inline="trimmed row")
+    with pytest.raises(AssertionError):
+        commented_core.write_to_string(assembly_mpact_ids={assembly: 3})
 
 def test_core_get_axial_slice(core):
     core_slice = core.get_axial_slice(0.5, 1.5)
