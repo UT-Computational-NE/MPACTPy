@@ -7,6 +7,7 @@ from .assembly  import Assembly
 from .core import Core
 from .model import Model
 from .key_value_block import KeyValueBlock
+from .comments import Comments
 
 
 
@@ -23,5 +24,6 @@ __all__ = [
     "Assembly",
     "Core",
     "Model",
-    "KeyValueBlock"
+    "KeyValueBlock",
+    "Comments"
 ]

@@ -2,7 +2,7 @@ import pytest
 from math import isclose
 from concurrent.futures import ProcessPoolExecutor
 from multiprocessing import get_context
-from mpactpy import Material
+from mpactpy import Material, Comments
 from mpactpy.utils import atomic_mass, AVOGADRO, ROUNDING_RELATIVE_TOLERANCE
 import openmc
 
@@ -137,19 +137,25 @@ def test_material_temperature_units():
     assert output == expected_output
 
 def test_material_comments():
-    material = Material(293.15, {"H1": 2e-3, "O16": 1e-3}, comment="Water",
-                        leading_comments=["MODERATOR", " MAT  MAT_ID  MAT_TYPE"],
-                        isotope_comments={"H1": "H-1"})
+    specs    = Material.MPACTSpecs(replace_isotopes = {"C": "C_in_Graphite"})
+    comments = {None:            Comments(["MODERATOR", " MAT  MAT_ID  MAT_TYPE"], "Water"),
+                "C_in_Graphite": Comments(inline="graphite"),
+                "H1":            Comments(["   1002  1.0E-7 ! Excluded"], "H-1"),
+                "O16":           Comments(["   8017  4.0E-7 ! Excluded"])}
+    material = Material(293.15, {"H1": 2e-3, "O16": 1e-3, "C": 1e-4}, specs, comments=comments)
 
     output = material.write_to_string(prefix="  ")
     expected_output = ( "  !MODERATOR\n"
                         "  ! MAT  MAT_ID  MAT_TYPE\n"
                        f"  mat 1 0 {material.density} g/cc 293.15 K \\ !Water\n"
+                        "    6001 0.0001 !graphite\n"
+                        "    !   1002  1.0E-7 ! Excluded\n"
                         "    1001 0.002 !H-1\n"
+                        "    !   8017  4.0E-7 ! Excluded\n"
                         "    8016 0.001\n")
     assert output == expected_output
 
-    uncommented_material = Material(293.15, {"H1": 2e-3, "O16": 1e-3})
+    uncommented_material = Material(293.15, {"H1": 2e-3, "O16": 1e-3, "C": 1e-4}, specs)
     assert material == uncommented_material
     assert hash(material) == hash(uncommented_material)
 
@@ -158,9 +164,17 @@ def test_material_comments():
     expected_output = ( "  !MODERATOR\n"
                         "  ! MAT  MAT_ID  MAT_TYPE\n"
                        f"  mat 1 0 {material.density} g/cc 600.0 K \\\n"
+                        "    6001 0.0001 !graphite\n"
+                        "    !   1002  1.0E-7 ! Excluded\n"
                         "    1001 0.002 !H-1\n"
+                        "    !   8017  4.0E-7 ! Excluded\n"
                         "    8016 0.001\n")
     assert output == expected_output
+
+    with pytest.raises(AssertionError):
+        Comments(["line\nbreak"])
+    with pytest.raises(AssertionError):
+        Comments(inline="line\nbreak")
 
 def test_material_percents():
     material = Material(293.15, percents={"H1": 2.0, "O16": 1.0}, percent_unit="at%", density=1.0)

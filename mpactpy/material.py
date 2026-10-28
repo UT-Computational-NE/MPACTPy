@@ -1,12 +1,13 @@
 from __future__ import annotations
 from typing import Dict, List, Optional, Any, Tuple, Union
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from collections import defaultdict
 from math import isclose
 
 import numpy as np
 import openmc
 
+from mpactpy.comments import Comments, write_line
 from mpactpy.utils import atomic_mass, AVOGADRO, ROOM_TEMPERATURE, \
                           relative_round, ROUNDING_RELATIVE_TOLERANCE as TOL
 
@@ -32,13 +33,9 @@ class Material():
         The unit of the percents, in any case: 'at%' for atom percent (default) or 'wt%' for weight percent
     density : float
         The density (g/cc). Required with `percents`, otherwise computed from `number_densities`.
-    comment : Optional[str]
-        The comment on the `mat` line, without the leading '!'
-    leading_comments : List[str]
-        The comment-only lines directly above the `mat` line, without the leading '!'
-    isotope_comments : Dict[str, str]
-        The comments on the isotope lines, without the leading '!'
-        (key: isotope ID after replacements, e.g. 'H1', value: comment)
+    comments : Dict[Optional[str], Comments]
+        The comments of each line of the `mat` card
+        (key: None for the `mat` line, else the isotope ID after replacements, e.g. 'H1')
 
     Attributes
     ----------
@@ -64,13 +61,10 @@ class Material():
         Boolean flag indicating whether or not the material has resonance data
     is_fuel : bool
         Boolean flag indicating whether or not the material is fuel
-    comment : Optional[str]
-        The comment on the `mat` line, without the leading '!'.  Setting the temperature drops it.
-    leading_comments : List[str]
-        The comment-only lines directly above the `mat` line, without the leading '!'
-    isotope_comments : Dict[str, str]
-        The comments on the isotope lines, without the leading '!'
-        (key: isotope ID after replacements, e.g. 'H1', value: comment)
+    comments : Dict[Optional[str], Comments]
+        The comments of each line of the `mat` card
+        (key: None for the `mat` line, else the isotope ID after replacements, e.g. 'H1').
+        Setting the temperature drops the inline comment of the `mat` line.
     """
 
     @dataclass
@@ -172,28 +166,16 @@ class Material():
     def temperature(self, temperature: float) -> None:
         assert temperature > 0., f"temperature = {temperature}"
         self._temperature = temperature
-        self._comment     = None
+        if None in self._comments:
+            self._comments[None] = replace(self._comments[None], inline=None)
 
     @property
     def temperature_unit(self) -> str:
         return self._temperature_unit
 
     @property
-    def comment(self) -> Optional[str]:
-        return self._comment
-
-    @comment.setter
-    def comment(self, comment: Optional[str]) -> None:
-        assert comment is None or "\n" not in comment, f"comment = {comment}"
-        self._comment = comment
-
-    @property
-    def leading_comments(self) -> List[str]:
-        return self._leading_comments
-
-    @property
-    def isotope_comments(self) -> Dict[str, str]:
-        return self._isotope_comments
+    def comments(self) -> Dict[Optional[str], Comments]:
+        return self._comments
 
     @property
     def percents(self) -> Optional[Dict[str, float]]:
@@ -235,9 +217,7 @@ class Material():
                  percents:                    Dict[str, float] = None,
                  percent_unit:                str = "at%",
                  density:                     float = None,
-                 comment:                     Optional[str] = None,
-                 leading_comments:            List[str] = None,
-                 isotope_comments:            Dict[str, str] = None,
+                 comments:                    Dict[Optional[str], Comments] = None,
     ):
 
         self._cached_hash = None
@@ -246,9 +226,6 @@ class Material():
             f"number_densities = {number_densities}, percents = {percents}, expected exactly one"
         assert temperature_unit.upper() in MPACT_TEMPERATURE_UNITS, f"temperature_unit = {temperature_unit}"
         assert percent_unit.lower() in MPACT_PERCENT_UNITS, f"percent_unit = {percent_unit}"
-        assert all("\n" not in line for line in leading_comments or []), f"leading_comments = {leading_comments}"
-        assert all("\n" not in text for text in (isotope_comments or {}).values()), \
-            f"isotope_comments = {isotope_comments}"
 
         self._temperature_unit = temperature_unit.upper()
         offset, scale          = MPACT_TEMPERATURE_UNITS[self._temperature_unit]
@@ -258,9 +235,7 @@ class Material():
         self._mpact_specs      = mpact_specs if mpact_specs else Material.MPACTSpecs()
         self._percents         = percents
         self._percent_unit     = percent_unit.lower()
-        self.comment           = comment
-        self._leading_comments = leading_comments if leading_comments else []
-        self._isotope_comments = isotope_comments if isotope_comments else {}
+        self._comments         = dict(comments) if comments else {}
 
         if percents is None:
             assert density is None, f"density = {density}, expected None with number_densities"
@@ -652,15 +627,14 @@ class Material():
 
         unit_tag = "" if self.percents is None else f" ({self.percent_unit})"
         mpact_id = 1 if mpact_ids is None else mpact_ids[self]
-        string = "".join(prefix + f"!{line}\n" for line in self.leading_comments)
-        string += prefix + f"mat {mpact_id} {self._mpact_specs.material_type} " + \
-                           f"{self.density} g/cc {temperature} {self._temperature_unit}{unit_tag} \\"
-        string += "\n" if self.comment is None else f" !{self.comment}\n"
+        string = write_line(prefix, f"mat {mpact_id} {self._mpact_specs.material_type} "
+                                    f"{self.density} g/cc {temperature} {self._temperature_unit}{unit_tag} \\",
+                            self.comments.get(None))
 
         for iso, amount in sorted(mpact_composition.items()):
             if iso in MPACT_SUPPORTED_ISOTOPE_IDS:
-                string += prefix + prefix + f"{MPACT_SUPPORTED_ISOTOPE_IDS[iso]} {amount}"
-                string += "\n" if iso not in self.isotope_comments else f" !{self.isotope_comments[iso]}\n"
+                string += write_line(prefix + prefix, f"{MPACT_SUPPORTED_ISOTOPE_IDS[iso]} {amount}",
+                                     self.comments.get(iso))
 
         return string
 
