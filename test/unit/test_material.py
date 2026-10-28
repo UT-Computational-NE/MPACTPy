@@ -157,6 +157,24 @@ def test_material_percents():
                        "    8016 88.81\n")
     assert output == expected_output
 
+def test_material_name(material):
+    spec           = Material.MPACTSpecs(replace_isotopes={"C" : "C_in_Graphite"}, is_fluid=True)
+    named_material = Material(300.0, {"U235": 1e-3, "C": 2e-3}, spec, name="Fuel 1")
+    assert named_material.name == "Fuel 1"
+    assert material.name is None
+    assert named_material == material
+    assert hash(named_material) == hash(material)
+
+    output = named_material.write_to_string(prefix="  ")
+    expected_output = (f"  mat 1 1 \"Fuel 1\" {material.density} g/cc 300.0 K \\\n"
+                        "    6001 0.002\n"
+                        "    92235 0.001\n")
+    assert output == expected_output
+
+    for name in ["1Fuel", "at%", "k", "G/CC", "Fuel \"1\"", ""]:
+        with pytest.raises(AssertionError):
+            Material(300.0, {"H1": 1e-3}, name=name)
+
 def test_material_mix_materials(material, unequal_material):
 
     policy  = Material.MixPolicy(percent_type='vo', replace_isotope_policy="intersection")
