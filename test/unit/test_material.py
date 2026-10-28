@@ -166,6 +166,7 @@ def test_material_comments():
     assert material.write_to_string(prefix="  ") == expected_output
 
     material.comments["C"] = Comments(inline="graphite")
+    assert "C" not in comments
     with pytest.raises(AssertionError):
         material.write_to_string()
     with pytest.raises(AssertionError):

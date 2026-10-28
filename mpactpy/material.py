@@ -64,7 +64,7 @@ class Material():
     comments : Dict[Optional[str], Comments]
         The comments of each line of the `mat` card
         (key: None for the `mat` line, else the isotope ID after replacements, e.g. 'H1').
-        Setting the temperature drops the inline comment of the `mat` line.
+        Setting the temperature drops the inline comment of the `mat` line and replaces this dict.
     """
 
     @dataclass
@@ -235,7 +235,7 @@ class Material():
         self._mpact_specs      = mpact_specs if mpact_specs else Material.MPACTSpecs()
         self._percents         = percents
         self._percent_unit     = percent_unit.lower()
-        self._comments         = comments if comments else {}
+        self._comments         = dict(comments) if comments else {}
 
         if percents is None:
             assert density is None, f"density = {density}, expected None with number_densities"
