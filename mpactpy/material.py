@@ -221,7 +221,8 @@ class Material():
             f"number_densities = {number_densities}, percents = {percents}, expected exactly one"
         assert temperature_unit.upper() in MPACT_TEMPERATURE_UNITS, f"temperature_unit = {temperature_unit}"
         assert percent_unit.lower() in MPACT_PERCENT_UNITS, f"percent_unit = {percent_unit}"
-        assert name is None or (name[:1].isalpha() and name.upper() not in MPACT_UNIT_STRINGS and
+        assert name is None or (name[:1].isalpha()                     and
+                                name.upper() not in MPACT_UNIT_STRINGS and
                                 not any(char in name for char in '"\\\n')), f"name = {name}"
 
         self._name             = name
@@ -624,9 +625,9 @@ class Material():
 
         unit_tag = "" if self.percents is None else f" ({self.percent_unit})"
         mpact_id = 1 if mpact_ids is None else mpact_ids[self]
-        quote    = '"' if self.name and " " in self.name else ""
-        name     = "" if self.name is None else f"{quote}{self.name}{quote} "
-        string = prefix + f"mat {mpact_id} {self._mpact_specs.material_type} {name}" + \
+        quote    = '"' if self.name is not None and " " in self.name else ""
+        name_tag = "" if self.name is None else f"{quote}{self.name}{quote} "
+        string = prefix + f"mat {mpact_id} {self._mpact_specs.material_type} {name_tag}" + \
                           f"{self.density} g/cc {temperature} {self._temperature_unit}{unit_tag} \\\n"
 
         for iso, amount in sorted(mpact_composition.items()):
