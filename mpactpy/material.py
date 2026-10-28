@@ -33,7 +33,8 @@ class Material():
     density : float
         The density (g/cc). Required with `percents`, otherwise computed from `number_densities`.
     name : Optional[str]
-        The material name, written in double quotes. It must start with a letter, not be a unit string and not contain '"'.
+        The material name, written in double quotes if it has a space. It must start with a letter, not be a unit
+        string and not contain '"', '\\' or a newline.
 
     Attributes
     ----------
@@ -220,8 +221,8 @@ class Material():
             f"number_densities = {number_densities}, percents = {percents}, expected exactly one"
         assert temperature_unit.upper() in MPACT_TEMPERATURE_UNITS, f"temperature_unit = {temperature_unit}"
         assert percent_unit.lower() in MPACT_PERCENT_UNITS, f"percent_unit = {percent_unit}"
-        assert name is None or (name[:1].isalpha() and name.upper() not in MPACT_UNIT_STRINGS and '"' not in name), \
-            f"name = {name}"
+        assert name is None or (name[:1].isalpha() and name.upper() not in MPACT_UNIT_STRINGS and
+                                not any(char in name for char in '"\\\n')), f"name = {name}"
 
         self._name             = name
         self._temperature_unit = temperature_unit.upper()
@@ -623,7 +624,8 @@ class Material():
 
         unit_tag = "" if self.percents is None else f" ({self.percent_unit})"
         mpact_id = 1 if mpact_ids is None else mpact_ids[self]
-        name     = "" if self.name is None else f'"{self.name}" '
+        quote    = '"' if self.name and " " in self.name else ""
+        name     = "" if self.name is None else f"{quote}{self.name}{quote} "
         string = prefix + f"mat {mpact_id} {self._mpact_specs.material_type} {name}" + \
                           f"{self.density} g/cc {temperature} {self._temperature_unit}{unit_tag} \\\n"
 

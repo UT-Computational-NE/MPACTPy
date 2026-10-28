@@ -171,7 +171,13 @@ def test_material_name(material):
                         "    92235 0.001\n")
     assert output == expected_output
 
-    for name in ["1Fuel", "at%", "k", "G/CC", "Fuel \"1\"", ""]:
+    water  = Material(293.15, {"H1": 1e-3}, name="Water")
+    output = water.write_to_string(prefix="  ")
+    expected_output = (f"  mat 1 0 Water {water.density} g/cc 293.15 K \\\n"
+                        "    1001 0.001\n")
+    assert output == expected_output
+
+    for name in ["1Fuel", "at%", "k", "G/CC", "Fuel \"1\"", "Fuel\\1", "Fuel\n1", ""]:
         with pytest.raises(AssertionError):
             Material(300.0, {"H1": 1e-3}, name=name)
 
