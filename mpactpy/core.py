@@ -245,8 +245,7 @@ class Core():
             The string that represents the
         """
 
-        first_row    = next(i for i, row in enumerate(self.assembly_map) if any(assembly is not None for assembly in row))
-        assembly_map = self._trim_empty_boundary(self.assembly_map)
+        assembly_map, first_row = self._trim_empty_boundary(self.assembly_map)
         assert_keys_written(self.comments, range(first_row, first_row + len(assembly_map)))
 
         if assembly_mpact_ids is None:
@@ -270,7 +269,7 @@ class Core():
 
     def _trim_empty_boundary(self,
                              assembly_map: List[List[Optional[Assembly]]]
-    ) -> List[List[Optional[Assembly]]]:
+    ) -> Tuple[List[List[Optional[Assembly]]], int]:
         """Trim all-empty boundary rows and columns from an assembly map.
 
         Parameters
@@ -284,12 +283,16 @@ class Core():
         list of list of Assembly or None
             Rectangular assembly map with leading and trailing all-empty rows
             and columns removed.
+        int
+            The index in ``assembly_map`` of the first row kept
         """
 
         trimmed_map = [list(row) for row in assembly_map]
+        first_row   = 0
 
         while trimmed_map and all(assembly is None for assembly in trimmed_map[0]):
             trimmed_map = trimmed_map[1:]
+            first_row  += 1
 
         while trimmed_map and all(assembly is None for assembly in trimmed_map[-1]):
             trimmed_map = trimmed_map[:-1]
@@ -306,7 +309,7 @@ class Core():
         if not trimmed_map[0]:
             raise ValueError("MPACT core card cannot be empty.")
 
-        return trimmed_map
+        return trimmed_map, first_row
 
     def _assemblies_have_same_axial_meshing(self)->bool:
         """ A helper method for checking if all assemblies have the same axial axial meshing along their lengths

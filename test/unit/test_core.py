@@ -137,7 +137,7 @@ def test_core_write_to_string(core, assembly):
     assert core.nx == 5
     assert core.ny == 5
 
-def test_core_comments(core, assembly):
+def test_core_comments(core, assembly, material):
     assembly_map = [[None, None,     None,     None,     None],
                     [None, None,     assembly, None,     None],
                     [None, assembly, assembly, assembly, None],
@@ -163,6 +163,19 @@ def test_core_comments(core, assembly):
     assert 0 not in comments
     with pytest.raises(AssertionError):
         commented_core.write_to_string(assembly_mpact_ids={assembly: 3})
+
+    tall_pin    = build_rec_pin({"X": [1.0], "Y": [3.0], "Z": [4.0]}, [material])
+    short_pin   = build_rec_pin({"X": [1.0], "Y": [3.0], "Z": [1.0]}, [material])
+    first_pin   = Pin(tall_pin.pinmesh, tall_pin.materials, {None: Comments(inline="first")})
+    second_pin  = Pin(tall_pin.pinmesh, tall_pin.materials, {None: Comments(inline="second")})
+    tall_asy    = Assembly([Lattice([[Module(1, [[first_pin, second_pin]])]])], {None: Comments(inline="tall")})
+    short_asy   = Assembly([Lattice([[Module(1, [[short_pin, short_pin]])]])] * 4, {None: Comments(inline="short")})
+    merged_core = Core([[tall_asy]], comments={None: Comments(inline="TRIGA")})
+    assert merged_core.pins[0].comments == {None: Comments(inline="first")}
+
+    unionized_core = Core([[tall_asy, short_asy]], comments={None: Comments(inline="TRIGA")})
+    assert all(assembly.comments == {} for assembly in unionized_core.assemblies)
+    assert unionized_core.comments == {None: Comments(inline="TRIGA")}
 
 def test_core_get_axial_slice(core):
     core_slice = core.get_axial_slice(0.5, 1.5)

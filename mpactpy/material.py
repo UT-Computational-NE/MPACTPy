@@ -1,13 +1,13 @@
 from __future__ import annotations
 from typing import Dict, List, Optional, Any, Tuple, Union
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from collections import defaultdict
 from math import isclose
 
 import numpy as np
 import openmc
 
-from mpactpy.comments import Comments, write_line, assert_keys_written
+from mpactpy.comments import Comments, write_line, drop_inline, assert_keys_written
 from mpactpy.utils import atomic_mass, AVOGADRO, ROOM_TEMPERATURE, \
                           relative_round, ROUNDING_RELATIVE_TOLERANCE as TOL
 
@@ -166,8 +166,7 @@ class Material():
     def temperature(self, temperature: float) -> None:
         assert temperature > 0., f"temperature = {temperature}"
         self._temperature = temperature
-        if None in self._comments:
-            self._comments = self._comments | {None: replace(self._comments[None], inline=None)}
+        self._comments    = drop_inline(self._comments)
 
     @property
     def temperature_unit(self) -> str:

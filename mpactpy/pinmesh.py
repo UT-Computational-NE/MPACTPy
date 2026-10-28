@@ -1,6 +1,6 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from typing import Dict, List, Any, Tuple, Optional
 from math import isclose, hypot
 from concurrent.futures import ProcessPoolExecutor
@@ -13,7 +13,7 @@ import openmc
 import numpy as np
 
 from mpactpy.material import Material
-from mpactpy.comments import Comments, write_line, assert_keys_written
+from mpactpy.comments import Comments, write_line, drop_inline, assert_keys_written
 from mpactpy.utils import relative_round, allclose, list_to_str, ROUNDING_RELATIVE_TOLERANCE as TOL, \
                           temporary_environment, equal_thickness_regions, RadialDivisionType, subdivide_ring
 
@@ -352,8 +352,7 @@ class PinMesh(ABC):
             dividing the grid defined by zval
         """
         self._set_axial_mesh(zvals, ndivz)
-        if None in self.comments:
-            self._comments = self.comments | {None: replace(self.comments[None], inline=None)}
+        self._comments = drop_inline(self.comments)
 
     def _set_axial_mesh(self, zvals: List[float] = None, ndivz: List[int] = None) -> None:
         zvals = zvals if zvals else []

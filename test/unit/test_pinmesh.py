@@ -314,6 +314,7 @@ def test_general_cylindrical_pinmesh_comments(general_cylindrical_pinmesh):
     pinmesh  = GeneralCylindricalPinMesh([0.5, 1.0, 1.5], -1.0, 1.0, -1.0, 1.0, [1.0, 2.0, 3.0],
                                          [1, 2, 2], [8, 8, 8, 8, 8, 8], [5, 5, 5], comments)
     assert pinmesh == general_cylindrical_pinmesh
+    assert hash(pinmesh) == hash(general_cylindrical_pinmesh)
 
     output = pinmesh.write_to_string(prefix="  ", mpact_ids={pinmesh: 42})
     expected_output = ("  !PINMESH  ID  TYPE\n"
