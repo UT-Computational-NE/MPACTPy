@@ -136,6 +136,32 @@ def test_material_temperature_units():
                         "    1001 0.001\n")
     assert output == expected_output
 
+def test_material_comments():
+    material = Material(293.15, {"H1": 2e-3, "O16": 1e-3}, comment="Water",
+                        leading_comments=["MODERATOR", " MAT  MAT_ID  MAT_TYPE"],
+                        isotope_comments={"H1": "H-1"})
+
+    output = material.write_to_string(prefix="  ")
+    expected_output = ( "  !MODERATOR\n"
+                        "  ! MAT  MAT_ID  MAT_TYPE\n"
+                       f"  mat 1 0 {material.density} g/cc 293.15 K \\ !Water\n"
+                        "    1001 0.002 !H-1\n"
+                        "    8016 0.001\n")
+    assert output == expected_output
+
+    uncommented_material = Material(293.15, {"H1": 2e-3, "O16": 1e-3})
+    assert material == uncommented_material
+    assert hash(material) == hash(uncommented_material)
+
+    material.temperature = 600.0
+    output = material.write_to_string(prefix="  ")
+    expected_output = ( "  !MODERATOR\n"
+                        "  ! MAT  MAT_ID  MAT_TYPE\n"
+                       f"  mat 1 0 {material.density} g/cc 600.0 K \\\n"
+                        "    1001 0.002 !H-1\n"
+                        "    8016 0.001\n")
+    assert output == expected_output
+
 def test_material_percents():
     material = Material(293.15, percents={"H1": 2.0, "O16": 1.0}, percent_unit="at%", density=1.0)
     assert isclose(material.number_densities["H1"],  6.687342530e-2, rel_tol=TOL)
