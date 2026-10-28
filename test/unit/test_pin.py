@@ -84,7 +84,8 @@ def test_pin_comments(pin, material):
     pinmesh       = GeneralCylindricalPinMesh([0.5, 1.0, 1.5], -1.0, 1.0, -1.0, 1.0, [1.0, 2.0, 3.0],
                                               [1, 2, 2], [8, 8, 8, 8, 8, 8], [5, 5, 5],
                                               {None: Comments(inline="fuel")})
-    commented_pin = Pin(pinmesh, pin.materials, {None: Comments(["PIN  ID  MESH / MATS"], "P00 fuel")})
+    comments      = {None: Comments(["PIN  ID  MESH / MATS"], "P00 fuel")}
+    commented_pin = Pin(pinmesh, pin.materials, comments)
     assert commented_pin == pin
     assert hash(commented_pin) == hash(pin)
 
@@ -107,6 +108,7 @@ def test_pin_comments(pin, material):
         assert derived_pin.pinmesh.comments == {}
 
     commented_pin.comments[0] = Comments(inline="row")
+    assert 0 not in comments
     with pytest.raises(AssertionError):
         commented_pin.write_to_string()
 

@@ -245,10 +245,9 @@ class Core():
             The string that represents the
         """
 
+        first_row    = next(i for i, row in enumerate(self.assembly_map) if any(assembly is not None for assembly in row))
         assembly_map = self._trim_empty_boundary(self.assembly_map)
-        rows         = [i for i, row in enumerate(self.assembly_map) if any(assembly is not None for assembly in row)]
-        written_rows = range(rows[0], rows[-1] + 1)
-        assert_keys_written(self.comments, written_rows)
+        assert_keys_written(self.comments, range(first_row, first_row + len(assembly_map)))
 
         if assembly_mpact_ids is None:
             assemblies = unique(assembly for row in assembly_map for assembly in row if assembly)
@@ -263,7 +262,7 @@ class Core():
         if len(self.quarter_sym_opt) > 0:
             string += f" {self.quarter_sym_opt}"
         string = write_line(prefix, string, self.comments.get(None))
-        for i, row in zip(written_rows, assembly_map):
+        for i, row in enumerate(assembly_map, start=first_row):
             assemblies = [assembly_mpact_ids[assembly] if assembly is not None else "" for assembly in row]
             string += write_line(prefix + "  ", list_to_str(assemblies, id_length).rstrip(), self.comments.get(i))
         return string

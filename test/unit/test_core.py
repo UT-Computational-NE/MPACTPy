@@ -143,8 +143,9 @@ def test_core_comments(core, assembly):
                     [None, assembly, assembly, assembly, None],
                     [None, None,     assembly, None,     None],
                     [None, None,     None,     None,     None]]
-    commented_core = Core(assembly_map, comments={None: Comments(["CORE SYMMETRY"], "TRIGA"),
-                                                  2:    Comments(["middle row"], "M")})
+    comments       = {None: Comments(["CORE SYMMETRY"], "TRIGA"),
+                      2:    Comments(["middle row"], "M")}
+    commented_core = Core(assembly_map, comments=comments)
     assert commented_core == Core(assembly_map)
     assert hash(commented_core) == hash(Core(assembly_map))
 
@@ -159,6 +160,7 @@ def test_core_comments(core, assembly):
     assert commented_core.get_axial_slice(0.5, 1.5).comments == {}
 
     commented_core.comments[0] = Comments(inline="trimmed row")
+    assert 0 not in comments
     with pytest.raises(AssertionError):
         commented_core.write_to_string(assembly_mpact_ids={assembly: 3})
 

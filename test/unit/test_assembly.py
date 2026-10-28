@@ -92,8 +92,9 @@ def test_assembly_write_to_string(assembly, lattice):
     assert output == expected_output
 
 def test_assembly_comments(assembly, lattice):
-    commented_assembly = Assembly(assembly.lattice_map, {None: Comments(["ASSEMBLY ID"], "P00"),
-                                                         0:    Comments(["bottom to top"], "lattices")})
+    comments           = {None: Comments(["ASSEMBLY ID"], "P00"),
+                          0:    Comments(["bottom to top"], "lattices")}
+    commented_assembly = Assembly(assembly.lattice_map, comments)
     assert commented_assembly == assembly
     assert hash(commented_assembly) == hash(assembly)
 
@@ -108,6 +109,7 @@ def test_assembly_comments(assembly, lattice):
     assert commented_assembly.get_axial_slice(0.5, 1.5).comments == {}
 
     commented_assembly.comments[1] = Comments(inline="row")
+    assert 1 not in comments
     with pytest.raises(AssertionError):
         commented_assembly.write_to_string()
 

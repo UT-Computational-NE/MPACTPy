@@ -88,8 +88,9 @@ def test_module_write_to_string(module, pin):
     assert output == expected_output
 
 def test_module_comments(module, pin):
-    commented_module = Module(1, module.pin_map, {None: Comments(["MODULE  ID  NX NY NZ"], "P00 water"),
-                                                  1:    Comments(["south row"], "S")})
+    comments         = {None: Comments(["MODULE  ID  NX NY NZ"], "P00 water"),
+                        1:    Comments(["south row"], "S")}
+    commented_module = Module(1, module.pin_map, comments)
     assert commented_module == module
     assert hash(commented_module) == hash(module)
 
@@ -105,6 +106,7 @@ def test_module_comments(module, pin):
     assert commented_module.get_axial_slice(0.5, 1.5).comments == {}
 
     commented_module.comments[2] = Comments(inline="row")
+    assert 2 not in comments
     with pytest.raises(AssertionError):
         commented_module.write_to_string()
 

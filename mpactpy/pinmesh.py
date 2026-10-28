@@ -262,7 +262,7 @@ class PinMesh(ABC):
     _pitch: Dict[str, float]
     _regions_inside_bounds: List[int]
     _cached_hash: Optional[int]
-    _comments: Dict[Optional[int], Comments] = {}
+    _comments: Dict[Optional[int], Comments]
 
     class Subdivisions(ABC):
         """Base class for pinmesh-specific material-region subdivision specifications.
@@ -341,6 +341,8 @@ class PinMesh(ABC):
     def set_axial_mesh(self, zvals: List[float] = None, ndivz: List[int] = None) -> None:
         """ A method for setting the axial meshing of a pinmesh
 
+        This drops the inline comment of the `pinmesh` line.
+
         Parameters
         ----------
         zvals : List[float]
@@ -349,6 +351,11 @@ class PinMesh(ABC):
             The number of equally spaced flat source regions to use when
             dividing the grid defined by zval
         """
+        self._set_axial_mesh(zvals, ndivz)
+        if None in self.comments:
+            self._comments = self.comments | {None: replace(self.comments[None], inline=None)}
+
+    def _set_axial_mesh(self, zvals: List[float] = None, ndivz: List[int] = None) -> None:
         zvals = zvals if zvals else []
         ndivz = ndivz if ndivz else []
 
@@ -365,8 +372,6 @@ class PinMesh(ABC):
         self._set_number_of_material_regions()
         self._set_regions_inside_bounds()
         self._cached_hash = None
-        if None in self._comments:
-            self._comments = self._comments | {None: replace(self._comments[None], inline=None)}
 
     def __getstate__(self) -> Dict[str, Any]:
         # String hashes differ between processes, so a cached hash must not be pickled
@@ -599,7 +604,7 @@ class RectangularPinMesh(PinMesh):
         self._ndivx   = ndivx
         self._ndivy   = ndivy
 
-        self.set_axial_mesh(zvals, ndivz)
+        self._set_axial_mesh(zvals, ndivz)
         self._comments = dict(comments) if comments else {}
 
 
@@ -963,7 +968,7 @@ class GeneralCylindricalPinMesh(PinMesh):
         self._ndivr   = ndivr
         self._ndiva   = ndiva
 
-        self.set_axial_mesh(zvals, ndivz)
+        self._set_axial_mesh(zvals, ndivz)
         self._comments = dict(comments) if comments else {}
 
 
