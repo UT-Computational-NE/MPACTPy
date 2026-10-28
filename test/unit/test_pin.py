@@ -107,6 +107,10 @@ def test_pin_comments(pin, material):
         assert derived_pin.comments == {}
         assert derived_pin.pinmesh.comments == {}
 
+    shared_pin = commented_pin.with_shared_materials({})
+    assert shared_pin.comments == {}
+    assert shared_pin.pinmesh.comments == {None: Comments(inline="fuel")}
+
     commented_pin.comments[0] = Comments(inline="row")
     assert 0 not in comments
     with pytest.raises(AssertionError):
