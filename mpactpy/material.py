@@ -262,6 +262,10 @@ class Material():
                                       for iso, moles in moles_per_gram.items()}
             self._density          = density
 
+        isotopes = {self.replace_isotopes.get(iso, iso) for iso in self.number_densities}
+        assert all(key is None or key in isotopes for key in self._comments), \
+            f"comments = {comments}, expected keys None or isotope IDs after replacements"
+
     def __eq__(self, other: Any) -> bool:
         if self is other:
             return True

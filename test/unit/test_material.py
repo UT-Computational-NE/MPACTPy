@@ -170,7 +170,10 @@ def test_material_comments():
                         "    !   8017  4.0E-7 ! Excluded\n"
                         "    8016 0.001\n")
     assert output == expected_output
+    assert comments[None].inline == "Water"
 
+    with pytest.raises(AssertionError):
+        Material(293.15, {"H1": 2e-3, "O16": 1e-3, "C": 1e-4}, specs, comments={"C": Comments(inline="graphite")})
     with pytest.raises(AssertionError):
         Comments(["line\nbreak"])
     with pytest.raises(AssertionError):

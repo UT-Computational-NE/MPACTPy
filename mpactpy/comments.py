@@ -23,7 +23,7 @@ class Comments():
         assert self.inline is None or "\n" not in self.inline, f"inline = {self.inline}"
 
 
-def write_line(prefix: str, line: str, comments: Optional[Comments] = None) -> str:
+def write_line(prefix: str, line: str, comments: Optional[Comments]) -> str:
     """ Function for writing a line of an input card with its comments
 
     Parameters
