@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import List, Any, Literal, Dict, Tuple, Optional, TypedDict
 from math import isclose
 from itertools import accumulate
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 
 import openmc
 
@@ -158,24 +158,6 @@ class Core():
                          self.max_steps,
                          self.withdraw))
 
-        def with_shared_materials(self, shared: Dict[Material, Material]) -> Core.CrdSpecs:
-            """ Method for rebuilding these specifications so that materials with the same composition are one instance
-
-            Parameters
-            ----------
-            shared : Dict[Material, Material]
-                The instance kept for each composition.  Compositions not yet in it are added.
-
-            Returns
-            -------
-            CrdSpecs
-                The rebuilt specifications
-            """
-
-            return replace(self,
-                           control_materials = [shared.setdefault(material, material) for material in self.control_materials],
-                           swap_material     = shared.setdefault(self.swap_material, self.swap_material))
-
         def write_to_string(self, prefix: str, material_mpact_ids: Dict[int, int]) -> str:
             """ Method for writing the control rod specifications to a string
 
@@ -292,10 +274,6 @@ class Core():
 
         assert crd_bank is None or (len(crd_bank) == self.ny and all(len(row) == self.nx for row in crd_bank)), \
             f"crd_bank shape = {[len(row) for row in crd_bank]}, expected the assembly_map shape"
-        assert crd_bank is None or all(label is None or assembly is not None
-                                       for labels, assemblies in zip(crd_bank, assembly_map)
-                                       for label, assembly in zip(labels, assemblies)), \
-            "crd_bank has a label where there is no assembly"
 
         self._assemblies = unique(assembly for row in self.assembly_map for assembly in row if assembly)
 
@@ -564,8 +542,7 @@ class Core():
         assembly_map = [[assembly.get_axial_slice(start_pos, stop_pos) if assembly else None
                          for assembly in row] for row in self.assembly_map]
 
-        return Core(assembly_map, self.symmetry_opt, self.quarter_sym_opt,
-                    crd_bank=self.crd_bank, crd_specs=self.crd_specs)
+        return Core(assembly_map, self.symmetry_opt, self.quarter_sym_opt)
 
 
     def with_height(self, height: float) -> Core:
@@ -585,8 +562,7 @@ class Core():
         assert self.nz == 1, f"nz = {self.nz}, Core must be strictly 2D"
 
         return Core([[assembly.with_height(height) if assembly else None
-                      for assembly in row] for row in self.assembly_map],
-                    crd_bank=self.crd_bank, crd_specs=self.crd_specs)
+                      for assembly in row] for row in self.assembly_map])
 
 
     OverlayMask = Dict[Assembly, Optional[Assembly.OverlayMask]]
@@ -659,11 +635,9 @@ class Core():
         for (_, _, _, i, j), overlaid in zip(assembly_work, overlaid_assemblies):
             new_assembly_map[i][j] = overlaid
 
-        shared       = {material: material for material in material_cache.values()}
-        assembly_map = [[assembly.with_shared_materials(shared) if assembly else None for assembly in row]
-                        for row in new_assembly_map]
-        crd_specs    = self.crd_specs.with_shared_materials(shared) if self.crd_specs else None
-        return Core(assembly_map, crd_bank=self.crd_bank, crd_specs=crd_specs)
+        shared = {material: material for material in material_cache.values()}
+        return Core([[assembly.with_shared_materials(shared) if assembly else None for assembly in row]
+                     for row in new_assembly_map])
 
     @staticmethod
     def _process_assembly_chunk(assembly_chunk, geometry, child_policy, material_cache):
