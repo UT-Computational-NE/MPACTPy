@@ -167,6 +167,9 @@ def test_core_control_rods_write_to_string(assembly, material, unequal_material)
     core = Core([[assembly]], crd_bank=[["A"]], crd_specs=crd_specs)
     assert core.write_to_string(assembly_mpact_ids={assembly: 1}).endswith("crd_specs 1 / 1 / 38.1 960\n")
 
+    core = Core([[assembly]], crd_bank=[[None]])
+    assert core.write_to_string(assembly_mpact_ids={assembly: 1}).endswith("crd_bank\n  -\n")
+
 def test_core_control_rods(assembly, material, equal_material):
     crd_specs = Core.CrdSpecs([material], material, 38.1, 960, "top")
     core      = Core([[assembly, assembly]], crd_bank=[["A", None]], crd_specs=crd_specs)
@@ -195,6 +198,13 @@ def test_core_control_rods(assembly, material, equal_material):
         Core([[assembly, assembly]], crd_bank=[["A", None], [None, None]])
     with pytest.raises(AssertionError):
         Core([[assembly, None]], crd_bank=[[None, "A"]])
+
+    for args in [([],         material, 38.1, 960, "top"),
+                 ([material], material, 0.0,  960, "top"),
+                 ([material], material, 38.1, 0,   "top"),
+                 ([material], material, 38.1, 960, "up" )]:
+        with pytest.raises(AssertionError):
+            Core.CrdSpecs(*args)
 
 def test_core_control_rods_kept(assembly, assembly_2D, material, openmc_core, template_assembly, template_material,
                                 openmc_fuel_material, overlay_material_cache):
