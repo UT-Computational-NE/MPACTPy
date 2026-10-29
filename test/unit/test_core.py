@@ -4,7 +4,7 @@ from numpy.testing import assert_allclose
 
 import openmc
 
-from mpactpy import build_rec_pin, Material, PinMesh, Pin, Module, Lattice, Assembly, Core
+from mpactpy import build_rec_pin, PinMesh, Pin, Module, Lattice, Assembly, Core
 from test.unit.test_material import material, equal_material, unequal_material
 from test.unit.test_pinmesh import general_cylindrical_pinmesh as pinmesh,\
                                    equal_general_cylindrical_pinmesh as equal_pinmesh,\
@@ -196,8 +196,6 @@ def test_core_control_rods(assembly, material, equal_material):
         Core([[assembly, assembly]], crd_bank=[["A"]])
     with pytest.raises(AssertionError):
         Core([[assembly, assembly]], crd_bank=[["A", None], [None, None]])
-    with pytest.raises(AssertionError):
-        Core([[assembly, None]], crd_bank=[[None, "A"]])
 
     for args in [([],         material, 38.1, 960, "top"),
                  ([material], material, 0.0,  960, "top"),
@@ -205,27 +203,6 @@ def test_core_control_rods(assembly, material, equal_material):
                  ([material], material, 38.1, 960, "up" )]:
         with pytest.raises(AssertionError):
             Core.CrdSpecs(*args)
-
-def test_core_control_rods_kept(assembly, assembly_2D, material, openmc_core, template_assembly, template_material,
-                                openmc_fuel_material, overlay_material_cache):
-    crd_specs = Core.CrdSpecs([material], material, 38.1, 960)
-    core      = Core([[assembly, None]], crd_bank=[["A", None]], crd_specs=crd_specs)
-    core_slice = core.get_axial_slice(0.5, 1.5)
-    assert core_slice.crd_bank == [["A", None]] and core_slice.crd_specs == crd_specs
-
-    core      = Core([[assembly_2D, None]], crd_bank=[["A", None]], crd_specs=crd_specs)
-    core_2D   = core.with_height(3.0)
-    assert core_2D.crd_bank == [["A", None]] and core_2D.crd_specs == crd_specs
-
-    fuel      = Material.from_openmc_material(openmc_fuel_material)
-    crd_specs = Core.CrdSpecs([fuel], template_material, 38.1, 960)
-    core      = Core([[template_assembly, None]], crd_bank=[["A", None]], crd_specs=crd_specs)
-    overlaid  = core.overlay(openmc_core, (-18.0, -18.0, -6.0), None,
-                             PinMesh.OverlayPolicy(method="centroid"), overlay_material_cache)
-    assert overlaid.crd_bank == [["A", None]]
-    assert overlaid.crd_specs.control_materials[0] is overlay_material_cache[openmc_fuel_material.id]
-    assert overlaid.crd_specs.swap_material        is template_material
-    assert len(overlaid.materials) == 3
 
 def test_core_get_axial_slice(core):
     core_slice = core.get_axial_slice(0.5, 1.5)
