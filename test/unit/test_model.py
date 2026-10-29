@@ -161,6 +161,18 @@ OPTION
 """
     assert output == expected_output
 
+def test_model_line_limit(core):
+    value = "x" * (256 - len("  param "))
+    model = Model(core          = core,
+                  states        = [{"power": "0.0"}],
+                  xsec_settings = {"xslib": "ORNL mpact_lib.fmt"},
+                  options       = {"param": value})
+    assert f"  param {value}\n" in model.write_to_string(caseid="test", indent=2)
+
+    model.options.add("param", value + "x")
+    with pytest.raises(AssertionError, match=f"  param {value}x$"):
+        model.write_to_string(caseid="test", indent=2)
+
 
 def test_harder_model():
     """ This tests a harder model with multiple repeated element definitions that the model
