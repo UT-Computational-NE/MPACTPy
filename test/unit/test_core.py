@@ -1,4 +1,5 @@
 import pytest
+from dataclasses import FrozenInstanceError
 from math import isclose
 from numpy.testing import assert_allclose
 
@@ -153,14 +154,14 @@ def test_core_control_rods_write_to_string(assembly, material, unequal_material)
 
     output = core.write_to_string(prefix="  ",
                                   assembly_mpact_ids={assembly: 3},
-                                  material_mpact_ids={id(material): 1, id(unequal_material): 2})
+                                  material_mpact_ids={id(material): 7, id(unequal_material): 8})
     expected_output = "  core\n" + \
                       "    3 3 3\n" + \
                       "      3\n" + \
                       "  crd_bank\n" + \
                       "    A   -   ABC\n" + \
-                      "    -   -   -\n" + \
-                      "  crd_specs 2 1 / 1 / 38.1 960 / top\n"
+                      "        -\n" + \
+                      "  crd_specs 8 7 / 7 / 38.1 960 / top\n"
     assert output == expected_output
 
     crd_specs = Core.CrdSpecs([material], material, 38.1, 960)
@@ -188,6 +189,8 @@ def test_core_control_rods(assembly, material, equal_material):
                          Core([[assembly, assembly]], crd_bank=[["A", None]],
                               crd_specs=Core.CrdSpecs([equal_material], material, 38.1, 960, "top")),
                          Core([[assembly, assembly]], crd_bank=[["A", None]],
+                              crd_specs=Core.CrdSpecs([material], equal_material, 38.1, 960, "top")),
+                         Core([[assembly, assembly]], crd_bank=[["A", None]],
                               crd_specs=Core.CrdSpecs([material], material, 30.0, 960, "top")),
                          Core([[assembly, assembly]], crd_bank=[["A", None]],
                               crd_specs=Core.CrdSpecs([material], material, 38.1, 100, "top")),
@@ -200,6 +203,9 @@ def test_core_control_rods(assembly, material, equal_material):
         Core([[assembly, assembly]], crd_bank=[["A"]])
     with pytest.raises(AssertionError):
         Core([[assembly, assembly]], crd_bank=[["A", None], [None, None]])
+
+    with pytest.raises(FrozenInstanceError):
+        crd_specs.travel_distance = 0.
 
     for args in [([],         material, 38.1, 960, "top"),
                  ([material], material, 0.0,  960, "top"),
