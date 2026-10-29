@@ -165,7 +165,7 @@ class Model():
             string += assembly.write_to_string(prefix, lattice_ids, assembly_ids)
         string += "\n"
 
-        string += self.core.write_to_string(prefix, assembly_ids) + "\n"
+        string += self.core.write_to_string(prefix, assembly_ids, material_ids) + "\n"
 
         string += self.xsec_settings.write_to_string(prefix) + "\n"
 
