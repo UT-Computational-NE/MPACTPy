@@ -133,10 +133,10 @@ class Core():
         withdraw:          Optional[Core.Withdraw] = None
 
         def __post_init__(self):
-            assert len(self.control_materials) > 0, "control_materials must not be empty"
+            assert len(self.control_materials) > 0, f"len(control_materials) = {len(self.control_materials)}, expected > 0"
             assert self.travel_distance > 0.,       f"travel_distance = {self.travel_distance}, expected > 0"
             assert self.max_steps > 0,              f"max_steps = {self.max_steps}, expected > 0"
-            assert self.withdraw in ("top", "bottom", None), f"withdraw = {self.withdraw}, expected top or bottom"
+            assert self.withdraw in ("top", "bottom", None), f"withdraw = {self.withdraw}, expected top, bottom or None"
 
         @property
         def materials(self) -> List[Material]:
@@ -287,7 +287,7 @@ class Core():
         self._symmetry_opt    = symmetry_opt
         self._quarter_sym_opt = quarter_sym_opt
         self._assembly_map    = assembly_map
-        self._crd_bank        = None if crd_bank is None else [list(row) for row in crd_bank]
+        self._crd_bank        = crd_bank
         self._crd_specs       = crd_specs
 
         assert crd_bank is None or (len(crd_bank) == self.ny and all(len(row) == self.nx for row in crd_bank)), \
@@ -351,7 +351,7 @@ class Core():
     def write_to_string(self,
                         prefix: str = "",
                         assembly_mpact_ids = Dict[Assembly, int],
-                        material_mpact_ids: Dict[int, int] = None) -> str:
+                        material_mpact_ids: Optional[Dict[int, int]] = None) -> str:
         """ Method for writing a to a string
 
         Parameter
@@ -390,7 +390,7 @@ class Core():
 
         if self.crd_bank is not None:
             crd_bank     = self._trim_empty_boundary(self.crd_bank)
-            label_length = max(len(label) for row in crd_bank for label in row if label is not None)
+            label_length = max((len(label) for row in crd_bank for label in row if label is not None), default=1)
             string += prefix + "crd_bank\n"
             for row in crd_bank:
                 labels = [label if label is not None else "-" for label in row]
