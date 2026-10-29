@@ -338,7 +338,7 @@ class Core():
             A prefix with which to start each line of the written output string
         assembly_mpact_ids : Dict[Lattice, int]
             A collection of Assemblies and their corresponding MPACT IDs
-        material_mpact_ids : Dict[int, int]
+        material_mpact_ids : Optional[Dict[int, int]]
             The MPACT IDs of the Materials, keyed by the id() of each Material
 
         Returns

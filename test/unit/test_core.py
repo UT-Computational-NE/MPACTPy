@@ -188,6 +188,10 @@ def test_core_control_rods(assembly, material, equal_material):
                          Core([[assembly, assembly]], crd_bank=[["A", None]],
                               crd_specs=Core.CrdSpecs([equal_material], material, 38.1, 960, "top")),
                          Core([[assembly, assembly]], crd_bank=[["A", None]],
+                              crd_specs=Core.CrdSpecs([material], material, 30.0, 960, "top")),
+                         Core([[assembly, assembly]], crd_bank=[["A", None]],
+                              crd_specs=Core.CrdSpecs([material], material, 38.1, 100, "top")),
+                         Core([[assembly, assembly]], crd_bank=[["A", None]],
                               crd_specs=Core.CrdSpecs([material], material, 38.1, 960, "bottom"))]:
         assert core != unequal_core
         assert hash(core) != hash(unequal_core)
