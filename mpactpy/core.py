@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Any, Literal, Dict, Tuple, Optional, TypedDict
+from typing import List, Any, Literal, Dict, Tuple, Optional, TypedDict, get_args
 from math import isclose
 from itertools import accumulate
 from dataclasses import dataclass
@@ -101,7 +101,7 @@ class Core():
 
     Withdraw = Literal["top", "bottom"]
 
-    @dataclass(eq=False)
+    @dataclass(frozen=True, eq=False)
     class CrdSpecs():
         """ A dataclass for the control rod specifications
 
@@ -133,10 +133,11 @@ class Core():
         withdraw:          Optional[Core.Withdraw] = None
 
         def __post_init__(self):
-            assert len(self.control_materials) > 0, f"len(control_materials) = {len(self.control_materials)}, expected > 0"
-            assert self.travel_distance > 0.,       f"travel_distance = {self.travel_distance}, expected > 0"
-            assert self.max_steps > 0,              f"max_steps = {self.max_steps}, expected > 0"
-            assert self.withdraw in ("top", "bottom", None), f"withdraw = {self.withdraw}, expected top, bottom or None"
+            withdraw_options = get_args(Core.Withdraw) + (None,)
+            assert len(self.control_materials) > 0,   "len(control_materials) = 0, expected > 0"
+            assert self.travel_distance > 0.,         f"travel_distance = {self.travel_distance}, expected > 0"
+            assert self.max_steps > 0,                f"max_steps = {self.max_steps}, expected > 0"
+            assert self.withdraw in withdraw_options, f"withdraw = {self.withdraw}, expected one of {withdraw_options}"
 
         @property
         def materials(self) -> List[Material]:
@@ -161,8 +162,8 @@ class Core():
         def write_to_string(self, prefix: str, material_mpact_ids: Dict[int, int]) -> str:
             """ Method for writing the control rod specifications to a string
 
-            Parameter
-            ---------
+            Parameters
+            ----------
             prefix : str
                 A prefix with which to start the written output string
             material_mpact_ids : Dict[int, int]
@@ -370,8 +371,9 @@ class Core():
             crd_bank     = self._trim_empty_boundary(self.crd_bank)
             label_length = max((len(label) for row in crd_bank for label in row if label is not None), default=1)
             string += prefix + "crd_bank\n"
-            for row in crd_bank:
-                labels = [label if label is not None else "-" for label in row]
+            for labels, assemblies in zip(crd_bank, assembly_map):
+                labels = ["" if assembly is None else label if label is not None else "-"
+                          for label, assembly in zip(labels, assemblies)]
                 string += prefix + f"  {list_to_str(labels, label_length).rstrip()}\n"
 
         if self.crd_specs is not None:

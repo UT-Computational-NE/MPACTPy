@@ -288,11 +288,12 @@ OPTION
     assert output == expected_output
 
 
-def test_model_control_rods(assembly, material, unequal_material):
-    crd_specs = Core.CrdSpecs([unequal_material], material, 38.1, 960, "top")
+def test_model_control_rods(assembly, material, equal_material, unequal_material):
+    crd_specs = Core.CrdSpecs([unequal_material], equal_material, 38.1, 960, "top")
     core      = Core([[assembly, assembly]], crd_bank=[["A", None]], crd_specs=crd_specs)
 
     output = Model(core, [{"power": "0.0"}], {"xslib": "ORNL mpact_lib.fmt"}, {}).write_to_string(caseid="test", indent=2)
     assert f"  mat 1 1 {material.density} g/cc 300.0 K \\\n" in output
     assert f"  mat 2 2 {unequal_material.density} g/cc 600.0 K \\\n" in output
-    assert "  core\n    1 1\n  crd_bank\n    A -\n  crd_specs 2 / 1 / 38.1 960 / top\n\n" in output
+    assert f"  mat 3 1 {equal_material.density} g/cc" in output
+    assert "  core\n    1 1\n  crd_bank\n    A -\n  crd_specs 2 / 3 / 38.1 960 / top\n\n" in output
