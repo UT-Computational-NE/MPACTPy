@@ -1,8 +1,9 @@
 from __future__ import annotations
-from typing import Dict, List, Optional, Any, Tuple, Union
+from typing import Dict, List, Mapping, Optional, Any, Tuple, Union
 from dataclasses import dataclass, field
 from collections import defaultdict
 from math import isclose
+from types import MappingProxyType
 
 import numpy as np
 import openmc
@@ -41,8 +42,8 @@ class Material():
         The temperature (K)
     temperature_unit : str
         The unit the temperature is written in
-    number_densities : Dict[str, float]
-        The isotopic number densities (atoms/b-cm)
+    number_densities : Mapping[str, float]
+        The isotopic number densities (atoms/b-cm), read-only
         (key: isotope ID, value: number density)
     percents : Optional[Dict[str, float]]
         The isotopic percents the material was given in, if any
@@ -158,6 +159,7 @@ class Material():
     def temperature(self, temperature: float) -> None:
         assert temperature > 0., f"temperature = {temperature}"
         self._temperature = temperature
+        self._cached_hash = None
 
     @property
     def temperature_unit(self) -> str:
@@ -172,8 +174,8 @@ class Material():
         return self._percent_unit
 
     @property
-    def number_densities(self) -> Dict[str, float]:
-        return self._number_densities
+    def number_densities(self) -> Mapping[str, float]:
+        return MappingProxyType(self._number_densities)
 
     @property
     def replace_isotopes(self) -> Dict[str, str]:
@@ -225,7 +227,7 @@ class Material():
             assert density is None, f"density = {density}, expected None with number_densities"
             assert all(number_dens >= 0. for number_dens in number_densities.values()), \
                 f"number_densities = {number_densities}"
-            self._number_densities = number_densities
+            self._number_densities = dict(number_densities)
             self._density          = sum(num_dens * 1e24 * atomic_mass(iso) / AVOGADRO
                                          for iso, num_dens in number_densities.items())
         else:

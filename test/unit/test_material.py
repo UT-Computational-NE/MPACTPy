@@ -49,6 +49,13 @@ def test_material_initialization(material):
     assert isclose(material.temperature, 300.0)
     assert material.number_densities == {"U235": 1e-3, "C": 2e-3}
     assert material.replace_isotopes == {"C" : "C_in_Graphite"}
+    with pytest.raises(TypeError):
+        material.number_densities["U235"] = 2e-3
+
+    numd       = {"H1": 1e-3}
+    material   = Material(300.0, numd)
+    numd["H1"] = 2e-3
+    assert material.number_densities == {"H1": 1e-3}
 
 def test_using_fission_products():
     specs = Material.MPACTSpecs(replace_isotopes = {"H": "H1_in_ZrH"},
@@ -76,6 +83,8 @@ def test_material_hash(material, equal_material, unequal_material):
     assert hash(material) != hash(unequal_material)
     denser_material = Material(300.0, {"U235": 2e-3, "C": 4e-3}, Material.MPACTSpecs(is_fluid=True))
     assert hash(material) != hash(denser_material)
+    equal_material.temperature = 600.0
+    assert hash(material) != hash(equal_material)
 
 def hash_material(material):
     hash(material)
