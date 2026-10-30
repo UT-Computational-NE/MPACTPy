@@ -119,6 +119,32 @@ def test_material_write_to_string(material):
                         "    92235 0.001\n")
     assert output == expected_output
 
+    specs              = Material.MPACTSpecs({"C": "C_in_Graphite"}, is_fluid=True)
+    comments           = {None: Comments(["MODERATOR"], "graphite"), "C_in_Graphite": Comments(inline="C-nat")}
+    commented_material = Material(300.0, {"U235": 1e-3, "C": 2e-3}, specs, comments=comments)
+    output = commented_material.write_to_string(prefix="  ", mpact_ids={material: "42"})
+    expected_output = ( "  !MODERATOR\n"
+                       f"  mat 42 1 {expected_density} g/cc 300.0 K \\ !graphite\n"
+                        "    6001 0.002 !C-nat\n"
+                        "    92235 0.001\n")
+    assert output == expected_output
+
+    copied_material = copy(commented_material)
+    copied_material.temperature = 300.0
+    assert copied_material.write_to_string(prefix="  ", mpact_ids={material: "42"}) == expected_output.replace(" !graphite", "")
+    assert commented_material.write_to_string(prefix="  ", mpact_ids={material: "42"}) == expected_output
+
+    commented_material.comments["C"] = Comments()
+    assert "C" not in comments
+    with pytest.raises(AssertionError):
+        commented_material.write_to_string()
+    with pytest.raises(AssertionError):
+        Material(300.0, {"H1": 1e-3, "As75": 1e-9}, comments={"As75": Comments()}).write_to_string()
+    with pytest.raises(AssertionError):
+        Comments(["line\nbreak"])
+    with pytest.raises(AssertionError):
+        Comments(inline="line\nbreak")
+
 def test_material_temperature_units():
     for temp, unit in [(20.0, "c"), (68.0, "F"), (527.67, "R")]:
         material = Material(temp, {"H1": 1e-3}, temperature_unit=unit)
@@ -136,45 +162,6 @@ def test_material_temperature_units():
     expected_output = (f"  mat 1 0 {material.density} g/cc 326.85 C \\\n"
                         "    1001 0.001\n")
     assert output == expected_output
-
-def test_material_comments():
-    specs    = Material.MPACTSpecs(replace_isotopes = {"C": "C_in_Graphite"})
-    comments = {None:            Comments(["MODERATOR", " MAT  MAT_ID  MAT_TYPE"], "Water"),
-                "C_in_Graphite": Comments(inline="graphite"),
-                "H1":            Comments(["   1002  1.0E-7 ! Excluded"], "H-1"),
-                "O16":           Comments(["   8017  4.0E-7 ! Excluded"])}
-    material = Material(293.15, {"H1": 2e-3, "O16": 1e-3, "C": 1e-4}, specs, comments=comments)
-
-    output = material.write_to_string(prefix="  ")
-    expected_output = ( "  !MODERATOR\n"
-                        "  ! MAT  MAT_ID  MAT_TYPE\n"
-                       f"  mat 1 0 {material.density} g/cc 293.15 K \\ !Water\n"
-                        "    6001 0.0001 !graphite\n"
-                        "    !   1002  1.0E-7 ! Excluded\n"
-                        "    1001 0.002 !H-1\n"
-                        "    !   8017  4.0E-7 ! Excluded\n"
-                        "    8016 0.001\n")
-    assert output == expected_output
-
-    uncommented_material = Material(293.15, {"H1": 2e-3, "O16": 1e-3, "C": 1e-4}, specs)
-    assert material == uncommented_material
-    assert hash(material) == hash(uncommented_material)
-
-    copied_material = copy(material)
-    copied_material.temperature = 293.15
-    assert copied_material.write_to_string(prefix="  ") == expected_output.replace(" !Water", "")
-    assert material.write_to_string(prefix="  ") == expected_output
-
-    material.comments["C"] = Comments(inline="graphite")
-    assert "C" not in comments
-    with pytest.raises(AssertionError):
-        material.write_to_string()
-    with pytest.raises(AssertionError):
-        Material(293.15, {"H1": 1e-3, "As75": 1e-9}, comments={"As75": Comments(inline="As-75")}).write_to_string()
-    with pytest.raises(AssertionError):
-        Comments(["line\nbreak"])
-    with pytest.raises(AssertionError):
-        Comments(inline="line\nbreak")
 
 def test_material_percents():
     material = Material(293.15, percents={"H1": 2.0, "O16": 1.0}, percent_unit="at%", density=1.0)
