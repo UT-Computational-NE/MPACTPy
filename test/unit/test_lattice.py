@@ -114,7 +114,8 @@ def test_lattice_with_height(lattice_2D):
     lattice = lattice_2D.with_height(3.0)
     assert isclose(lattice.pitch['Z'], 3.0)
 
-def test_module_overlay(openmc_lattice, template_lattice, template_module, template_pin, template_material, overlay_material_cache, overlay_lattice):
+def test_module_overlay(openmc_lattice, template_lattice, template_module, template_pin, template_material, overlay_material_cache, overlay_lattice,
+                        material, equal_material):
     geometry                          = openmc_lattice
     offset                            = (-6.0, -6.0, 0.0)
     overlay_policy                    = PinMesh.OverlayPolicy(method="centroid")
@@ -126,15 +127,9 @@ def test_module_overlay(openmc_lattice, template_lattice, template_module, templ
     expected_lattice = overlay_lattice
     assert lattice == expected_lattice
 
-def test_lattice_overlay_keeps_given_materials(openmc_module, template_pin, template_material, overlay_material_cache,
-                                               overlay_pin, material, equal_material):
-    overlay_policy = PinMesh.OverlayPolicy(method="centroid", num_procs=2)
-    copies         = [material, equal_material]
-    modules        = [Module(1, [[Pin(template_pin.pinmesh, [m] * 9 + template_pin.materials[9:])]]) for m in copies]
-    include_only   = {module: {module.pins[0]: [template_material]} for module in modules}
-
-    lattice          = Lattice([modules]).overlay(openmc_module, (-3.0, -3.0, 0.0), include_only, overlay_policy,
-                                                  overlay_material_cache)
-    expected_lattice = Lattice([[Module(1, [[Pin(template_pin.pinmesh, [m] * 9 + overlay_pin.materials[9:])]])
-                                 for m in copies]])
-    assert lattice == expected_lattice
+    pins    = [Pin(template_pin.pinmesh, [m] * 9 + template_pin.materials[9:]) for m in [material, equal_material]]
+    module  = Module(1, [pins, pins])
+    lattice = Lattice([[module, module], [module, module]]).overlay(geometry, offset, {module: {pin: pin_mask for pin in pins}},
+                                                                    PinMesh.OverlayPolicy(method="centroid", num_procs=2),
+                                                                    overlay_material_cache)
+    assert {id(material), id(equal_material)} <= {id(m) for m in lattice.materials}
