@@ -1,4 +1,5 @@
 import pytest
+from dataclasses import FrozenInstanceError
 from math import isclose
 from numpy.testing import assert_allclose
 
@@ -85,7 +86,7 @@ def test_core_non_square(assembly):
     assert_allclose(core.pitch['row'], [8.])
     assert_allclose([core.width[i] for i in ['X','Y']], [24., 8.])
 
-def test_core_initialization(core, assembly):
+def test_core_initialization(core, assembly, material, equal_material):
     assert isclose(core.height, 12.0)
     assert core.symmetry_opt    == ""
     assert core.quarter_sym_opt == ""
@@ -103,15 +104,58 @@ def test_core_initialization(core, assembly):
     assert len(core.pinmeshes)  == 1
     assert len(core.materials)  == 1
 
-def test_core_equality(core, equal_core, unequal_core):
+    crd_specs = Core.CrdSpecs([material], equal_material, 38.1, 960, "top")
+    core      = Core([[assembly, assembly]], crd_bank=[["A", None]], crd_specs=crd_specs)
+    assert core.crd_bank       == [["A", None]]
+    assert core.crd_specs      is crd_specs
+    assert len(core.materials) == 2
+
+    with pytest.raises(AssertionError):
+        Core([[assembly, assembly]], crd_bank=[["A"]])
+    with pytest.raises(AssertionError):
+        Core([[assembly, assembly]], crd_bank=[["A", None], [None, None]])
+    with pytest.raises(FrozenInstanceError):
+        crd_specs.travel_distance = 0.
+
+    for args in [([],         material, 38.1, 960, "top"),
+                 ([material], material, 0.0,  960, "top"),
+                 ([material], material, 38.1, 0,   "top"),
+                 ([material], material, 38.1, 960, "up" )]:
+        with pytest.raises(AssertionError):
+            Core.CrdSpecs(*args)
+
+def test_core_equality(core, equal_core, unequal_core, assembly, material, equal_material):
     assert core == equal_core
     assert core != unequal_core
 
-def test_core_hash(core, equal_core, unequal_core):
+    crd_specs = Core.CrdSpecs([material], material, 38.1, 960, "top")
+    core      = Core([[assembly, assembly]], crd_bank=[["A", None]], crd_specs=crd_specs)
+    assert core == Core([[assembly, assembly]], crd_bank=[["A", None]],
+                        crd_specs=Core.CrdSpecs([material], material, 38.1*(1+1e-6), 960, "top"))
+    assert core != Core([[assembly, assembly]], crd_specs=crd_specs)
+    assert core != Core([[assembly, assembly]], crd_bank=[["A", None]])
+    for args in [([equal_material], material, 38.1, 960, "top"   ),
+                 ([material],       material, 30.0, 960, "top"   ),
+                 ([material],       material, 38.1, 100, "top"   ),
+                 ([material],       material, 38.1, 960, "bottom")]:
+        assert core != Core([[assembly, assembly]], crd_bank=[["A", None]], crd_specs=Core.CrdSpecs(*args))
+
+def test_core_hash(core, equal_core, unequal_core, assembly, material, equal_material):
     assert hash(core) == hash(equal_core)
     assert hash(core) != hash(unequal_core)
 
-def test_core_write_to_string(core, assembly):
+    crd_specs = Core.CrdSpecs([material], material, 38.1, 960, "top")
+    core      = Core([[assembly, assembly]], crd_bank=[["A", None]], crd_specs=crd_specs)
+    assert hash(core) == hash(Core([[assembly, assembly]], crd_bank=[["A", None]],
+                                   crd_specs=Core.CrdSpecs([material], material, 38.1*(1+1e-6), 960, "top")))
+    assert hash(core) != hash(Core([[assembly, assembly]], crd_specs=crd_specs))
+    for args in [([equal_material], material, 38.1, 960, "top"   ),
+                 ([material],       material, 30.0, 960, "top"   ),
+                 ([material],       material, 38.1, 100, "top"   ),
+                 ([material],       material, 38.1, 960, "bottom")]:
+        assert hash(core) != hash(Core([[assembly, assembly]], crd_bank=[["A", None]], crd_specs=Core.CrdSpecs(*args)))
+
+def test_core_write_to_string(core, assembly, material, unequal_material):
     output = core.write_to_string(prefix="  ",
                                   assembly_mpact_ids={assembly: 3})
     expected_output = "  core\n" + \
@@ -136,6 +180,29 @@ def test_core_write_to_string(core, assembly):
     assert output == expected_output
     assert core.nx == 5
     assert core.ny == 5
+
+    core = Core([[None, None,     None,     None    ],
+                 [None, assembly, assembly, assembly],
+                 [None, None,     assembly, None    ]],
+                crd_bank  = [[None, None, None, None ],
+                             [None, "A",  None, "ABC"],
+                             [None, None, None, None ]],
+                crd_specs = Core.CrdSpecs([unequal_material, material], material, 38.1, 960, "top"))
+
+    output = core.write_to_string(prefix="  ",
+                                  assembly_mpact_ids={assembly: 3},
+                                  material_mpact_ids={id(material): 7, id(unequal_material): 8})
+    expected_output = "  core\n" + \
+                      "    3 3 3\n" + \
+                      "      3\n" + \
+                      "  crd_bank\n" + \
+                      "    A   -   ABC\n" + \
+                      "        -\n" + \
+                      "  crd_specs 8 7 / 7 / 38.1 960 / top\n"
+    assert output == expected_output
+
+    core = Core([[assembly]], crd_bank=[[None]], crd_specs=Core.CrdSpecs([material], material, 38.1, 960))
+    assert core.write_to_string(assembly_mpact_ids={assembly: 1}).endswith("crd_bank\n  -\ncrd_specs 1 / 1 / 38.1 960\n")
 
 def test_core_get_axial_slice(core):
     core_slice = core.get_axial_slice(0.5, 1.5)
