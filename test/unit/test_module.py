@@ -124,7 +124,8 @@ def test_module_with_height(module_2D, pin):
     with pytest.raises(AssertionError, match=f"nz = {module.nz}, Module must be strictly 2D"):
         new_module = module.with_height(3.0)
 
-def test_module_overlay(openmc_module, template_module, template_pin, template_material, overlay_material_cache, overlay_module):
+def test_module_overlay(openmc_module, template_module, template_pin, template_material, overlay_material_cache, overlay_module,
+                        material, equal_material):
     geometry                         = openmc_module
     offset                           = (-3.0, -3.0, 0.0)
     overlay_policy                   = PinMesh.OverlayPolicy(method="centroid")
@@ -134,6 +135,11 @@ def test_module_overlay(openmc_module, template_module, template_pin, template_m
     module          = template_module.overlay(geometry, offset, include_only, overlay_policy, overlay_material_cache)
     expected_module = overlay_module
     assert module == expected_module
+
+    pins   = [Pin(template_pin.pinmesh, [m] * 9 + template_pin.materials[9:]) for m in [material, equal_material]]
+    module = Module(1, [pins, pins]).overlay(geometry, offset, {pin: pin_mask for pin in pins},
+                                             PinMesh.OverlayPolicy(method="centroid", num_procs=2), overlay_material_cache)
+    assert {id(material), id(equal_material)} <= {id(m) for m in module.materials}
 
 def test_module_overlay_shares_materials(openmc_module, template_module, overlay_material_cache):
     overlay_policy = PinMesh.OverlayPolicy(method="centroid", num_procs=2)

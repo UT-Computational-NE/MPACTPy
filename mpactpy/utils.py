@@ -1,10 +1,12 @@
-from typing import List, Union, TypeVar, Callable, Any, Literal
+from typing import List, Union, TypeVar, Callable, Any, Literal, Optional, Sequence
 from collections.abc import Hashable
 from decimal import Decimal, ROUND_HALF_UP
 import math
 from contextlib import contextmanager
 from concurrent.futures import ProcessPoolExecutor, as_completed
+import io
 import os
+import pickle
 
 import numpy as np
 import openmc
@@ -386,12 +388,53 @@ def temporary_environment(var: str, value: str):
         else:
             del os.environ[var]
 
+class _InstancePickler(pickle.Pickler):
+    """ A pickler which writes each of the given instances as its index in the list """
+
+    def __init__(self, file: io.BytesIO, instances: Sequence[Any]):
+        super().__init__(file)
+        self._indices = {id(instance): i for i, instance in enumerate(instances)}
+
+    def persistent_id(self, obj: Any) -> Optional[int]:
+        return self._indices.get(id(obj))
+
+
+class _InstanceUnpickler(pickle.Unpickler):
+    """ An unpickler which reads each index written by an _InstancePickler as that instance """
+
+    def __init__(self, file: io.BytesIO, instances: Sequence[Any]):
+        super().__init__(file)
+        self._instances = instances
+
+    def persistent_load(self, pid: int) -> Any:
+        return self._instances[pid]
+
+
+def _dumps(obj: Any, instances: Sequence[Any]) -> bytes:
+    """ Pickles an object, writing each of the given instances as a reference """
+    file = io.BytesIO()
+    _InstancePickler(file, instances).dump(obj)
+    return file.getvalue()
+
+
+def _loads(data: bytes, instances: Sequence[Any]) -> Any:
+    """ Unpickles an object written by _dumps, reading each reference as the given instance """
+    return _InstanceUnpickler(io.BytesIO(data), instances).load()
+
+
+def _process_pickled_chunk(worker_function: Callable[..., Any], data: bytes, instances: Sequence[Any]) -> bytes:
+    """ Runs a worker function on a chunk pickled by _dumps, and pickles its results the same way """
+    chunk, worker_args = _loads(data, instances)
+    return _dumps(worker_function(chunk, *worker_args), instances)
+
+
 S = TypeVar('S')
 R = TypeVar('R')
 def process_parallel_work(work_items:      List[S],
                           worker_function: Callable[..., R],
                           num_processes:   int,
-                          *worker_args:    Any) -> List[R]:
+                          *worker_args:    Any,
+                          instances:       Sequence[Any] = ()) -> List[R]:
     """Process work items in parallel using chunked distribution.
 
     Parameters
@@ -405,6 +448,9 @@ def process_parallel_work(work_items:      List[S],
         Maximum number of processes to use
     *worker_args : Any
         Additional arguments to pass to the worker function
+    instances : Sequence[Any]
+        Objects in the work items, arguments and results which come back from the
+        workers as these same instances, rather than as copies
 
     Returns
     -------
@@ -424,14 +470,14 @@ def process_parallel_work(work_items:      List[S],
 
     with ProcessPoolExecutor(max_workers=min(num_processes, len(work_chunks))) as executor:
         future_to_chunk_index = {
-            executor.submit(worker_function, chunk, *worker_args): i
+            executor.submit(_process_pickled_chunk, worker_function, _dumps((chunk, worker_args), instances), instances): i
             for i, chunk in enumerate(work_chunks)
         }
 
         chunk_results = [None] * len(work_chunks)
         for future in as_completed(future_to_chunk_index):
             chunk_index = future_to_chunk_index[future]
-            chunk_results[chunk_index] = future.result()
+            chunk_results[chunk_index] = _loads(future.result(), instances)
 
     # Flatten results maintaining order
     results = []

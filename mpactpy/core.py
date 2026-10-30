@@ -517,7 +517,8 @@ class Core():
                                                     num_core_procs,
                                                     geometry,
                                                     child_policy,
-                                                    material_cache)
+                                                    material_cache,
+                                                    instances = self.materials + list(material_cache.values()))
 
         # Reconstruct the assembly map with overlaid assemblies
         new_assembly_map = [row[:] for row in self.assembly_map]
@@ -525,7 +526,8 @@ class Core():
             new_assembly_map[i][j] = overlaid
 
         shared = {material: material for material in material_cache.values()}
-        return Core([[assembly.with_shared_materials(shared) if assembly else None for assembly in row]
+        kept   = {id(material) for material in self.materials}
+        return Core([[assembly.with_shared_materials(shared, kept) if assembly else None for assembly in row]
                      for row in new_assembly_map])
 
     @staticmethod
