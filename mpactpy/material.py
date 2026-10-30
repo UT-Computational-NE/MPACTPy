@@ -32,9 +32,14 @@ class Material():
         The unit of the percents, in any case: 'at%' for atom percent (default) or 'wt%' for weight percent
     density : float
         The density (g/cc). Required with `percents`, otherwise computed from `number_densities`.
+    name : Optional[str]
+        The material name, written in double quotes if it has a space. It must start with an ASCII letter,
+        not be a unit string, and contain no '"', '\\', '!' or whitespace other than spaces.
 
     Attributes
     ----------
+    name : Optional[str]
+        The material name, if any
     density : float
         The density (g/cc)
     temperature : float
@@ -147,6 +152,10 @@ class Material():
             )
 
     @property
+    def name(self) -> Optional[str]:
+        return self._name
+
+    @property
     def density(self) -> float:
         return self._density
 
@@ -203,6 +212,7 @@ class Material():
                  percents:                    Dict[str, float] = None,
                  percent_unit:                str = "at%",
                  density:                     float = None,
+                 name:                        Optional[str] = None,
     ):
 
         self._cached_hash = None
@@ -211,7 +221,12 @@ class Material():
             f"number_densities = {number_densities}, percents = {percents}, expected exactly one"
         assert temperature_unit.upper() in MPACT_TEMPERATURE_UNITS, f"temperature_unit = {temperature_unit}"
         assert percent_unit.lower() in MPACT_PERCENT_UNITS, f"percent_unit = {percent_unit}"
+        assert name is None or (name[:1].isascii() and name[:1].isalpha() and
+                                name.upper() not in MPACT_UNIT_STRINGS    and
+                                name.isprintable()                        and
+                                not any(char in name for char in '"\\!')), f"name = {name}"
 
+        self._name             = name
         self._temperature_unit = temperature_unit.upper()
         offset, scale          = MPACT_TEMPERATURE_UNITS[self._temperature_unit]
         self._temperature      = (temperature + offset) * scale
@@ -611,7 +626,9 @@ class Material():
 
         unit_tag = "" if self.percents is None else f" ({self.percent_unit})"
         mpact_id = 1 if mpact_ids is None else mpact_ids[self]
-        string = prefix + f"mat {mpact_id} {self._mpact_specs.material_type} " + \
+        quote    = '"' if self.name is not None and " " in self.name else ""
+        name_tag = "" if self.name is None else f"{quote}{self.name}{quote} "
+        string = prefix + f"mat {mpact_id} {self._mpact_specs.material_type} {name_tag}" + \
                           f"{self.density} g/cc {temperature} {self._temperature_unit}{unit_tag} \\\n"
 
         for iso, amount in sorted(mpact_composition.items()):
@@ -639,6 +656,11 @@ MPACT_TEMPERATURE_UNITS = {"K": (0.,     1.),
 # MPACT units for compositions given in percents
 # "MPACT Native Input User's Manual", Version 4.4, Section 4.5.1 pg 28
 MPACT_PERCENT_UNITS = ["at%", "wt%"]
+
+
+# MPACT unit strings, which a material name must not be
+# "MPACT Native Input User's Manual", Version 4.4, Section 4.5.1 pg 27-28
+MPACT_UNIT_STRINGS = [*MPACT_TEMPERATURE_UNITS, "G/CC", *(unit.upper() for unit in MPACT_PERCENT_UNITS)]
 
 
 # Isotopes with distinct MPACT IDs when present as fission products
