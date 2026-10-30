@@ -7,6 +7,7 @@ from itertools import accumulate
 import openmc
 
 from mpactpy.material import Material
+from mpactpy.comments import Comments, write_line, assert_keys_written
 from mpactpy.pinmesh import PinMesh, RectangularPinMesh, GeneralCylindricalPinMesh
 from mpactpy.utils import list_to_str, unique, equal_thickness_ndivs, equal_arc_length_ndivs
 
@@ -22,6 +23,8 @@ class Pin():
         The materials used in each pin XSR. The number of
         entries must be equal to the number of uniform
         material regions defined in the pin mesh
+    comments : Dict[Optional[int], Comments]
+        The comments of the `pin` line (key: None)
 
     Attributes
     ----------
@@ -35,6 +38,8 @@ class Pin():
         The unique materials used in this pin
     pitch : Pitch
         The pitch of the pin in each axis direction (keys: 'X', 'Y', 'Z') (cm)
+    comments : Dict[Optional[int], Comments]
+        The comments of the `pin` line (key: None)
     """
 
     class Pitch(TypedDict):
@@ -60,7 +65,11 @@ class Pin():
     def pitch(self) -> Pitch:
         return self._pinmesh.pitch
 
-    def __init__(self, pinmesh: PinMesh, materials: List[Material]):
+    @property
+    def comments(self) -> Dict[Optional[int], Comments]:
+        return self._comments
+
+    def __init__(self, pinmesh: PinMesh, materials: List[Material], comments: Dict[Optional[int], Comments] = None):
 
         self._cached_hash = None
 
@@ -71,6 +80,7 @@ class Pin():
         self._pinmesh          = pinmesh
         self._materials        = materials
         self._unique_materials = set(materials)
+        self._comments         = dict(comments) if comments else {}
 
     def __eq__(self, other: Any) -> bool:
         if self is other:
@@ -115,6 +125,7 @@ class Pin():
 
         assert self.pinmesh.regions_inside_bounds, \
             "Pin has no material regions inside its pinmesh bounds"
+        assert_keys_written(self.comments, ())
 
         if material_mpact_ids is None:
             materials = unique(material for material in self.materials)
@@ -124,8 +135,7 @@ class Pin():
         pin_id     = 1 if pin_mpact_ids     is None else pin_mpact_ids[self]
 
         materials = [material_mpact_ids[self.materials[i]] for i in self.pinmesh.regions_inside_bounds]
-        string = prefix + f"pin {pin_id} {pinmesh_id} / {list_to_str(materials)}\n"
-        return string
+        return write_line(prefix, f"pin {pin_id} {pinmesh_id} / {list_to_str(materials)}", self.comments.get(None))
 
     def get_axial_slice(self, start_pos: float, stop_pos: float) -> Union[Pin, None]:
         """ Method for creating a new Pin from an axial slice of this Pin
@@ -163,6 +173,7 @@ class Pin():
                     break
 
         pinmesh = deepcopy(self.pinmesh)
+        pinmesh.comments.clear()
         pinmesh.set_axial_mesh(zvals, ndivz)
 
         num_mats_per_axial = int((self.pinmesh.number_of_material_regions) / len(self.pinmesh.zvals))
@@ -186,6 +197,7 @@ class Pin():
         """
 
         pinmesh_template = deepcopy(self.pinmesh)
+        pinmesh_template.comments.clear()
         pinmesh_template.set_axial_mesh(pin.pinmesh.zvals, pin.pinmesh.ndivz)
 
         assert pin.pinmesh == pinmesh_template, "Pin meshes of the two pins must have the same radial specifications"
@@ -217,6 +229,7 @@ class Pin():
         """
 
         pinmesh = deepcopy(self.pinmesh)
+        pinmesh.comments.clear()
 
         assert len(pinmesh.zvals) == 1, \
             f"len(zvals) = {len(pinmesh.zvals)}, Pin must be strictly 2D"

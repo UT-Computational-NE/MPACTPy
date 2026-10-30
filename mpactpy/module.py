@@ -5,6 +5,7 @@ from math import isclose
 import openmc
 
 from mpactpy.pin import Pin, PinMesh
+from mpactpy.comments import Comments, write_line, assert_keys_written
 from mpactpy.material import Material
 from mpactpy.utils import list_to_str, is_rectangular, unique, process_parallel_work
 
@@ -19,6 +20,9 @@ class Module():
     pin_map : List[List[Pin]]
         The 2-D array of pin.  This array is extruded
         nz times in the z-direction
+    comments : Dict[Optional[int], Comments]
+        The comments of each line of the `module` card
+        (key: None for the `module` line, else the `pin_map` row index)
 
     Attributes
     ----------
@@ -39,6 +43,9 @@ class Module():
         The unique pinmeshes contained in this module
     materials : List[Material]
         The unique materials contained in this module
+    comments : Dict[Optional[int], Comments]
+        The comments of each line of the `module` card
+        (key: None for the `module` line, else the `pin_map` row index)
     """
 
     class Pitch(TypedDict):
@@ -80,15 +87,20 @@ class Module():
     def materials(self) -> List[Material]:
         return self._materials
 
-    def __init__(self, nz: int, pin_map: List[List[Pin]]):
+    @property
+    def comments(self) -> Dict[Optional[int], Comments]:
+        return self._comments
+
+    def __init__(self, nz: int, pin_map: List[List[Pin]], comments: Dict[Optional[int], Comments] = None):
 
         self._cached_hash = None
 
         assert nz > 0
         assert is_rectangular(pin_map)
 
-        self._nz      = nz
-        self._pin_map = pin_map
+        self._nz       = nz
+        self._pin_map  = pin_map
+        self._comments = dict(comments) if comments else {}
 
         assert all(isclose(self.pin_map[i][j].pitch['X'], self.pin_map[0][j].pitch['X'])
                    for i in range(self.ny) for j in range(self.nx))
@@ -147,6 +159,8 @@ class Module():
             The string that represents the module
         """
 
+        assert_keys_written(self.comments, range(self.ny))
+
         if pin_mpact_ids is None:
             pins = unique(pin for row in self.pin_map for pin in row)
             pin_mpact_ids = {pin: i+1 for i, pin in enumerate(pins)}
@@ -155,10 +169,10 @@ class Module():
 
         id_length = max(len(str(pin_mpact_ids[pin])) for row in self.pin_map for pin in row)
 
-        string = prefix + f"module {module_id} {self.nx} {self.ny} {self.nz}\n"
-        for row in self.pin_map:
+        string = write_line(prefix, f"module {module_id} {self.nx} {self.ny} {self.nz}", self.comments.get(None))
+        for i, row in enumerate(self.pin_map):
             pins = [pin_mpact_ids[pin] for pin in row]
-            string += prefix + prefix + f"{list_to_str(pins, id_length)}\n"
+            string += write_line(prefix + prefix, list_to_str(pins, id_length), self.comments.get(i))
         return string
 
 

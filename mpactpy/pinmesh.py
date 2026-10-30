@@ -13,6 +13,7 @@ import openmc
 import numpy as np
 
 from mpactpy.material import Material
+from mpactpy.comments import Comments, write_line, drop_inline, assert_keys_written
 from mpactpy.utils import relative_round, allclose, list_to_str, ROUNDING_RELATIVE_TOLERANCE as TOL, \
                           temporary_environment, equal_thickness_regions, RadialDivisionType, subdivide_ring
 
@@ -251,6 +252,9 @@ class PinMesh(ABC):
         The pitch of the pin mesh in each axis direction (keys: 'X', 'Y', 'Z')
     regions_inside_bounds = List[int]
         The list of material regions that lie within the bounds of the pinmesh
+    comments : Dict[Optional[int], Comments]
+        The comments of the `pinmesh` line (key: None).
+        Setting the axial mesh drops its inline comment and replaces this dict.
     """
     _number_of_material_regions: int
     _zvals: List[float]
@@ -258,6 +262,7 @@ class PinMesh(ABC):
     _pitch: Dict[str, float]
     _regions_inside_bounds: List[int]
     _cached_hash: Optional[int]
+    _comments: Dict[Optional[int], Comments]
 
     class Subdivisions(ABC):
         """Base class for pinmesh-specific material-region subdivision specifications.
@@ -282,6 +287,10 @@ class PinMesh(ABC):
     @property
     def regions_inside_bounds(self) -> List[int]:
         return self._regions_inside_bounds
+
+    @property
+    def comments(self) -> Dict[Optional[int], Comments]:
+        return self._comments
 
     @abstractmethod
     def write_to_string(self, prefix: str = "", mpact_ids: Dict[PinMesh, int] = None) -> str:
@@ -332,6 +341,8 @@ class PinMesh(ABC):
     def set_axial_mesh(self, zvals: List[float] = None, ndivz: List[int] = None) -> None:
         """ A method for setting the axial meshing of a pinmesh
 
+        This drops the inline comment of the `pinmesh` line.
+
         Parameters
         ----------
         zvals : List[float]
@@ -340,6 +351,10 @@ class PinMesh(ABC):
             The number of equally spaced flat source regions to use when
             dividing the grid defined by zval
         """
+        self._set_axial_mesh(zvals, ndivz)
+        self._comments = drop_inline(self.comments)
+
+    def _set_axial_mesh(self, zvals: List[float] = None, ndivz: List[int] = None) -> None:
         zvals = zvals if zvals else []
         ndivz = ndivz if ndivz else []
 
@@ -505,6 +520,8 @@ class RectangularPinMesh(PinMesh):
     ndivz : List[int]
         The number of equally spaced flat source regions to use when
         dividing the grid defined by zval
+    comments : Dict[Optional[int], Comments]
+        The comments of the `pinmesh` line (key: None)
 
     Attributes
     ----------
@@ -567,6 +584,7 @@ class RectangularPinMesh(PinMesh):
                  ndivx:    List[int],
                  ndivy:    List[int],
                  ndivz:    List[int],
+                 comments: Dict[Optional[int], Comments] = None,
     ):
         assert len(xvals) > 0, f"len(xvals) = {len(xvals)}"
         assert len(yvals) > 0, f"len(yvals) = {len(yvals)}"
@@ -585,7 +603,8 @@ class RectangularPinMesh(PinMesh):
         self._ndivx   = ndivx
         self._ndivy   = ndivy
 
-        self.set_axial_mesh(zvals, ndivz)
+        self._set_axial_mesh(zvals, ndivz)
+        self._comments = dict(comments) if comments else {}
 
 
     def __eq__(self, other: Any) -> bool:
@@ -616,13 +635,14 @@ class RectangularPinMesh(PinMesh):
 
     def write_to_string(self, prefix: str = "", mpact_ids: Dict[PinMesh, int] = None) -> str:
 
-        mpact_id = 1 if mpact_ids is None else mpact_ids[self]
-        string =  prefix
-        string += f"pinmesh {mpact_id} rec {list_to_str(self._xvals)} / " \
-               +  f"{list_to_str(self._yvals)} / {list_to_str(self._zvals)} / " \
-               +  f"{list_to_str(self._ndivx)} / {list_to_str(self._ndivy)} / {list_to_str(self._ndivz)}\n"
+        assert_keys_written(self.comments, ())
 
-        return string
+        mpact_id = 1 if mpact_ids is None else mpact_ids[self]
+        string =  f"pinmesh {mpact_id} rec {list_to_str(self._xvals)} / " \
+               +  f"{list_to_str(self._yvals)} / {list_to_str(self._zvals)} / " \
+               +  f"{list_to_str(self._ndivx)} / {list_to_str(self._ndivy)} / {list_to_str(self._ndivz)}"
+
+        return write_line(prefix, string, self.comments.get(None))
 
     def subdivide(self, subdivisions: PinMesh.Subdivisions) -> Tuple[RectangularPinMesh, List[int]]:
         """Return a copy with additional Cartesian material interfaces.
@@ -829,6 +849,8 @@ class GeneralCylindricalPinMesh(PinMesh):
     ndivz : List[int]
         The number of equally spaced flat source regions to use when
         dividing the grid defined by zval
+    comments : Dict[Optional[int], Comments]
+        The comments of the `pinmesh` line (key: None)
 
     Attributes
     ----------
@@ -926,6 +948,7 @@ class GeneralCylindricalPinMesh(PinMesh):
         ndivr   : List[int],
         ndiva   : List[int],
         ndivz   : List[int],
+        comments: Dict[Optional[int], Comments] = None,
     ):
         assert len(r) > 0, f"len(r) = {len(r)}"
         assert all(val > 0. for val in r), f"r = {r}"
@@ -944,7 +967,8 @@ class GeneralCylindricalPinMesh(PinMesh):
         self._ndivr   = ndivr
         self._ndiva   = ndiva
 
-        self.set_axial_mesh(zvals, ndivz)
+        self._set_axial_mesh(zvals, ndivz)
+        self._comments = dict(comments) if comments else {}
 
 
     def __eq__(self, other: Any) -> bool:
@@ -986,14 +1010,15 @@ class GeneralCylindricalPinMesh(PinMesh):
             f"GCYL PinMesh with bounds {self.xMin, self.yMin, self.xMax, self.yMax} " + \
             f"and radii {self.r} has no radial interface which intersects the bounds"
 
+        assert_keys_written(self.comments, ())
+
         mpact_id = 1 if mpact_ids is None else mpact_ids[self]
-        string = prefix
-        string += f"pinmesh {mpact_id} gcyl {list_to_str(self._r_inside_bounds)} / " \
+        string =  f"pinmesh {mpact_id} gcyl {list_to_str(self._r_inside_bounds)} / " \
                +  f"{list_to_str([self._xMin, self._xMax, self._yMin, self._yMax])} / " \
                +  f"{list_to_str(self._zvals)} / {list_to_str(self._ndivr_inside_bounds)} / " \
-               +  f"{list_to_str(self._ndiva_inside_bounds)} / {list_to_str(self._ndivz)}\n"
+               +  f"{list_to_str(self._ndiva_inside_bounds)} / {list_to_str(self._ndivz)}"
 
-        return string
+        return write_line(prefix, string, self.comments.get(None))
 
     def subdivide(self, subdivisions: PinMesh.Subdivisions) -> Tuple[GeneralCylindricalPinMesh, List[int]]:
         """Return a copy with additional radial and axial material interfaces.

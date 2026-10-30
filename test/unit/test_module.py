@@ -4,7 +4,7 @@ from numpy.testing import assert_allclose
 
 import openmc
 
-from mpactpy import PinMesh, Pin, Module, build_rec_pin
+from mpactpy import PinMesh, Pin, Module, build_rec_pin, Comments
 from test.unit.test_material import material, equal_material, unequal_material
 from test.unit.test_pinmesh import general_cylindrical_pinmesh as pinmesh,\
                                    equal_general_cylindrical_pinmesh as equal_pinmesh,\
@@ -86,6 +86,22 @@ def test_module_write_to_string(module, pin):
                       "    5 5\n" + \
                       "    5 5\n"
     assert output == expected_output
+
+    comments         = {None: Comments(["MODULE  ID  NX NY NZ"], "P00 water"), 1: Comments(inline="S")}
+    commented_module = Module(1, module.pin_map, comments)
+    output = commented_module.write_to_string(prefix="  ",
+                                              pin_mpact_ids={pin: 5},
+                                              module_mpact_ids={module: 3})
+    expected_output = ("  !MODULE  ID  NX NY NZ\n"
+                       "  module 3 2 2 1 !P00 water\n"
+                       "    5 5\n"
+                       "    5 5 !S\n")
+    assert output == expected_output
+
+    commented_module.comments[2] = Comments()
+    assert 2 not in comments
+    with pytest.raises(AssertionError):
+        commented_module.write_to_string()
 
 def test_module_non_square(material):
     def rec_pin(dx, dy):
