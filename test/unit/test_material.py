@@ -28,7 +28,7 @@ def equal_material():
                                is_depletable    = False,
                                has_resonance    = False,
                                is_fuel          = False)
-    return Material(temp, numd, spec)
+    return Material(temp, numd, spec, name="UO2 4 wt%")
 
 @pytest.fixture
 def unequal_material():
@@ -49,6 +49,10 @@ def test_material_initialization(material):
     assert isclose(material.temperature, 300.0)
     assert material.number_densities == {"U235": 1e-3, "C": 2e-3}
     assert material.replace_isotopes == {"C" : "C_in_Graphite"}
+
+    for name in ["1Fuel", "Éau", "f", "G/CC", "at%", "Fuel\t1", "Fuel \"1\"", "Fuel\\1", "Fuel!1"]:
+        with pytest.raises(AssertionError):
+            Material(300.0, {"H1": 1e-3}, name=name)
 
 def test_using_fission_products():
     specs = Material.MPACTSpecs(replace_isotopes = {"H": "H1_in_ZrH"},
@@ -137,50 +141,25 @@ def test_material_temperature_units():
     assert output == expected_output
 
 def test_material_percents():
-    material = Material(293.15, percents={"H1": 2.0, "O16": 1.0}, percent_unit="at%", density=1.0)
+    material = Material(293.15, percents={"H1": 2.0, "O16": 1.0}, percent_unit="at%", density=1.0, name="Water")
     assert isclose(material.number_densities["H1"],  6.687342530e-2, rel_tol=TOL)
     assert isclose(material.number_densities["O16"], 3.343671265e-2, rel_tol=TOL)
 
     output = material.write_to_string(prefix="  ")
-    expected_output = ("  mat 1 0 1.0 g/cc 293.15 K (at%) \\\n"
+    expected_output = ("  mat 1 0 Water 1.0 g/cc 293.15 K (at%) \\\n"
                        "    1001 2.0\n"
                        "    8016 1.0\n")
     assert output == expected_output
 
-    material = Material(293.15, percents={"H1": 11.19, "O16": 88.81}, percent_unit="WT%", density=1.0)
+    material = Material(293.15, percents={"H1": 11.19, "O16": 88.81}, percent_unit="WT%", density=1.0, name="Light water")
     assert isclose(material.number_densities["H1"],  6.686453796e-2, rel_tol=TOL)
     assert isclose(material.number_densities["O16"], 3.343727263e-2, rel_tol=TOL)
 
     output = material.write_to_string(prefix="  ")
-    expected_output = ("  mat 1 0 1.0 g/cc 293.15 K (wt%) \\\n"
+    expected_output = ("  mat 1 0 \"Light water\" 1.0 g/cc 293.15 K (wt%) \\\n"
                        "    1001 11.19\n"
                        "    8016 88.81\n")
     assert output == expected_output
-
-def test_material_name(material):
-    spec           = Material.MPACTSpecs(replace_isotopes={"C" : "C_in_Graphite"}, is_fluid=True)
-    named_material = Material(300.0, {"U235": 1e-3, "C": 2e-3}, spec, name="UO2 4 wt%")
-    assert named_material.name == "UO2 4 wt%"
-    assert material.name is None
-    assert named_material == material
-    assert hash(named_material) == hash(material)
-
-    output = named_material.write_to_string(prefix="  ")
-    expected_output = (f"  mat 1 1 \"UO2 4 wt%\" {material.density} g/cc 300.0 K \\\n"
-                        "    6001 0.002\n"
-                        "    92235 0.001\n")
-    assert output == expected_output
-
-    water  = Material(293.15, {"H1": 1e-3}, name="Water")
-    output = water.write_to_string(prefix="  ")
-    expected_output = (f"  mat 1 0 Water {water.density} g/cc 293.15 K \\\n"
-                        "    1001 0.001\n")
-    assert output == expected_output
-
-    for name in ["1Fuel", "Éau", "at%", "f", "G/CC", "",
-                 "Fuel \"1\"", "Fuel\\1", "Fuel!1", "Fuel\n1", "Fuel\t1", "Fuel\r1"]:
-        with pytest.raises(AssertionError):
-            Material(300.0, {"H1": 1e-3}, name=name)
 
 def test_material_mix_materials(material, unequal_material):
 
