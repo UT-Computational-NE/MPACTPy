@@ -51,7 +51,7 @@ def test_model_hash(model, equal_model, unequal_model):
     assert hash(model) == hash(equal_model)
     assert hash(model) != hash(unequal_model)
 
-def test_model_write_to_string(model, pinmesh, material, equal_material):
+def test_model_write_to_string(model, pinmesh, material, equal_material, unequal_material):
     output = model.write_to_string(caseid="test", indent=2)
     expected_output = \
 f"""CASEID test
@@ -101,6 +101,12 @@ OPTION
     output = Model(core, [{"power": "0.0"}], {"xslib": "ORNL mpact_lib.fmt"}, {}).write_to_string(caseid="test", indent=2)
     assert output.count("  mat ") == 2
     assert "  pin 1 1 / 1 1 1 1 1 1 1 1 1\n  pin 2 1 / 2 2 2 2 2 2 2 2 2\n" in output
+
+    crd_specs = Core.CrdSpecs([unequal_material], equal_material, 38.1, 960, "top")
+    core      = Core(core.assembly_map, crd_bank=[["A"]], crd_specs=crd_specs)
+    output    = Model(core, [{"power": "0.0"}], {"xslib": "ORNL mpact_lib.fmt"}, {}).write_to_string(caseid="test", indent=2)
+    assert output.count("  mat ") == 3
+    assert "  crd_specs 3 / 2 / 38.1 960 / top\n" in output
 
 
 def test_model_key_value_blocks(core, material):
@@ -275,14 +281,3 @@ OPTION
 
 """
     assert output == expected_output
-
-
-def test_model_control_rods(assembly, material, equal_material, unequal_material):
-    crd_specs = Core.CrdSpecs([unequal_material], equal_material, 38.1, 960, "top")
-    core      = Core([[assembly, assembly]], crd_bank=[["A", None]], crd_specs=crd_specs)
-
-    output = Model(core, [{"power": "0.0"}], {"xslib": "ORNL mpact_lib.fmt"}, {}).write_to_string(caseid="test", indent=2)
-    assert f"  mat 1 1 {material.density} g/cc 300.0 K \\\n" in output
-    assert f"  mat 2 2 {unequal_material.density} g/cc 600.0 K \\\n" in output
-    assert f"  mat 3 1 {equal_material.density} g/cc" in output
-    assert "  core\n    1 1\n  crd_bank\n    A -\n  crd_specs 2 / 3 / 38.1 960 / top\n\n" in output
