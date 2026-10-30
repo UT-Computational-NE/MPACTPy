@@ -1,8 +1,9 @@
 import pytest
 from math import isclose
+from copy import copy
 from concurrent.futures import ProcessPoolExecutor
 from multiprocessing import get_context
-from mpactpy import Material
+from mpactpy import Material, Comments
 from mpactpy.utils import atomic_mass, AVOGADRO, ROUNDING_RELATIVE_TOLERANCE
 import openmc
 
@@ -117,6 +118,32 @@ def test_material_write_to_string(material):
                         "    6001 0.002\n"
                         "    92235 0.001\n")
     assert output == expected_output
+
+    specs              = Material.MPACTSpecs({"C": "C_in_Graphite"}, is_fluid=True)
+    comments           = {None: Comments(["MODERATOR"], "graphite"), "C_in_Graphite": Comments(inline="C-nat")}
+    commented_material = Material(300.0, {"U235": 1e-3, "C": 2e-3}, specs, comments=comments)
+    output = commented_material.write_to_string(prefix="  ", mpact_ids={material: "42"})
+    expected_output = ( "  !MODERATOR\n"
+                       f"  mat 42 1 {expected_density} g/cc 300.0 K \\ !graphite\n"
+                        "    6001 0.002 !C-nat\n"
+                        "    92235 0.001\n")
+    assert output == expected_output
+
+    copied_material = copy(commented_material)
+    copied_material.temperature = 300.0
+    assert copied_material.write_to_string(prefix="  ", mpact_ids={material: "42"}) == expected_output.replace(" !graphite", "")
+    assert commented_material.write_to_string(prefix="  ", mpact_ids={material: "42"}) == expected_output
+
+    commented_material.comments["C"] = Comments()
+    assert "C" not in comments
+    with pytest.raises(AssertionError):
+        commented_material.write_to_string()
+    with pytest.raises(AssertionError):
+        Material(300.0, {"H1": 1e-3, "As75": 1e-9}, comments={"As75": Comments()}).write_to_string()
+    with pytest.raises(AssertionError):
+        Comments(["line\nbreak"])
+    with pytest.raises(AssertionError):
+        Comments(inline="line\nbreak")
 
 def test_material_temperature_units():
     for temp, unit in [(20.0, "c"), (68.0, "F"), (527.67, "R")]:
