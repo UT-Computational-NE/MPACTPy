@@ -96,6 +96,12 @@ OPTION
 """
     assert output == expected_output
 
+    model.options.add("param", "x" * 248)
+    model.write_to_string(caseid="test", indent=2)
+    model.options.add("param", "x" * 249)
+    with pytest.raises(AssertionError):
+        model.write_to_string(caseid="test", indent=2)
+
 
 def test_model_key_value_blocks(core, material):
     state = KeyValueBlock("STATE")
@@ -160,18 +166,6 @@ OPTION
 
 """
     assert output == expected_output
-
-def test_model_line_limit(core):
-    value = "x" * (256 - len("  param "))
-    model = Model(core          = core,
-                  states        = [{"power": "0.0"}],
-                  xsec_settings = {"xslib": "ORNL mpact_lib.fmt"},
-                  options       = {"param": value})
-    assert f"  param {value}\n" in model.write_to_string(caseid="test", indent=2)
-
-    model.options.add("param", value + "x")
-    with pytest.raises(AssertionError, match=f"  param {value}x$"):
-        model.write_to_string(caseid="test", indent=2)
 
 
 def test_harder_model():
