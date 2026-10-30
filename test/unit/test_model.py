@@ -96,6 +96,12 @@ OPTION
 """
     assert output == expected_output
 
+    model.options.add("param", "x" * 248)
+    model.write_to_string(caseid="test", indent=2)
+    model.options.add("param", "x" * 249)
+    with pytest.raises(AssertionError):
+        model.write_to_string(caseid="test", indent=2)
+
 
 def test_model_key_value_blocks(core, material):
     state = KeyValueBlock("STATE")
