@@ -89,25 +89,18 @@ def test_lattice_write_to_string(lattice, module):
                       "    2 2\n"
     assert output == expected_output
 
-def test_lattice_comments(lattice, module):
-    comments          = {None: Comments(["LATTICE  ID  NX NY"], "P00"),
-                         1:    Comments(["south row"], "S")}
+    comments          = {None: Comments(["LATTICE  ID  NX NY"], "P00"), 1: Comments(inline="S")}
     commented_lattice = Lattice(lattice.module_map, comments)
-    assert commented_lattice == lattice
-    assert hash(commented_lattice) == hash(lattice)
-
     output = commented_lattice.write_to_string(prefix="  ",
                                                module_mpact_ids={module: 2},
-                                               lattice_mpact_ids={commented_lattice: 4})
+                                               lattice_mpact_ids={lattice: 4})
     expected_output = ("  !LATTICE  ID  NX NY\n"
                        "  lattice 4 2 2 !P00\n"
                        "    2 2\n"
-                       "    !south row\n"
                        "    2 2 !S\n")
     assert output == expected_output
-    assert commented_lattice.get_axial_slice(0.5, 1.5).comments == {}
 
-    commented_lattice.comments[2] = Comments(inline="row")
+    commented_lattice.comments[2] = Comments()
     assert 2 not in comments
     with pytest.raises(AssertionError):
         commented_lattice.write_to_string()

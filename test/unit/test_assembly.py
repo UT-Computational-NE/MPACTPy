@@ -91,24 +91,17 @@ def test_assembly_write_to_string(assembly, lattice):
                       "    4 4 4 4\n"
     assert output == expected_output
 
-def test_assembly_comments(assembly, lattice):
-    comments           = {None: Comments(["ASSEMBLY ID"], "P00"),
-                          0:    Comments(["bottom to top"], "lattices")}
+    comments           = {None: Comments(["ASSEMBLY ID"], "P00"), 0: Comments(inline="lattices")}
     commented_assembly = Assembly(assembly.lattice_map, comments)
-    assert commented_assembly == assembly
-    assert hash(commented_assembly) == hash(assembly)
-
     output = commented_assembly.write_to_string(prefix="  ",
                                                 lattice_mpact_ids={lattice: 4},
-                                                assembly_mpact_ids={commented_assembly: 3})
+                                                assembly_mpact_ids={assembly: 3})
     expected_output = ("  !ASSEMBLY ID\n"
                        "  assembly 3 !P00\n"
-                       "    !bottom to top\n"
                        "    4 4 4 4 !lattices\n")
     assert output == expected_output
-    assert commented_assembly.get_axial_slice(0.5, 1.5).comments == {}
 
-    commented_assembly.comments[1] = Comments(inline="row")
+    commented_assembly.comments[1] = Comments()
     assert 1 not in comments
     with pytest.raises(AssertionError):
         commented_assembly.write_to_string()

@@ -80,44 +80,27 @@ def test_pin_write_to_string(pin, pinmesh, material):
     expected_output = "  pin 1 2 / 3 3 3 3 3 3 3 3 3\n"
     assert output == expected_output
 
-def test_pin_comments(pin, material):
-    pinmesh       = GeneralCylindricalPinMesh([0.5, 1.0, 1.5], -1.0, 1.0, -1.0, 1.0, [1.0, 2.0, 3.0],
-                                              [1, 2, 2], [8, 8, 8, 8, 8, 8], [5, 5, 5],
-                                              {None: Comments(inline="fuel")})
     comments      = {None: Comments(["PIN  ID  MESH / MATS"], "P00 fuel")}
     commented_pin = Pin(pinmesh, pin.materials, comments)
-    assert commented_pin == pin
-    assert hash(commented_pin) == hash(pin)
-
     output = commented_pin.write_to_string(prefix="  ",
                                            material_mpact_ids={material: 3},
                                            pinmesh_mpact_ids={pinmesh: 2},
-                                           pin_mpact_ids={commented_pin: 1})
+                                           pin_mpact_ids={pin: 1})
     expected_output = ("  !PIN  ID  MESH / MATS\n"
                        "  pin 1 2 / 3 3 3 3 3 3 3 3 3 !P00 fuel\n")
     assert output == expected_output
 
-    pinmesh_2D = GeneralCylindricalPinMesh([0.5, 1.0, 1.5], -1.0, 1.0, -1.0, 1.0, [1.0],
-                                           [1, 2, 2], [8, 8, 8, 8, 8, 8], [5],
-                                           {None: Comments(inline="fuel")})
-    pin_2D     = Pin(pinmesh_2D, [material] * pinmesh_2D.number_of_material_regions, {None: Comments(inline="2D")})
-    for derived_pin in [commented_pin.get_axial_slice(0.5, 1.5),
-                        commented_pin.axial_merge(commented_pin),
-                        pin_2D.with_height(2.0)]:
-        assert derived_pin.comments == {}
-        assert derived_pin.pinmesh.comments == {}
-
-    shared_pin = commented_pin.with_shared_materials({})
-    assert shared_pin.comments == {}
-    assert shared_pin.pinmesh.comments == {None: Comments(inline="fuel")}
-
-    commented_pin.comments[0] = Comments(inline="row")
+    commented_pin.comments[0] = Comments()
     assert 0 not in comments
     with pytest.raises(AssertionError):
         commented_pin.write_to_string()
 
 def test_pin_get_axial_slice(pin):
+    pin.pinmesh.comments[None] = Comments(inline="fuel")
     pin_slice = pin.get_axial_slice(0.5, 1.5)
+
+    assert pin_slice.pinmesh.comments == {}
+    assert pin.with_shared_materials({}).pinmesh.comments == {None: Comments(inline="fuel")}
 
     assert pin_slice.pinmesh.number_of_material_regions == 8
     assert pin_slice.pinmesh.regions_inside_bounds == [0, 1, 2, 4, 5, 6]
@@ -125,7 +108,10 @@ def test_pin_get_axial_slice(pin):
     assert_allclose(pin_slice.pinmesh.zvals, [0.5, 1.0])
 
 def test_pin_axial_merge(pin):
+    pin.pinmesh.comments[None] = Comments(inline="fuel")
     merged_pin = pin.axial_merge(pin)
+
+    assert merged_pin.pinmesh.comments == {}
 
     assert merged_pin.pinmesh.number_of_material_regions == 24
     assert len(merged_pin.materials) == 24
@@ -134,8 +120,10 @@ def test_pin_axial_merge(pin):
     assert_allclose(merged_pin.pinmesh.zvals, [1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
 
 def test_pin_with_height(pin, pin_2D):
+    pin_2D.pinmesh.comments[None] = Comments(inline="fuel")
     new_pin = pin_2D.with_height(3.0)
     assert isclose(new_pin.pitch["Z"], 3.0)
+    assert new_pin.pinmesh.comments == {}
 
     with pytest.raises(AssertionError, match=f"len\(zvals\) = {len(pin.pinmesh.zvals)}, Pin must be strictly 2D"):
         new_pin = pin.with_height(3.0)

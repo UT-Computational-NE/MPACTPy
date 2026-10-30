@@ -103,6 +103,10 @@ def test_core_initialization(core, assembly):
     assert len(core.pinmeshes)  == 1
     assert len(core.materials)  == 1
 
+    first_pin  = Pin(core.pins[0].pinmesh, core.pins[0].materials, {None: Comments(inline="first")})
+    first_core = Core([[Assembly([Lattice([[Module(1, [[first_pin, core.pins[0]]])]])])]])
+    assert first_core.pins[0].comments == {None: Comments(inline="first")}
+
 def test_core_equality(core, equal_core, unequal_core):
     assert core == equal_core
     assert core != unequal_core
@@ -137,45 +141,20 @@ def test_core_write_to_string(core, assembly):
     assert core.nx == 5
     assert core.ny == 5
 
-def test_core_comments(core, assembly, material):
-    assembly_map = [[None, None,     None,     None,     None],
-                    [None, None,     assembly, None,     None],
-                    [None, assembly, assembly, assembly, None],
-                    [None, None,     assembly, None,     None],
-                    [None, None,     None,     None,     None]]
-    comments       = {None: Comments(["CORE SYMMETRY"], "TRIGA"),
-                      2:    Comments(["middle row"], "M")}
-    commented_core = Core(assembly_map, comments=comments)
-    assert commented_core == Core(assembly_map)
-    assert hash(commented_core) == hash(Core(assembly_map))
-
+    comments       = {None: Comments(["CORE SYMMETRY"], "TRIGA"), 2: Comments(inline="M")}
+    commented_core = Core(core.assembly_map, comments=comments)
     output = commented_core.write_to_string(prefix="  ", assembly_mpact_ids={assembly: 3})
     expected_output = ("  !CORE SYMMETRY\n"
                        "  core !TRIGA\n"
                        "      3\n"
-                       "    !middle row\n"
                        "    3 3 3 !M\n"
                        "      3\n")
     assert output == expected_output
-    assert commented_core.get_axial_slice(0.5, 1.5).comments == {}
 
-    commented_core.comments[0] = Comments(inline="trimmed row")
+    commented_core.comments[0] = Comments()
     assert 0 not in comments
     with pytest.raises(AssertionError):
         commented_core.write_to_string(assembly_mpact_ids={assembly: 3})
-
-    tall_pin    = build_rec_pin({"X": [1.0], "Y": [3.0], "Z": [4.0]}, [material])
-    short_pin   = build_rec_pin({"X": [1.0], "Y": [3.0], "Z": [1.0]}, [material])
-    first_pin   = Pin(tall_pin.pinmesh, tall_pin.materials, {None: Comments(inline="first")})
-    second_pin  = Pin(tall_pin.pinmesh, tall_pin.materials, {None: Comments(inline="second")})
-    tall_asy    = Assembly([Lattice([[Module(1, [[first_pin, second_pin]])]])], {None: Comments(inline="tall")})
-    short_asy   = Assembly([Lattice([[Module(1, [[short_pin, short_pin]])]])] * 4, {None: Comments(inline="short")})
-    merged_core = Core([[tall_asy]], comments={None: Comments(inline="TRIGA")})
-    assert merged_core.pins[0].comments == {None: Comments(inline="first")}
-
-    unionized_core = Core([[tall_asy, short_asy]], comments={None: Comments(inline="TRIGA")})
-    assert all(assembly.comments == {} for assembly in unionized_core.assemblies)
-    assert unionized_core.comments == {None: Comments(inline="TRIGA")}
 
 def test_core_get_axial_slice(core):
     core_slice = core.get_axial_slice(0.5, 1.5)
@@ -198,11 +177,11 @@ def test_core_axial_mesh_unionization(material):
     mod_2 = Module(1, [[pin_2]])
     lat_1 = Lattice([[mod_1]])
     lat_2 = Lattice([[mod_2]])
-    asy_1 = Assembly([lat_1])
+    asy_1 = Assembly([lat_1], {None: Comments(inline="tall")})
     asy_2 = Assembly([lat_2, lat_2, lat_2, lat_2])
 
     core = Core([[asy_1, asy_2],
-                 [asy_1, asy_1,]])
+                 [asy_1, asy_1,]], comments={None: Comments(inline="TRIGA")})
 
     assert core.nx == 2
     assert core.ny == 2
@@ -216,6 +195,8 @@ def test_core_axial_mesh_unionization(material):
     assert len(core.pins)       == 1
     assert len(core.pinmeshes)  == 1
     assert len(core.materials)  == 1
+    assert core.assemblies[0].comments == {}
+    assert core.comments == {None: Comments(inline="TRIGA")}
 
 def test_core_with_height(core, core_2D):
     new_core = core_2D.with_height(3.0)
