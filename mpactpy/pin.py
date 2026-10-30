@@ -8,7 +8,7 @@ import openmc
 
 from mpactpy.material import Material
 from mpactpy.pinmesh import PinMesh, RectangularPinMesh, GeneralCylindricalPinMesh
-from mpactpy.utils import list_to_str, unique, equal_thickness_ndivs, equal_arc_length_ndivs
+from mpactpy.utils import list_to_str, unique_instances, equal_thickness_ndivs, equal_arc_length_ndivs
 
 
 class Pin():
@@ -31,7 +31,7 @@ class Pin():
         The materials used in each pin XSR. The number of
         entries must be equal to the number of uniform
         material regions defined in the pin mesh
-    unique_materials : Set[Material]
+    unique_materials : List[Material]
         The unique materials used in this pin
     pitch : Pitch
         The pitch of the pin in each axis direction (keys: 'X', 'Y', 'Z') (cm)
@@ -53,7 +53,7 @@ class Pin():
         return self._materials
 
     @property
-    def unique_materials(self) -> Set[Material]:
+    def unique_materials(self) -> List[Material]:
         return self._unique_materials
 
     @property
@@ -70,28 +70,34 @@ class Pin():
 
         self._pinmesh          = pinmesh
         self._materials        = materials
-        self._unique_materials = set(materials)
+        self._unique_materials = unique_instances(materials)
+        self._material_ids     = tuple(map(id, materials))
 
     def __eq__(self, other: Any) -> bool:
         if self is other:
             return True
-        return (isinstance(other, Pin)            and
-                self.pinmesh   == other.pinmesh   and
-                self.materials == other.materials
+        return (isinstance(other, Pin)                  and
+                self.pinmesh       == other.pinmesh     and
+                self._material_ids == other._material_ids
                )
 
     def __hash__(self) -> int:
         if self._cached_hash is None:
-            self._cached_hash = hash((self.pinmesh, tuple(self.materials)))
+            self._cached_hash = hash((self.pinmesh, self._material_ids))
         return self._cached_hash
 
     def __getstate__(self) -> Dict[str, Any]:
         # String hashes differ between processes, so a cached hash must not be pickled
         return {**self.__dict__, "_cached_hash": None}
 
+    def __setstate__(self, state: Dict[str, Any]) -> None:
+        # The materials of a copy are new instances
+        self.__dict__.update(state)
+        self._material_ids = tuple(map(id, self._materials))
+
     def write_to_string(self,
                         prefix: str = "",
-                        material_mpact_ids: Dict[Material, int] = None,
+                        material_mpact_ids: Dict[int, int] = None,
                         pinmesh_mpact_ids: Dict[PinMesh, int] = None,
                         pin_mpact_ids: Dict[Pin, int] = None) -> str:
         """ Method for writing a pin to a string
@@ -100,8 +106,8 @@ class Pin():
         ---------
         prefix : str
             A prefix with which to start each line of the written output string
-        material_mpact_ids : Dict[Material, int]
-            A collection of Materials and their corresponding MPACT IDs
+        material_mpact_ids : Dict[int, int]
+            The MPACT IDs of the Materials, keyed by the id() of each Material
         pinmesh_mpact_ids : Dict[PinMesh, int]
             A collection of PinMeshes and their corresponding MPACT IDs
         pin_mpact_ids : Dict[Pin, int]
@@ -117,13 +123,12 @@ class Pin():
             "Pin has no material regions inside its pinmesh bounds"
 
         if material_mpact_ids is None:
-            materials = unique(material for material in self.materials)
-            material_mpact_ids = {material: i for i, material in enumerate(materials)}
+            material_mpact_ids = {id(material): i for i, material in enumerate(self.unique_materials)}
 
         pinmesh_id = 1 if pinmesh_mpact_ids is None else pinmesh_mpact_ids[self.pinmesh]
         pin_id     = 1 if pin_mpact_ids     is None else pin_mpact_ids[self]
 
-        materials = [material_mpact_ids[self.materials[i]] for i in self.pinmesh.regions_inside_bounds]
+        materials = [material_mpact_ids[id(self.materials[i])] for i in self.pinmesh.regions_inside_bounds]
         string = prefix + f"pin {pin_id} {pinmesh_id} / {list_to_str(materials)}\n"
         return string
 

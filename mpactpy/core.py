@@ -11,7 +11,7 @@ from mpactpy.pin import Pin
 from mpactpy.module import Module
 from mpactpy.lattice import Lattice
 from mpactpy.assembly import Assembly
-from mpactpy.utils import list_to_str, is_rectangular, unique, process_parallel_work
+from mpactpy.utils import list_to_str, unique_instances, is_rectangular, unique, process_parallel_work
 
 
 class Core():
@@ -191,7 +191,7 @@ class Core():
         self._modules    = unique(module for lattice in self.lattices for row in lattice.module_map for module in row)
         self._pins       = unique(pin for module in self.modules for row in module.pin_map for pin in row)
         self._pinmeshes  = unique(pin.pinmesh for pin in self.pins)
-        self._materials  = unique(material for pin in self.pins for material in pin.materials)
+        self._materials  = unique_instances(material for pin in self.pins for material in pin.materials)
 
     def __eq__(self, other: Any) -> bool:
         if self is other:

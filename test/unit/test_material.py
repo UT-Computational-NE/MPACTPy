@@ -121,7 +121,7 @@ def test_isotope_MPACT_ID():
 def test_material_write_to_string(material):
     expected_density = sum(num_dens * 1e24 * atomic_mass(iso) / AVOGADRO
                            for iso, num_dens in material.number_densities.items())
-    output = material.write_to_string(prefix="  ", mpact_ids={material: "42"})
+    output = material.write_to_string(prefix="  ", mpact_ids={id(material): "42"})
     expected_output = (f"  mat 42 1 {expected_density} g/cc 300.0 K \\\n"
                         "    6001 0.002\n"
                         "    92235 0.001\n")
