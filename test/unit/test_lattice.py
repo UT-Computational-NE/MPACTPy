@@ -76,11 +76,14 @@ def test_lattice_initialization(lattice, module):
     module_map = [[module, deepcopy(module)]]
     separate = Lattice(module_map)
     assert len(separate.materials) == 2
-    for shared in [Lattice(module_map, share_materials=True), separate.with_shared_materials()]:
+    shared_materials = {}
+    for shared in [separate.with_shared_materials(), separate.with_shared_materials(shared_materials)]:
         assert len(shared.materials) == 1
         assert shared.materials[0] is separate.materials[0]
         assert all(material is shared.materials[0] for pin in shared.pins for material in pin.materials)
     assert len(separate.materials) == 2
+    assert len(shared_materials) == 1
+    assert separate.with_shared_materials(shared_materials, exclude=[deepcopy(separate.materials[0])]) == separate
 
 def test_lattice_equality(lattice, equal_lattice, unequal_lattice):
     assert lattice == equal_lattice

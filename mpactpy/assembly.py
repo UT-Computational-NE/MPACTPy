@@ -19,11 +19,6 @@ class Assembly():
     lattice_map : List[Lattice]
         1-D array of lattice names
 
-    share_materials : bool
-        Share materials with equal compositions, temperatures, and MPACT specifications
-        throughout this component. Default: False (preserve separate instances).
-        Child components are rebuilt without modifying the supplied objects.
-
     Attributes
     ----------
     pitch : Pitch
@@ -102,11 +97,7 @@ class Assembly():
         return self._materials
 
 
-    def __init__(self, lattice_map: List[Lattice], share_materials: bool = False):
-
-        if share_materials:
-            shared = {}
-            lattice_map = [lattice.with_shared_materials(shared) for lattice in lattice_map]
+    def __init__(self, lattice_map: List[Lattice]):
 
         self._cached_hash = None
 
@@ -339,7 +330,8 @@ class Assembly():
         shared = {material: material for material in material_cache.values()}
         return Assembly([lattice.with_shared_materials(shared) for lattice in new_lattice_map])
 
-    def with_shared_materials(self, shared: Optional[Dict[Material, Material]] = None) -> Assembly:
+    def with_shared_materials(self, shared: Optional[Dict[Material, Material]] = None,
+                              exclude: Optional[List[Material]] = None) -> Assembly:
         """ Method for rebuilding this Assembly so that materials with equal values and MPACT specifications are one instance
 
         Parameters
@@ -347,6 +339,9 @@ class Assembly():
         shared : Optional[Dict[Material, Material]]
             The instance kept for each equivalent material. Missing materials are added.
             If omitted, a new mapping is used for this operation.
+        exclude : Optional[List[Material]]
+            Materials equal to any entry retain their existing instances, even if
+            an equivalent material is already in shared. Defaults to no exclusions.
 
         Returns
         -------
@@ -357,7 +352,7 @@ class Assembly():
         if shared is None:
             shared = {}
 
-        return Assembly([lattice.with_shared_materials(shared) for lattice in self.lattice_map])
+        return Assembly([lattice.with_shared_materials(shared, exclude) for lattice in self.lattice_map])
 
     @staticmethod
     def _process_lattice_chunk(lattice_chunk, geometry, child_policy, material_cache):

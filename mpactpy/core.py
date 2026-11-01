@@ -32,10 +32,6 @@ class Core():  # pylint: disable=too-many-public-methods
         produces a mesh element with an axial height less than the minimum thickness,
         an error will be thrown.  This is meant as a failsafe for applications in which
         a minimum axial thickness is required.
-    share_materials : bool
-        Share materials with equal compositions, temperatures, and MPACT specifications
-        throughout the core. Default: False (preserve separate instances).
-        Child components are rebuilt without modifying the supplied objects.
 
     Attributes
     ----------
@@ -161,13 +157,7 @@ class Core():  # pylint: disable=too-many-public-methods
                  assembly_map: List[List[Assembly]],
                  symmetry_opt: SymmetryOption = "",
                  quarter_sym_opt: QuarterSymmetryOption = "",
-                 min_thickness: float = 0.,
-                 share_materials: bool = False):
-
-        if share_materials:
-            shared = {}
-            assembly_map = [[assembly.with_shared_materials(shared) if assembly else None for assembly in row]
-                            for row in assembly_map]
+                 min_thickness: float = 0.):
 
         self._cached_hash = None
 
@@ -203,7 +193,8 @@ class Core():  # pylint: disable=too-many-public-methods
         self._pinmeshes  = unique(pin.pinmesh for pin in self.pins)
         self._materials  = unique_instances(material for pin in self.pins for material in pin.materials)
 
-    def with_shared_materials(self, shared: Optional[Dict[Material, Material]] = None) -> Core:
+    def with_shared_materials(self, shared: Optional[Dict[Material, Material]] = None,
+                              exclude: Optional[List[Material]] = None) -> Core:
         """Return a rebuilt core sharing materials with equal values and MPACT specifications.
 
         Parameters
@@ -211,6 +202,9 @@ class Core():  # pylint: disable=too-many-public-methods
         shared : Optional[Dict[Material, Material]]
             The instance kept for each equivalent material. Missing materials are added.
             If omitted, a new mapping is used for this operation.
+        exclude : Optional[List[Material]]
+            Materials equal to any entry retain their existing instances, even if
+            an equivalent material is already in shared. Defaults to no exclusions.
 
         Returns
         -------
@@ -220,7 +214,7 @@ class Core():  # pylint: disable=too-many-public-methods
         """
         if shared is None:
             shared = {}
-        return Core([[assembly.with_shared_materials(shared) if assembly else None for assembly in row]
+        return Core([[assembly.with_shared_materials(shared, exclude) if assembly else None for assembly in row]
                      for row in self.assembly_map], self.symmetry_opt, self.quarter_sym_opt)
 
     def __eq__(self, other: Any) -> bool:

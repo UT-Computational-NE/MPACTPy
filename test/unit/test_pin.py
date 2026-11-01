@@ -68,14 +68,22 @@ def test_pin_initialization(pin, pinmesh, material):
     materials = [material] + [deepcopy(material)] * (number_of_material_regions - 1)
     separate = Pin(pinmesh, materials)
     assert len(separate.unique_materials) == 2
-    for shared in [Pin(pinmesh, materials, share_materials=True), separate.with_shared_materials()]:
+    shared_materials = {}
+    for shared in [separate.with_shared_materials(), separate.with_shared_materials(shared_materials)]:
         assert len(shared.unique_materials) == 1
         assert all(mat is material for mat in shared.materials)
     assert separate.materials[1] is materials[1]
     assert len(separate.unique_materials) == 2
+    assert len(shared_materials) == 1
+    assert separate.with_shared_materials(shared_materials, exclude=[deepcopy(material)]) == separate
     plain = Material(material.temperature, dict(material.number_densities), Material.MPACTSpecs(is_fluid=True))
-    distinct = Pin(pinmesh, [plain] + materials[1:], share_materials=True)
+    distinct = Pin(pinmesh, [plain] + materials[1:]).with_shared_materials()
     assert len(distinct.unique_materials) == 2
+    mixed = Pin(pinmesh, [material, deepcopy(material), plain, deepcopy(plain)] + materials[4:])
+    excluded = mixed.with_shared_materials(exclude=[deepcopy(material)])
+    assert excluded.materials[0] is material
+    assert excluded.materials[1] is mixed.materials[1]
+    assert excluded.materials[2] is excluded.materials[3] is plain
 
 def test_pin_equality(pin, equal_pin, unequal_pin, equal_material):
     assert pin == equal_pin

@@ -107,11 +107,14 @@ def test_core_initialization(core, assembly):
     assembly_map = [[assembly, deepcopy(assembly)]]
     separate = Core(assembly_map)
     assert len(separate.materials) == 2
-    for shared in [Core(assembly_map, share_materials=True), separate.with_shared_materials()]:
+    shared_materials = {}
+    for shared in [separate.with_shared_materials(), separate.with_shared_materials(shared_materials)]:
         assert len(shared.materials) == 1
         assert shared.materials[0] is separate.materials[0]
         assert all(material is shared.materials[0] for pin in shared.pins for material in pin.materials)
     assert len(separate.materials) == 2
+    assert len(shared_materials) == 1
+    assert separate.with_shared_materials(shared_materials, exclude=[deepcopy(separate.materials[0])]) == separate
 
 def test_core_equality(core, equal_core, unequal_core):
     assert core == equal_core

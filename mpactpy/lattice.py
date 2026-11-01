@@ -18,11 +18,6 @@ class Lattice():
     module_map : List[List[Module]]
         a 2-D array of modules
 
-    share_materials : bool
-        Share materials with equal compositions, temperatures, and MPACT specifications
-        throughout this component. Default: False (preserve separate instances).
-        Child components are rebuilt without modifying the supplied objects.
-
     Attributes
     ----------
     nx : int
@@ -96,11 +91,7 @@ class Lattice():
         return self._materials
 
 
-    def __init__(self, module_map: List[List[Module]], share_materials: bool = False):
-
-        if share_materials:
-            shared = {}
-            module_map = [[module.with_shared_materials(shared) for module in row] for row in module_map]
+    def __init__(self, module_map: List[List[Module]]):
 
         self._cached_hash = None
 
@@ -325,7 +316,8 @@ class Lattice():
         shared = {material: material for material in material_cache.values()}
         return Lattice([[module.with_shared_materials(shared) for module in row] for row in new_module_map])
 
-    def with_shared_materials(self, shared: Optional[Dict[Material, Material]] = None) -> Lattice:
+    def with_shared_materials(self, shared: Optional[Dict[Material, Material]] = None,
+                              exclude: Optional[List[Material]] = None) -> Lattice:
         """ Method for rebuilding this Lattice so that materials with equal values and MPACT specifications are one instance
 
         Parameters
@@ -333,6 +325,9 @@ class Lattice():
         shared : Optional[Dict[Material, Material]]
             The instance kept for each equivalent material. Missing materials are added.
             If omitted, a new mapping is used for this operation.
+        exclude : Optional[List[Material]]
+            Materials equal to any entry retain their existing instances, even if
+            an equivalent material is already in shared. Defaults to no exclusions.
 
         Returns
         -------
@@ -343,7 +338,7 @@ class Lattice():
         if shared is None:
             shared = {}
 
-        return Lattice([[module.with_shared_materials(shared) for module in row] for row in self.module_map])
+        return Lattice([[module.with_shared_materials(shared, exclude) for module in row] for row in self.module_map])
 
     @staticmethod
     def _process_module_chunk(module_chunk, geometry, child_policy, material_cache):
