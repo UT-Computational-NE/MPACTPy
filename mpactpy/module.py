@@ -320,13 +320,18 @@ class Module():
         shared = {material: material for material in material_cache.values()}
         return Module(1, [[pin.with_shared_materials(shared) for pin in row] for row in new_pin_map])
 
-    def with_shared_materials(self, shared: Dict[Material, Material]) -> Module:
-        """ Method for rebuilding this Module so that materials with the same composition are one instance
+    def with_shared_materials(self, shared: Optional[Dict[Material, Material]] = None,
+                              exclude: Optional[List[Material]] = None) -> Module:
+        """ Method for rebuilding this Module so that materials with equal values and MPACT specifications are one instance
 
         Parameters
         ----------
-        shared : Dict[Material, Material]
-            The instance kept for each composition.  Compositions not yet in it are added.
+        shared : Optional[Dict[Material, Material]]
+            The instance kept for each equivalent material. Missing materials are added.
+            If omitted, a new mapping is used for this operation.
+        exclude : Optional[List[Material]]
+            Materials equal to any entry retain their existing instances, even if
+            an equivalent material is already in shared. Defaults to no exclusions.
 
         Returns
         -------
@@ -334,7 +339,10 @@ class Module():
             The rebuilt Module
         """
 
-        return Module(self.nz, [[pin.with_shared_materials(shared) for pin in row] for row in self.pin_map])
+        if shared is None:
+            shared = {}
+
+        return Module(self.nz, [[pin.with_shared_materials(shared, exclude) for pin in row] for row in self.pin_map])
 
     @staticmethod
     def _process_pin_chunk(pin_chunk, geometry, child_policy, material_cache):

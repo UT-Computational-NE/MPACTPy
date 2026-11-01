@@ -1,4 +1,5 @@
 import pytest
+from copy import deepcopy
 from math import isclose
 from numpy.testing import assert_allclose
 
@@ -69,6 +70,18 @@ def test_module_initialization(module, pin):
     assert module.nz == 1
     assert_allclose([module.pitch[i] for i in ['X','Y','Z']], [4., 4., 3.])
     assert all([p == pin for row in module.pin_map for p in row])
+
+    pin_map = [[pin, deepcopy(pin)]]
+    separate = Module(1, pin_map)
+    assert len(separate.materials) == 2
+    shared_materials = {}
+    for shared in [separate.with_shared_materials(), separate.with_shared_materials(shared_materials)]:
+        assert len(shared.materials) == 1
+        assert shared.materials[0] is separate.materials[0]
+        assert all(material is shared.materials[0] for pin in shared.pins for material in pin.materials)
+    assert len(separate.materials) == 2
+    assert len(shared_materials) == 1
+    assert separate.with_shared_materials(shared_materials, exclude=[deepcopy(separate.materials[0])]) == separate
 
 def test_module_equality(module, equal_module, unequal_module):
     assert module == equal_module

@@ -60,14 +60,15 @@ class Material():
         Boolean flag indicating whether or not the material is fuel
     """
 
-    @dataclass
+    @dataclass(frozen=True)
     class MPACTSpecs():
-        """ A dataclass for specifications for how a material should be handled in MPACT
+        """ Immutable specifications for how a material should be handled in MPACT
 
         Attributes
         ----------
-        replace_isotopes : Dict[str, str]
-            Dictionary of isotopes IDs to replace when writing the MPACT input
+        replace_isotopes : Mapping[str, str]
+            Read-only mapping of isotope IDs to replace when writing the MPACT input.
+            The supplied mapping is copied at construction.
             (key: original isotope ID, value: replacement isotope ID)
         is_fluid : bool
             Whether the material is a fluid (Default: False)
@@ -86,12 +87,12 @@ class Material():
             Section 4.5 pg 27
         """
 
-        replace_isotopes: Dict[str, str] = field(default_factory=dict)
+        replace_isotopes: Mapping[str, str] = field(default_factory=dict)
         is_fluid:         bool = False
         is_depletable:    bool = False
         has_resonance:    bool = False
         is_fuel:          bool = False
-        material_type:    int  = 0
+        material_type:    int  = field(init=False)
 
         def __post_init__(self):
 
@@ -109,9 +110,20 @@ class Material():
 
             key = (self.is_fluid, self.is_depletable, self.has_resonance, self.is_fuel)
             assert key in material_type_mapping, f"Invalid material combination: {key}"
-            self.material_type = material_type_mapping[key]
+            object.__setattr__(self, "material_type", material_type_mapping[key])
+            object.__setattr__(self, "replace_isotopes", MappingProxyType(dict(self.replace_isotopes)))
             assert all(value in MPACT_SUPPORTED_ISOTOPE_IDS for value in self.replace_isotopes.values()), \
                 f"Invalid replacement isotope ID: {self.replace_isotopes.values()}"
+
+        def __hash__(self) -> int:
+            return hash((self.is_fluid, self.is_depletable, self.has_resonance, self.is_fuel,
+                         tuple(sorted(self.replace_isotopes.items()))))
+
+        def __reduce__(self):
+            # Mapping proxies cannot be pickled directly. Reconstruct through the
+            # constructor to preserve immutability during copying and worker transfer.
+            return (type(self), (dict(self.replace_isotopes), self.is_fluid,
+                                 self.is_depletable, self.has_resonance, self.is_fuel))
 
         def using_fission_product_ids(self, exclude: Optional[List[str]] = None) -> Material.MPACTSpecs:
             """Return a copy that replaces isotopes with their fission-product IDs.
@@ -140,7 +152,7 @@ class Material():
             }
 
             return Material.MPACTSpecs(
-                replace_isotopes = fission_product_replacements | self.replace_isotopes,
+                replace_isotopes = fission_product_replacements | dict(self.replace_isotopes),
                 is_fluid         = self.is_fluid,
                 is_depletable    = self.is_depletable,
                 has_resonance    = self.has_resonance,
@@ -178,7 +190,7 @@ class Material():
         return MappingProxyType(self._number_densities)
 
     @property
-    def replace_isotopes(self) -> Dict[str, str]:
+    def replace_isotopes(self) -> Mapping[str, str]:
         return self._mpact_specs.replace_isotopes
 
     @property
@@ -252,7 +264,7 @@ class Material():
         if self is other:
             return True
         return (isinstance(other, Material)                                           and
-                self._mpact_specs.material_type == other._mpact_specs.material_type   and
+                self._mpact_specs == other._mpact_specs                               and
                 isclose(self.temperature, other.temperature, rel_tol=TOL)             and
                 self.number_densities.keys() == other.number_densities.keys()         and
                 all(isclose(self.number_densities[iso], other.number_densities[iso], rel_tol=TOL)
@@ -263,7 +275,7 @@ class Material():
         if self._cached_hash is None:
             number_densities = sorted((iso, relative_round(numd, TOL))
                                       for iso, numd in self.number_densities.items())
-            self._cached_hash = hash((self._mpact_specs.material_type,
+            self._cached_hash = hash((self._mpact_specs,
                                      relative_round(self.temperature, TOL),
                                      tuple(number_densities)))
         return self._cached_hash

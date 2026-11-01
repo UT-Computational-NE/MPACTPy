@@ -14,7 +14,7 @@ from mpactpy.assembly import Assembly
 from mpactpy.utils import list_to_str, unique_instances, is_rectangular, unique, process_parallel_work
 
 
-class Core():
+class Core():  # pylint: disable=too-many-public-methods
     """ Core of an MPACT model
 
     Parameters
@@ -192,6 +192,30 @@ class Core():
         self._pins       = unique(pin for module in self.modules for row in module.pin_map for pin in row)
         self._pinmeshes  = unique(pin.pinmesh for pin in self.pins)
         self._materials  = unique_instances(material for pin in self.pins for material in pin.materials)
+
+    def with_shared_materials(self, shared: Optional[Dict[Material, Material]] = None,
+                              exclude: Optional[List[Material]] = None) -> Core:
+        """Return a rebuilt core sharing materials with equal values and MPACT specifications.
+
+        Parameters
+        ----------
+        shared : Optional[Dict[Material, Material]]
+            The instance kept for each equivalent material. Missing materials are added.
+            If omitted, a new mapping is used for this operation.
+        exclude : Optional[List[Material]]
+            Materials equal to any entry retain their existing instances, even if
+            an equivalent material is already in shared. Defaults to no exclusions.
+
+        Returns
+        -------
+        Core
+            A rebuilt core preserving symmetry and empty assembly positions.
+            The supplied core and its child components are not modified.
+        """
+        if shared is None:
+            shared = {}
+        return Core([[assembly.with_shared_materials(shared, exclude) if assembly else None for assembly in row]
+                     for row in self.assembly_map], self.symmetry_opt, self.quarter_sym_opt)
 
     def __eq__(self, other: Any) -> bool:
         if self is other:

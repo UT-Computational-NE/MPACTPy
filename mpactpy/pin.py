@@ -331,13 +331,18 @@ class Pin():
         shared = {material: material for material in material_cache.values()}
         return Pin(self.pinmesh, new_materials).with_shared_materials(shared)
 
-    def with_shared_materials(self, shared: Dict[Material, Material]) -> Pin:
-        """ Method for rebuilding this Pin so that materials with the same composition are one instance
+    def with_shared_materials(self, shared: Optional[Dict[Material, Material]] = None,
+                              exclude: Optional[List[Material]] = None) -> Pin:
+        """ Method for rebuilding this Pin so that materials with equal values and MPACT specifications are one instance
 
         Parameters
         ----------
-        shared : Dict[Material, Material]
-            The instance kept for each composition.  Compositions not yet in it are added.
+        shared : Optional[Dict[Material, Material]]
+            The instance kept for each equivalent material. Missing materials are added.
+            If omitted, a new mapping is used for this operation.
+        exclude : Optional[List[Material]]
+            Materials equal to any entry retain their existing instances, even if
+            an equivalent material is already in shared. Defaults to no exclusions.
 
         Returns
         -------
@@ -345,7 +350,12 @@ class Pin():
             The rebuilt Pin
         """
 
-        return Pin(self.pinmesh, [shared.setdefault(material, material) for material in self.materials])
+        if shared is None:
+            shared = {}
+
+        exclude = exclude or []
+        return Pin(self.pinmesh, [material if material in exclude else shared.setdefault(material, material)
+                                  for material in self.materials])
 
 
 

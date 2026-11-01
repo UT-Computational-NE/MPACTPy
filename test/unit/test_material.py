@@ -1,4 +1,5 @@
 import pytest
+from dataclasses import FrozenInstanceError
 from math import isclose
 from concurrent.futures import ProcessPoolExecutor
 from multiprocessing import get_context
@@ -57,6 +58,17 @@ def test_material_initialization(material):
     numd["H1"] = 2e-3
     assert material.number_densities == {"H1": 1e-3}
 
+    replacements = {"C": "C_in_Graphite"}
+    specs = Material.MPACTSpecs(replacements)
+    replacements.clear()
+    assert specs.replace_isotopes == {"C": "C_in_Graphite"}
+    with pytest.raises(TypeError):
+        specs.replace_isotopes["C"] = "C"
+    with pytest.raises(FrozenInstanceError):
+        specs.is_fluid = True
+    with pytest.raises(FrozenInstanceError):
+        specs.material_type = 1
+
 def test_using_fission_products():
     specs = Material.MPACTSpecs(replace_isotopes = {"H": "H1_in_ZrH"},
                                 is_depletable    = True,
@@ -77,13 +89,22 @@ def test_using_fission_products():
 def test_material_equality(material, equal_material, unequal_material):
     assert material == equal_material
     assert material != unequal_material
+    plain = Material(material.temperature, dict(material.number_densities), Material.MPACTSpecs(is_fluid=True))
+    assert material != plain
 
 def test_material_hash(material, equal_material, unequal_material):
     assert hash(material) == hash(equal_material)
     assert hash(material) != hash(unequal_material)
     denser_material = Material(300.0, {"U235": 2e-3, "C": 4e-3}, Material.MPACTSpecs(is_fluid=True))
     assert hash(material) != hash(denser_material)
+    specs = Material.MPACTSpecs({"C": "C_in_Graphite", "H": "H1"})
+    reordered = Material.MPACTSpecs({"H": "H1", "C": "C_in_Graphite"})
+    assert specs == reordered
+    assert hash(specs) == hash(reordered)
+    plain = Material(material.temperature, dict(material.number_densities), Material.MPACTSpecs(is_fluid=True))
+    assert len({material, plain}) == 2
     equal_material.temperature = 600.0
+    assert equal_material._cached_hash is None
     assert hash(material) != hash(equal_material)
 
 def hash_material(material):
@@ -94,6 +115,9 @@ def test_material_hash_across_processes(material):
     with ProcessPoolExecutor(max_workers=1, mp_context=get_context("spawn")) as executor:
         returned_material = executor.submit(hash_material, material).result()
     assert hash(returned_material) == hash(material)
+    assert returned_material == material
+    with pytest.raises(TypeError):
+        returned_material.replace_isotopes["C"] = "C"
 
 def test_material_from_openmc_material():
     openmc_material = openmc.Material()
