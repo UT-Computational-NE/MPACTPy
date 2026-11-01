@@ -1,4 +1,5 @@
 import pytest
+from copy import deepcopy
 from math import isclose
 from numpy.testing import assert_allclose
 
@@ -71,6 +72,15 @@ def test_lattice_initialization(lattice, module):
 
     assert_allclose([lattice.pitch[i] for i in ['X','Y','Z']], [8., 8., 3.])
     assert all([m == module for row in lattice.module_map for m in row])
+
+    module_map = [[module, deepcopy(module)]]
+    separate = Lattice(module_map)
+    assert len(separate.materials) == 2
+    for shared in [Lattice(module_map, share_materials=True), separate.with_shared_materials()]:
+        assert len(shared.materials) == 1
+        assert shared.materials[0] is separate.materials[0]
+        assert all(material is shared.materials[0] for pin in shared.pins for material in pin.materials)
+    assert len(separate.materials) == 2
 
 def test_lattice_equality(lattice, equal_lattice, unequal_lattice):
     assert lattice == equal_lattice

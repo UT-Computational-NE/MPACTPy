@@ -1,4 +1,5 @@
 import pytest
+from copy import deepcopy
 from math import isclose
 from numpy.testing import assert_allclose
 
@@ -102,6 +103,15 @@ def test_core_initialization(core, assembly):
     assert len(core.pins)       == 1
     assert len(core.pinmeshes)  == 1
     assert len(core.materials)  == 1
+
+    assembly_map = [[assembly, deepcopy(assembly)]]
+    separate = Core(assembly_map)
+    assert len(separate.materials) == 2
+    for shared in [Core(assembly_map, share_materials=True), separate.with_shared_materials()]:
+        assert len(shared.materials) == 1
+        assert shared.materials[0] is separate.materials[0]
+        assert all(material is shared.materials[0] for pin in shared.pins for material in pin.materials)
+    assert len(separate.materials) == 2
 
 def test_core_equality(core, equal_core, unequal_core):
     assert core == equal_core

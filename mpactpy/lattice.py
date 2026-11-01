@@ -18,6 +18,11 @@ class Lattice():
     module_map : List[List[Module]]
         a 2-D array of modules
 
+    share_materials : bool
+        Share materials with equal compositions, temperatures, and MPACT specifications
+        throughout this component. Default: False (preserve separate instances).
+        Child components are rebuilt without modifying the supplied objects.
+
     Attributes
     ----------
     nx : int
@@ -91,7 +96,11 @@ class Lattice():
         return self._materials
 
 
-    def __init__(self, module_map: List[List[Module]]):
+    def __init__(self, module_map: List[List[Module]], share_materials: bool = False):
+
+        if share_materials:
+            shared = {}
+            module_map = [[module.with_shared_materials(shared) for module in row] for row in module_map]
 
         self._cached_hash = None
 
@@ -316,19 +325,23 @@ class Lattice():
         shared = {material: material for material in material_cache.values()}
         return Lattice([[module.with_shared_materials(shared) for module in row] for row in new_module_map])
 
-    def with_shared_materials(self, shared: Dict[Material, Material]) -> Lattice:
-        """ Method for rebuilding this Lattice so that materials with the same composition are one instance
+    def with_shared_materials(self, shared: Optional[Dict[Material, Material]] = None) -> Lattice:
+        """ Method for rebuilding this Lattice so that materials with equal values and MPACT specifications are one instance
 
         Parameters
         ----------
-        shared : Dict[Material, Material]
-            The instance kept for each composition.  Compositions not yet in it are added.
+        shared : Optional[Dict[Material, Material]]
+            The instance kept for each equivalent material. Missing materials are added.
+            If omitted, a new mapping is used for this operation.
 
         Returns
         -------
         Lattice
             The rebuilt Lattice
         """
+
+        if shared is None:
+            shared = {}
 
         return Lattice([[module.with_shared_materials(shared) for module in row] for row in self.module_map])
 

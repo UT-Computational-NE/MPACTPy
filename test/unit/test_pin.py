@@ -65,6 +65,18 @@ def test_pin_initialization(pin, pinmesh, material):
     assert pin.materials      == [material for _ in range(number_of_material_regions)]
     assert_allclose([pin.pitch[i] for i in ['X','Y','Z']], [2., 2., 3.])
 
+    materials = [material] + [deepcopy(material)] * (number_of_material_regions - 1)
+    separate = Pin(pinmesh, materials)
+    assert len(separate.unique_materials) == 2
+    for shared in [Pin(pinmesh, materials, share_materials=True), separate.with_shared_materials()]:
+        assert len(shared.unique_materials) == 1
+        assert all(mat is material for mat in shared.materials)
+    assert separate.materials[1] is materials[1]
+    assert len(separate.unique_materials) == 2
+    plain = Material(material.temperature, dict(material.number_densities), Material.MPACTSpecs(is_fluid=True))
+    distinct = Pin(pinmesh, [plain] + materials[1:], share_materials=True)
+    assert len(distinct.unique_materials) == 2
+
 def test_pin_equality(pin, equal_pin, unequal_pin, equal_material):
     assert pin == equal_pin
     assert pin != unequal_pin

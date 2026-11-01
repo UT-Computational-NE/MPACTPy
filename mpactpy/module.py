@@ -20,6 +20,11 @@ class Module():
         The 2-D array of pin.  This array is extruded
         nz times in the z-direction
 
+    share_materials : bool
+        Share materials with equal compositions, temperatures, and MPACT specifications
+        throughout this component. Default: False (preserve separate instances).
+        Child components are rebuilt without modifying the supplied objects.
+
     Attributes
     ----------
     nx : int
@@ -80,7 +85,11 @@ class Module():
     def materials(self) -> List[Material]:
         return self._materials
 
-    def __init__(self, nz: int, pin_map: List[List[Pin]]):
+    def __init__(self, nz: int, pin_map: List[List[Pin]], share_materials: bool = False):
+
+        if share_materials:
+            shared = {}
+            pin_map = [[pin.with_shared_materials(shared) for pin in row] for row in pin_map]
 
         self._cached_hash = None
 
@@ -320,19 +329,23 @@ class Module():
         shared = {material: material for material in material_cache.values()}
         return Module(1, [[pin.with_shared_materials(shared) for pin in row] for row in new_pin_map])
 
-    def with_shared_materials(self, shared: Dict[Material, Material]) -> Module:
-        """ Method for rebuilding this Module so that materials with the same composition are one instance
+    def with_shared_materials(self, shared: Optional[Dict[Material, Material]] = None) -> Module:
+        """ Method for rebuilding this Module so that materials with equal values and MPACT specifications are one instance
 
         Parameters
         ----------
-        shared : Dict[Material, Material]
-            The instance kept for each composition.  Compositions not yet in it are added.
+        shared : Optional[Dict[Material, Material]]
+            The instance kept for each equivalent material. Missing materials are added.
+            If omitted, a new mapping is used for this operation.
 
         Returns
         -------
         Module
             The rebuilt Module
         """
+
+        if shared is None:
+            shared = {}
 
         return Module(self.nz, [[pin.with_shared_materials(shared) for pin in row] for row in self.pin_map])
 

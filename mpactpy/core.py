@@ -14,7 +14,7 @@ from mpactpy.assembly import Assembly
 from mpactpy.utils import list_to_str, unique_instances, is_rectangular, unique, process_parallel_work
 
 
-class Core():
+class Core():  # pylint: disable=too-many-public-methods
     """ Core of an MPACT model
 
     Parameters
@@ -32,6 +32,10 @@ class Core():
         produces a mesh element with an axial height less than the minimum thickness,
         an error will be thrown.  This is meant as a failsafe for applications in which
         a minimum axial thickness is required.
+    share_materials : bool
+        Share materials with equal compositions, temperatures, and MPACT specifications
+        throughout the core. Default: False (preserve separate instances).
+        Child components are rebuilt without modifying the supplied objects.
 
     Attributes
     ----------
@@ -157,7 +161,13 @@ class Core():
                  assembly_map: List[List[Assembly]],
                  symmetry_opt: SymmetryOption = "",
                  quarter_sym_opt: QuarterSymmetryOption = "",
-                 min_thickness: float = 0.):
+                 min_thickness: float = 0.,
+                 share_materials: bool = False):
+
+        if share_materials:
+            shared = {}
+            assembly_map = [[assembly.with_shared_materials(shared) if assembly else None for assembly in row]
+                            for row in assembly_map]
 
         self._cached_hash = None
 
@@ -192,6 +202,26 @@ class Core():
         self._pins       = unique(pin for module in self.modules for row in module.pin_map for pin in row)
         self._pinmeshes  = unique(pin.pinmesh for pin in self.pins)
         self._materials  = unique_instances(material for pin in self.pins for material in pin.materials)
+
+    def with_shared_materials(self, shared: Optional[Dict[Material, Material]] = None) -> Core:
+        """Return a rebuilt core sharing materials with equal values and MPACT specifications.
+
+        Parameters
+        ----------
+        shared : Optional[Dict[Material, Material]]
+            The instance kept for each equivalent material. Missing materials are added.
+            If omitted, a new mapping is used for this operation.
+
+        Returns
+        -------
+        Core
+            A rebuilt core preserving symmetry and empty assembly positions.
+            The supplied core and its child components are not modified.
+        """
+        if shared is None:
+            shared = {}
+        return Core([[assembly.with_shared_materials(shared) if assembly else None for assembly in row]
+                     for row in self.assembly_map], self.symmetry_opt, self.quarter_sym_opt)
 
     def __eq__(self, other: Any) -> bool:
         if self is other:
