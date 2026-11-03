@@ -29,7 +29,7 @@ def equal_material():
                                is_depletable    = False,
                                has_resonance    = False,
                                is_fuel          = False)
-    return Material(temp, numd, spec)
+    return Material(temp, numd, spec, name="UO2 4 wt%")
 
 @pytest.fixture
 def unequal_material():
@@ -57,6 +57,10 @@ def test_material_initialization(material):
     material   = Material(300.0, numd)
     numd["H1"] = 2e-3
     assert material.number_densities == {"H1": 1e-3}
+
+    for name in ["1Fuel", "Éau", "f", "G/CC", "at%", "Fuel\t1", "Fuel \"1\"", "Fuel\\1", "Fuel!1"]:
+        with pytest.raises(AssertionError):
+            Material(300.0, {"H1": 1e-3}, name=name)
 
 def test_using_fission_products():
     specs = Material.MPACTSpecs(replace_isotopes = {"H": "H1_in_ZrH"},
@@ -130,10 +134,10 @@ def test_material_write_to_string(material):
 
     specs              = Material.MPACTSpecs({"C": "C_in_Graphite"}, is_fluid=True)
     comments           = {None: Comments(["MODERATOR"], "graphite"), "C_in_Graphite": Comments(inline="C-nat")}
-    commented_material = Material(300.0, {"U235": 1e-3, "C": 2e-3}, specs, comments=comments)
+    commented_material = Material(300.0, {"U235": 1e-3, "C": 2e-3}, specs, name="Graphite moderator", comments=comments)
     output = commented_material.write_to_string(prefix="  ", mpact_ids={id(commented_material): "42"})
     expected_output = ( "  !MODERATOR\n"
-                       f"  mat 42 1 {expected_density} g/cc 300.0 K \\ !graphite\n"
+                       f"  mat 42 1 \"Graphite moderator\" {expected_density} g/cc 300.0 K \\ !graphite\n"
                         "    6001 0.002 !C-nat\n"
                         "    92235 0.001\n")
     assert output == expected_output
@@ -173,22 +177,22 @@ def test_material_temperature_units():
     assert output == expected_output
 
 def test_material_percents():
-    material = Material(293.15, percents={"H1": 2.0, "O16": 1.0}, percent_unit="at%", density=1.0)
+    material = Material(293.15, percents={"H1": 2.0, "O16": 1.0}, percent_unit="at%", density=1.0, name="Water")
     assert isclose(material.number_densities["H1"],  6.687342530e-2, rel_tol=TOL)
     assert isclose(material.number_densities["O16"], 3.343671265e-2, rel_tol=TOL)
 
     output = material.write_to_string(prefix="  ")
-    expected_output = ("  mat 1 0 1.0 g/cc 293.15 K (at%) \\\n"
+    expected_output = ("  mat 1 0 Water 1.0 g/cc 293.15 K (at%) \\\n"
                        "    1001 2.0\n"
                        "    8016 1.0\n")
     assert output == expected_output
 
-    material = Material(293.15, percents={"H1": 11.19, "O16": 88.81}, percent_unit="WT%", density=1.0)
+    material = Material(293.15, percents={"H1": 11.19, "O16": 88.81}, percent_unit="WT%", density=1.0, name="Light water")
     assert isclose(material.number_densities["H1"],  6.686453796e-2, rel_tol=TOL)
     assert isclose(material.number_densities["O16"], 3.343727263e-2, rel_tol=TOL)
 
     output = material.write_to_string(prefix="  ")
-    expected_output = ("  mat 1 0 1.0 g/cc 293.15 K (wt%) \\\n"
+    expected_output = ("  mat 1 0 \"Light water\" 1.0 g/cc 293.15 K (wt%) \\\n"
                        "    1001 11.19\n"
                        "    8016 88.81\n")
     assert output == expected_output
