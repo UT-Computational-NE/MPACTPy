@@ -1,8 +1,9 @@
 from __future__ import annotations
-from typing import Dict, List, Optional, Any, Tuple, Union
+from typing import Dict, List, Mapping, Optional, Any, Tuple, Union
 from dataclasses import dataclass, field, replace
 from collections import defaultdict
 from math import isclose
+from types import MappingProxyType
 
 import numpy as np
 import openmc
@@ -45,8 +46,8 @@ class Material():
         The temperature (K)
     temperature_unit : str
         The unit the temperature is written in
-    number_densities : Dict[str, float]
-        The isotopic number densities (atoms/b-cm)
+    number_densities : Mapping[str, float]
+        The isotopic number densities (atoms/b-cm), read-only
         (key: isotope ID, value: number density)
     percents : Optional[Dict[str, float]]
         The isotopic percents the material was given in, if any
@@ -166,6 +167,7 @@ class Material():
     def temperature(self, temperature: float) -> None:
         assert temperature > 0., f"temperature = {temperature}"
         self._temperature = temperature
+        self._cached_hash = None
         if None in self._comments:
             self._comments = self._comments | {None: replace(self._comments[None], inline=None)}
 
@@ -186,8 +188,8 @@ class Material():
         return self._percent_unit
 
     @property
-    def number_densities(self) -> Dict[str, float]:
-        return self._number_densities
+    def number_densities(self) -> Mapping[str, float]:
+        return MappingProxyType(self._number_densities)
 
     @property
     def replace_isotopes(self) -> Dict[str, str]:
@@ -241,7 +243,7 @@ class Material():
             assert density is None, f"density = {density}, expected None with number_densities"
             assert all(number_dens >= 0. for number_dens in number_densities.values()), \
                 f"number_densities = {number_densities}"
-            self._number_densities = number_densities
+            self._number_densities = dict(number_densities)
             self._density          = sum(num_dens * 1e24 * atomic_mass(iso) / AVOGADRO
                                          for iso, num_dens in number_densities.items())
         else:
@@ -583,7 +585,7 @@ class Material():
 
         return ZZZAAAI
 
-    def write_to_string(self, prefix: str = "", mpact_ids: Dict[Material, int] = None) -> str:
+    def write_to_string(self, prefix: str = "", mpact_ids: Dict[int, int] = None) -> str:
         """ Method for writing the material to a string
 
         It should be noted that this method will only write out those elements / isotopes
@@ -600,8 +602,8 @@ class Material():
         ----------
         prefix : str
             A prefix with which to start each line of the written output string
-        mpact_ids : Dict[Material, int]
-            A collection of Materials and their corresponding MPACT IDs
+        mpact_ids : Dict[int, int]
+            The MPACT IDs of the Materials, keyed by the id() of each Material
 
         Returns
         -------
@@ -630,7 +632,7 @@ class Material():
             f"comments = {self.comments}, expected keys None or written isotope IDs after replacements"
 
         unit_tag = "" if self.percents is None else f" ({self.percent_unit})"
-        mpact_id = 1 if mpact_ids is None else mpact_ids[self]
+        mpact_id = 1 if mpact_ids is None else mpact_ids[id(self)]
         string = write_line(prefix, f"mat {mpact_id} {self._mpact_specs.material_type} "
                                     f"{self.density} g/cc {temperature} {self._temperature_unit}{unit_tag} \\",
                             self.comments.get(None))

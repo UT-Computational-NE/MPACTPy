@@ -295,6 +295,24 @@ def unique(elements: List[T]) -> List[T]:
     return list(dict.fromkeys(elements))
 
 
+def unique_instances(elements: List[T]) -> List[T]:
+    """ Function for extracting the unique instances of a list while preserving the original order of the elements
+
+    Unlike unique, elements that are equal but are different instances are all kept.
+
+    Parameters
+    ----------
+    elements : List[T]
+        The list of elements from which the unique instances will be identified
+
+    Returns
+    -------
+    List[T]
+        The list of unique instances
+    """
+    return list({id(element): element for element in elements}.values())
+
+
 def is_rectangular(map_2D: List[List[T]]) -> bool:
     """ A helper function for checking whether or not a 2D map of elements is rectangular or not
 

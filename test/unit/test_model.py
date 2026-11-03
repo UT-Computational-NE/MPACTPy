@@ -51,7 +51,7 @@ def test_model_hash(model, equal_model, unequal_model):
     assert hash(model) == hash(equal_model)
     assert hash(model) != hash(unequal_model)
 
-def test_model_write_to_string(model, material):
+def test_model_write_to_string(model, pinmesh, material, equal_material):
     output = model.write_to_string(caseid="test", indent=2)
     expected_output = \
 f"""CASEID test
@@ -95,6 +95,12 @@ OPTION
 
 """
     assert output == expected_output
+
+    pins   = [Pin(pinmesh, [m] * pinmesh.number_of_material_regions) for m in [material, equal_material]]
+    core   = Core([[Assembly([Lattice([[Module(1, [pins])]])])]])
+    output = Model(core, [{"power": "0.0"}], {"xslib": "ORNL mpact_lib.fmt"}, {}).write_to_string(caseid="test", indent=2)
+    assert output.count("  mat ") == 2
+    assert "  pin 1 1 / 1 1 1 1 1 1 1 1 1\n  pin 2 1 / 2 2 2 2 2 2 2 2 2\n" in output
 
 
 def test_model_key_value_blocks(core, material):

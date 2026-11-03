@@ -7,7 +7,7 @@ import openmc
 from mpactpy.module import PinMesh, Module
 from mpactpy.pin import Pin
 from mpactpy.material import Material
-from mpactpy.utils import list_to_str, is_rectangular, unique, process_parallel_work
+from mpactpy.utils import list_to_str, unique_instances, is_rectangular, unique, process_parallel_work
 
 
 class Lattice():
@@ -117,7 +117,7 @@ class Lattice():
         self._modules   = unique([module for row in self.module_map for module in row])
         self._pins      = unique([pin for module in self.modules for pin in module.pins])
         self._pinmeshes = unique([pin.pinmesh for pin in self.pins])
-        self._materials = unique([material for pin in self.pins for material in pin.unique_materials])
+        self._materials = unique_instances([material for pin in self.pins for material in pin.unique_materials])
 
     def __eq__(self, other: Any) -> bool:
         if self is other:
