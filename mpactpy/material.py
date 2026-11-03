@@ -1,8 +1,9 @@
 from __future__ import annotations
-from typing import Dict, List, Optional, Any, Tuple, Union
+from typing import Dict, List, Mapping, Optional, Any, Tuple, Union
 from dataclasses import dataclass, field
 from collections import defaultdict
 from math import isclose
+from types import MappingProxyType
 
 import numpy as np
 import openmc
@@ -33,20 +34,25 @@ class Material():
         The unit of the percents, in any case: 'at%' for atom percent (default) or 'wt%' for weight percent
     density : float
         The density (g/cc). Required with `percents`, otherwise computed from `number_densities`.
+    name : Optional[str]
+        The material name, written in double quotes if it has a space. It must start with an ASCII letter,
+        not be a unit string, and contain no '"', '\\', '!' or whitespace other than spaces.
     comments : Dict[Optional[str], Comments]
         The comments of each line of the `mat` card
         (key: None for the `mat` line, else the isotope ID after replacements, e.g. 'H1')
 
     Attributes
     ----------
+    name : Optional[str]
+        The material name, if any
     density : float
         The density (g/cc)
     temperature : float
         The temperature (K)
     temperature_unit : str
         The unit the temperature is written in
-    number_densities : Dict[str, float]
-        The isotopic number densities (atoms/b-cm)
+    number_densities : Mapping[str, float]
+        The isotopic number densities (atoms/b-cm), read-only
         (key: isotope ID, value: number density)
     percents : Optional[Dict[str, float]]
         The isotopic percents the material was given in, if any
@@ -155,6 +161,10 @@ class Material():
             )
 
     @property
+    def name(self) -> Optional[str]:
+        return self._name
+
+    @property
     def density(self) -> float:
         return self._density
 
@@ -166,6 +176,7 @@ class Material():
     def temperature(self, temperature: float) -> None:
         assert temperature > 0., f"temperature = {temperature}"
         self._temperature = temperature
+        self._cached_hash = None
         self._comments    = drop_inline(self._comments)
 
     @property
@@ -185,8 +196,8 @@ class Material():
         return self._percent_unit
 
     @property
-    def number_densities(self) -> Dict[str, float]:
-        return self._number_densities
+    def number_densities(self) -> Mapping[str, float]:
+        return MappingProxyType(self._number_densities)
 
     @property
     def replace_isotopes(self) -> Dict[str, str]:
@@ -216,6 +227,7 @@ class Material():
                  percents:                    Dict[str, float] = None,
                  percent_unit:                str = "at%",
                  density:                     float = None,
+                 name:                        Optional[str] = None,
                  comments:                    Dict[Optional[str], Comments] = None,
     ):
 
@@ -225,7 +237,12 @@ class Material():
             f"number_densities = {number_densities}, percents = {percents}, expected exactly one"
         assert temperature_unit.upper() in MPACT_TEMPERATURE_UNITS, f"temperature_unit = {temperature_unit}"
         assert percent_unit.lower() in MPACT_PERCENT_UNITS, f"percent_unit = {percent_unit}"
+        assert name is None or (name[:1].isascii() and name[:1].isalpha() and
+                                name.upper() not in MPACT_UNIT_STRINGS    and
+                                name.isprintable()                        and
+                                not any(char in name for char in '"\\!')), f"name = {name}"
 
+        self._name             = name
         self._temperature_unit = temperature_unit.upper()
         offset, scale          = MPACT_TEMPERATURE_UNITS[self._temperature_unit]
         self._temperature      = (temperature + offset) * scale
@@ -240,7 +257,7 @@ class Material():
             assert density is None, f"density = {density}, expected None with number_densities"
             assert all(number_dens >= 0. for number_dens in number_densities.values()), \
                 f"number_densities = {number_densities}"
-            self._number_densities = number_densities
+            self._number_densities = dict(number_densities)
             self._density          = sum(num_dens * 1e24 * atomic_mass(iso) / AVOGADRO
                                          for iso, num_dens in number_densities.items())
         else:
@@ -582,7 +599,7 @@ class Material():
 
         return ZZZAAAI
 
-    def write_to_string(self, prefix: str = "", mpact_ids: Dict[Material, int] = None) -> str:
+    def write_to_string(self, prefix: str = "", mpact_ids: Dict[int, int] = None) -> str:
         """ Method for writing the material to a string
 
         It should be noted that this method will only write out those elements / isotopes
@@ -599,8 +616,8 @@ class Material():
         ----------
         prefix : str
             A prefix with which to start each line of the written output string
-        mpact_ids : Dict[Material, int]
-            A collection of Materials and their corresponding MPACT IDs
+        mpact_ids : Dict[int, int]
+            The MPACT IDs of the Materials, keyed by the id() of each Material
 
         Returns
         -------
@@ -627,8 +644,10 @@ class Material():
         assert_keys_written(self.comments, mpact_composition.keys() & MPACT_SUPPORTED_ISOTOPE_IDS.keys())
 
         unit_tag = "" if self.percents is None else f" ({self.percent_unit})"
-        mpact_id = 1 if mpact_ids is None else mpact_ids[self]
-        string = write_line(prefix, f"mat {mpact_id} {self._mpact_specs.material_type} "
+        mpact_id = 1 if mpact_ids is None else mpact_ids[id(self)]
+        quote    = '"' if self.name is not None and " " in self.name else ""
+        name_tag = "" if self.name is None else f"{quote}{self.name}{quote} "
+        string = write_line(prefix, f"mat {mpact_id} {self._mpact_specs.material_type} {name_tag}"
                                     f"{self.density} g/cc {temperature} {self._temperature_unit}{unit_tag} \\",
                             self.comments.get(None))
 
@@ -658,6 +677,11 @@ MPACT_TEMPERATURE_UNITS = {"K": (0.,     1.),
 # MPACT units for compositions given in percents
 # "MPACT Native Input User's Manual", Version 4.4, Section 4.5.1 pg 28
 MPACT_PERCENT_UNITS = ["at%", "wt%"]
+
+
+# MPACT unit strings, which a material name must not be
+# "MPACT Native Input User's Manual", Version 4.4, Section 4.5.1 pg 27-28
+MPACT_UNIT_STRINGS = [*MPACT_TEMPERATURE_UNITS, "G/CC", *(unit.upper() for unit in MPACT_PERCENT_UNITS)]
 
 
 # Isotopes with distinct MPACT IDs when present as fission products
