@@ -174,6 +174,11 @@ def test_pin_overlay(openmc_pin, template_pin, template_material, overlay_materi
     expected_pin = overlay_pin
     assert pin == expected_pin
 
+    given = [deepcopy(template_material)] * 9 + [deepcopy(overlay_pin.materials[0])] * 9
+    pin   = Pin(template_pin.pinmesh, given + template_pin.materials[18:]).overlay(geometry, offset, include_only,
+                                                                                 overlay_policy, overlay_material_cache)
+    assert pin == Pin(template_pin.pinmesh, given + overlay_pin.materials[18:])
+
 
 def test_build_gcyl_pin(material):
     pin = build_gcyl_pin(bounds                  = (-2.5, 2.5, -2.5, 2.5),

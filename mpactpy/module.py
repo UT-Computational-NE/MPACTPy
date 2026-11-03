@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List, Any, TypedDict, Tuple, Optional
+from typing import Dict, List, Any, TypedDict, Tuple, Optional, Set
 from math import isclose
 
 import openmc
@@ -310,7 +310,8 @@ class Module():
                                               num_module_procs,
                                               geometry,
                                               child_policy,
-                                              material_cache)
+                                              material_cache,
+                                              instances = self.materials + list(material_cache.values()))
 
         # Reconstruct the pin map with overlaid pins
         new_pin_map = [row[:] for row in self.pin_map]
@@ -318,15 +319,18 @@ class Module():
             new_pin_map[i][j] = overlaid
 
         shared = {material: material for material in material_cache.values()}
-        return Module(1, [[pin.with_shared_materials(shared) for pin in row] for row in new_pin_map])
+        kept   = {id(material) for material in self.materials}
+        return Module(1, [[pin.with_shared_materials(shared, kept) for pin in row] for row in new_pin_map])
 
-    def with_shared_materials(self, shared: Dict[Material, Material]) -> Module:
-        """ Method for rebuilding this Module so that materials with the same composition are one instance
+    def with_shared_materials(self, shared: Dict[Material, Material], kept: Set[int]) -> Module:
+        """ Method for rebuilding this Module so that the materials not kept are one instance per composition
 
         Parameters
         ----------
         shared : Dict[Material, Material]
             The instance kept for each composition.  Compositions not yet in it are added.
+        kept : Set[int]
+            The id() of each Material that keeps its own instance
 
         Returns
         -------
@@ -334,7 +338,7 @@ class Module():
             The rebuilt Module
         """
 
-        return Module(self.nz, [[pin.with_shared_materials(shared) for pin in row] for row in self.pin_map])
+        return Module(self.nz, [[pin.with_shared_materials(shared, kept) for pin in row] for row in self.pin_map])
 
     @staticmethod
     def _process_pin_chunk(pin_chunk, geometry, child_policy, material_cache):

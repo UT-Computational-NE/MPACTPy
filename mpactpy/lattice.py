@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List, Any, TypedDict, Tuple, Optional
+from typing import Dict, List, Any, TypedDict, Tuple, Optional, Set
 from math import isclose
 
 import openmc
@@ -306,7 +306,8 @@ class Lattice():
                                                  num_lattice_procs,
                                                  geometry,
                                                  child_policy,
-                                                 material_cache)
+                                                 material_cache,
+                                                 instances = self.materials + list(material_cache.values()))
 
         # Reconstruct the module map with overlaid modules
         new_module_map = [row[:] for row in self.module_map]
@@ -314,15 +315,18 @@ class Lattice():
             new_module_map[i][j] = overlaid
 
         shared = {material: material for material in material_cache.values()}
-        return Lattice([[module.with_shared_materials(shared) for module in row] for row in new_module_map])
+        kept   = {id(material) for material in self.materials}
+        return Lattice([[module.with_shared_materials(shared, kept) for module in row] for row in new_module_map])
 
-    def with_shared_materials(self, shared: Dict[Material, Material]) -> Lattice:
-        """ Method for rebuilding this Lattice so that materials with the same composition are one instance
+    def with_shared_materials(self, shared: Dict[Material, Material], kept: Set[int]) -> Lattice:
+        """ Method for rebuilding this Lattice so that the materials not kept are one instance per composition
 
         Parameters
         ----------
         shared : Dict[Material, Material]
             The instance kept for each composition.  Compositions not yet in it are added.
+        kept : Set[int]
+            The id() of each Material that keeps its own instance
 
         Returns
         -------
@@ -330,7 +334,7 @@ class Lattice():
             The rebuilt Lattice
         """
 
-        return Lattice([[module.with_shared_materials(shared) for module in row] for row in self.module_map])
+        return Lattice([[module.with_shared_materials(shared, kept) for module in row] for row in self.module_map])
 
     @staticmethod
     def _process_module_chunk(module_chunk, geometry, child_policy, material_cache):
