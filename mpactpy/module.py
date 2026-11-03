@@ -6,7 +6,7 @@ import openmc
 
 from mpactpy.pin import Pin, PinMesh
 from mpactpy.material import Material
-from mpactpy.utils import list_to_str, is_rectangular, unique, process_parallel_work
+from mpactpy.utils import list_to_str, unique_instances, is_rectangular, unique, process_parallel_work
 
 
 class Module():
@@ -106,7 +106,7 @@ class Module():
 
         self._pins      = unique([pin for row in self.pin_map for pin in row])
         self._pinmeshes = unique([pin.pinmesh for pin in self.pins])
-        self._materials = unique([material for pin in self.pins for material in pin.unique_materials])
+        self._materials = unique_instances([material for pin in self.pins for material in pin.unique_materials])
 
 
     def __eq__(self, other: Any) -> bool:

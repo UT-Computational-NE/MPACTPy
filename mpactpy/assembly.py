@@ -8,7 +8,7 @@ from mpactpy.lattice import PinMesh, Lattice
 from mpactpy.module import Module
 from mpactpy.pin import Pin
 from mpactpy.material import Material
-from mpactpy.utils import list_to_str, unique, process_parallel_work
+from mpactpy.utils import list_to_str, unique_instances, unique, process_parallel_work
 
 
 class Assembly():
@@ -129,7 +129,7 @@ class Assembly():
         self._modules   = unique([module for lattice in self.lattices for module in lattice.modules])
         self._pins      = unique([pin for module in self.modules for pin in module.pins])
         self._pinmeshes = unique([pin.pinmesh for pin in self.pins])
-        self._materials = unique([material for pin in self.pins for material in pin.unique_materials])
+        self._materials = unique_instances([material for pin in self.pins for material in pin.unique_materials])
 
     def __eq__(self, other: Any) -> bool:
         if self is other:

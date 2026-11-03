@@ -49,6 +49,13 @@ def test_material_initialization(material):
     assert isclose(material.temperature, 300.0)
     assert material.number_densities == {"U235": 1e-3, "C": 2e-3}
     assert material.replace_isotopes == {"C" : "C_in_Graphite"}
+    with pytest.raises(TypeError):
+        material.number_densities["U235"] = 2e-3
+
+    numd       = {"H1": 1e-3}
+    material   = Material(300.0, numd)
+    numd["H1"] = 2e-3
+    assert material.number_densities == {"H1": 1e-3}
 
     for name in ["1Fuel", "Éau", "f", "G/CC", "at%", "Fuel\t1", "Fuel \"1\"", "Fuel\\1", "Fuel!1"]:
         with pytest.raises(AssertionError):
@@ -80,6 +87,8 @@ def test_material_hash(material, equal_material, unequal_material):
     assert hash(material) != hash(unequal_material)
     denser_material = Material(300.0, {"U235": 2e-3, "C": 4e-3}, Material.MPACTSpecs(is_fluid=True))
     assert hash(material) != hash(denser_material)
+    equal_material.temperature = 600.0
+    assert hash(material) != hash(equal_material)
 
 def hash_material(material):
     hash(material)
@@ -116,7 +125,7 @@ def test_isotope_MPACT_ID():
 def test_material_write_to_string(material):
     expected_density = sum(num_dens * 1e24 * atomic_mass(iso) / AVOGADRO
                            for iso, num_dens in material.number_densities.items())
-    output = material.write_to_string(prefix="  ", mpact_ids={material: "42"})
+    output = material.write_to_string(prefix="  ", mpact_ids={id(material): "42"})
     expected_output = (f"  mat 42 1 {expected_density} g/cc 300.0 K \\\n"
                         "    6001 0.002\n"
                         "    92235 0.001\n")
