@@ -1,6 +1,6 @@
 from __future__ import annotations
-from typing import List, Optional
-from dataclasses import dataclass, field
+from typing import Any, Collection, Dict, List, Optional
+from dataclasses import dataclass, field, replace
 
 
 @dataclass
@@ -46,3 +46,37 @@ def write_line(prefix: str, line: str, comments: Optional[Comments]) -> str:
     string = "".join(prefix + f"!{text}\n" for text in comments.leading)
     inline = "" if comments.inline is None else f" !{comments.inline}"
     return string + prefix + line + inline + "\n"
+
+
+def drop_inline(comments: Dict[Any, Comments]) -> Dict[Any, Comments]:
+    """ Function for dropping the inline comment of a card line, as when the line's value changes
+
+    Parameters
+    ----------
+    comments : Dict[Any, Comments]
+        The comments of each line of the card (key: None for the card line)
+
+    Returns
+    -------
+    Dict[Any, Comments]
+        The comments without the card line's inline comment, in a new dict if it had one
+    """
+
+    if None not in comments:
+        return comments
+    return comments | {None: replace(comments[None], inline=None)}
+
+
+def assert_keys_written(comments: Dict[Any, Comments], lines: Collection[Any]) -> None:
+    """ Function for asserting that every comment of a card belongs to a line that is written
+
+    Parameters
+    ----------
+    comments : Dict[Any, Comments]
+        The comments of each line of the card (key: None for the card line)
+    lines : Collection[Any]
+        The keys of the other lines that are written
+    """
+
+    assert all(key is None or key in lines for key in comments), \
+        f"comments = {comments}, expected keys None or {list(lines)}"

@@ -4,7 +4,7 @@ from numpy.testing import assert_allclose
 
 import openmc
 
-from mpactpy import build_rec_pin, PinMesh, Pin, Module, Lattice, Assembly, Core
+from mpactpy import build_rec_pin, PinMesh, Pin, Module, Lattice, Assembly, Core, Comments
 from test.unit.test_material import material, equal_material, unequal_material
 from test.unit.test_pinmesh import general_cylindrical_pinmesh as pinmesh,\
                                    equal_general_cylindrical_pinmesh as equal_pinmesh,\
@@ -103,6 +103,10 @@ def test_core_initialization(core, assembly):
     assert len(core.pinmeshes)  == 1
     assert len(core.materials)  == 1
 
+    first_pin  = Pin(core.pins[0].pinmesh, core.pins[0].materials, {None: Comments(inline="first")})
+    first_core = Core([[Assembly([Lattice([[Module(1, [[first_pin, core.pins[0]]])]])])]])
+    assert first_core.pins[0].comments == {None: Comments(inline="first")}
+
 def test_core_equality(core, equal_core, unequal_core):
     assert core == equal_core
     assert core != unequal_core
@@ -137,6 +141,21 @@ def test_core_write_to_string(core, assembly):
     assert core.nx == 5
     assert core.ny == 5
 
+    comments       = {None: Comments(["CORE SYMMETRY"], "TRIGA"), 2: Comments(inline="M")}
+    commented_core = Core(core.assembly_map, comments=comments)
+    output = commented_core.write_to_string(prefix="  ", assembly_mpact_ids={assembly: 3})
+    expected_output = ("  !CORE SYMMETRY\n"
+                       "  core !TRIGA\n"
+                       "      3\n"
+                       "    3 3 3 !M\n"
+                       "      3\n")
+    assert output == expected_output
+
+    commented_core.comments[0] = Comments()
+    assert 0 not in comments
+    with pytest.raises(AssertionError):
+        commented_core.write_to_string(assembly_mpact_ids={assembly: 3})
+
 def test_core_get_axial_slice(core):
     core_slice = core.get_axial_slice(0.5, 1.5)
     pin_slice  = core_slice.pins[-1]
@@ -158,11 +177,11 @@ def test_core_axial_mesh_unionization(material):
     mod_2 = Module(1, [[pin_2]])
     lat_1 = Lattice([[mod_1]])
     lat_2 = Lattice([[mod_2]])
-    asy_1 = Assembly([lat_1])
+    asy_1 = Assembly([lat_1], {None: Comments(inline="tall")})
     asy_2 = Assembly([lat_2, lat_2, lat_2, lat_2])
 
     core = Core([[asy_1, asy_2],
-                 [asy_1, asy_1,]])
+                 [asy_1, asy_1,]], comments={None: Comments(inline="TRIGA")})
 
     assert core.nx == 2
     assert core.ny == 2
@@ -176,6 +195,8 @@ def test_core_axial_mesh_unionization(material):
     assert len(core.pins)       == 1
     assert len(core.pinmeshes)  == 1
     assert len(core.materials)  == 1
+    assert core.assemblies[0].comments == {}
+    assert core.comments == {None: Comments(inline="TRIGA")}
 
 def test_core_with_height(core, core_2D):
     new_core = core_2D.with_height(3.0)
